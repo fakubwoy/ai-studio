@@ -1,0 +1,226 @@
+{
+  "Necklace": {
+    "description": "Neck jewellery worn around the neck",
+    "templates": [
+      {
+        "name": "Choker",
+        "placement": "sits tight around the neck base",
+        "size_hint": "35-41cm, sits at throat level",
+        "model_pose": "front-facing, chin slightly up"
+      },
+      {
+        "name": "Princess",
+        "placement": "rests on collarbone",
+        "size_hint": "43-50cm, at collarbone",
+        "model_pose": "front-facing, natural posture"
+      },
+      {
+        "name": "Matinee",
+        "placement": "falls between collarbone and bust",
+        "size_hint": "50-60cm, mid-chest",
+        "model_pose": "slight three-quarter turn"
+      },
+      {
+        "name": "Opera",
+        "placement": "long chain reaching sternum/below bust",
+        "size_hint": "70-90cm, below bust",
+        "model_pose": "slight lean, three-quarter view"
+      },
+      {
+        "name": "Rope/Lariat",
+        "placement": "very long, can be looped",
+        "size_hint": "90cm+, can be doubled",
+        "model_pose": "full body, artistic drape"
+      }
+    ]
+  },
+  "Earrings": {
+    "description": "Ear jewellery",
+    "templates": [
+      {
+        "name": "Stud",
+        "placement": "sits flush on earlobe",
+        "size_hint": "4-10mm diameter, at earlobe center",
+        "model_pose": "three-quarter face turn, hair swept back"
+      },
+      {
+        "name": "Hoop",
+        "placement": "circular ring through earlobe",
+        "size_hint": "20-50mm diameter, hanging from lobe",
+        "model_pose": "profile or three-quarter, hair back"
+      },
+      {
+        "name": "Drop/Dangle",
+        "placement": "hangs below earlobe",
+        "size_hint": "3-7cm drop from lobe",
+        "model_pose": "three-quarter turn, head slightly tilted"
+      },
+      {
+        "name": "Chandelier",
+        "placement": "multi-tier dramatic drop",
+        "size_hint": "5-10cm elaborate drop",
+        "model_pose": "face forward, chin up, hair pinned up"
+      },
+      {
+        "name": "Huggie",
+        "placement": "hugs the earlobe closely",
+        "size_hint": "10-15mm, close to lobe",
+        "model_pose": "close profile shot"
+      }
+    ]
+  },
+  "Ring": {
+    "description": "Finger jewellery",
+    "templates": [
+      {
+        "name": "Solitaire",
+        "placement": "single stone on band",
+        "size_hint": "standard ring width 2-4mm, stone 5-8mm",
+        "model_pose": "hand extended forward, fingers spread"
+      },
+      {
+        "name": "Cocktail/Statement",
+        "placement": "large decorative ring",
+        "size_hint": "wide band or large stone 10-20mm",
+        "model_pose": "hand raised, fingers elegantly spread"
+      },
+      {
+        "name": "Band",
+        "placement": "simple flat band",
+        "size_hint": "2-8mm width, flat profile",
+        "model_pose": "hand natural, slight angle"
+      },
+      {
+        "name": "Eternity Band",
+        "placement": "stones all around band",
+        "size_hint": "2-4mm band with continuous stones",
+        "model_pose": "hand angled showing full band"
+      },
+      {
+        "name": "Stackable",
+        "placement": "thin ring meant to stack",
+        "size_hint": "1-2mm ultra thin band",
+        "model_pose": "multiple fingers showing stack"
+      }
+    ]
+  },
+  "Bracelet": {
+    "description": "Wrist jewellery",
+    "templates": [
+      {
+        "name": "Tennis Bracelet",
+        "placement": "delicate in-line stones around wrist",
+        "size_hint": "17-19cm circumference, 3-5mm wide",
+        "model_pose": "wrist extended, arm slightly bent"
+      },
+      {
+        "name": "Bangle",
+        "placement": "rigid circular bracelet",
+        "size_hint": "60-65mm inner diameter, rigid",
+        "model_pose": "arm raised, wrist turned outward"
+      },
+      {
+        "name": "Cuff",
+        "placement": "open-ended wide bracelet",
+        "size_hint": "wide 2-5cm, open at back",
+        "model_pose": "forearm forward, wrist turned"
+      },
+      {
+        "name": "Charm Bracelet",
+        "placement": "chain with hanging charms",
+        "size_hint": "18-20cm chain, charms vary",
+        "model_pose": "wrist at angle showing charms"
+      },
+      {
+        "name": "Chain Bracelet",
+        "placement": "delicate chain around wrist",
+        "size_hint": "17-20cm chain, 1-3mm links",
+        "model_pose": "wrist forward, fingers relaxed"
+      }
+    ]
+  },
+  "Anklet": {
+    "description": "Ankle jewellery",
+    "templates": [
+      {
+        "name": "Delicate Chain",
+        "placement": "thin chain around ankle",
+        "size_hint": "22-25cm, fine chain",
+        "model_pose": "leg extended, bare ankle visible"
+      },
+      {
+        "name": "Beaded",
+        "placement": "beaded chain on ankle",
+        "size_hint": "23-26cm, bead sizes vary",
+        "model_pose": "seated or standing, bare ankle"
+      },
+      {
+        "name": "Charm Anklet",
+        "placement": "chain with small charms",
+        "size_hint": "22-26cm with dangling charms",
+        "model_pose": "walking pose or seated showing anklet"
+      }
+    ]
+  },
+  "Brooch": {
+    "description": "Pin/brooch for garments",
+    "templates": [
+      {
+        "name": "Lapel Pin",
+        "placement": "pinned to jacket lapel",
+        "size_hint": "2-3cm, left chest lapel",
+        "model_pose": "three-quarter turn, jacket visible"
+      },
+      {
+        "name": "Scarf Pin",
+        "placement": "holds scarf in place",
+        "size_hint": "3-6cm, at scarf knot",
+        "model_pose": "facing forward, scarf draped"
+      },
+      {
+        "name": "Statement Brooch",
+        "placement": "large decorative chest piece",
+        "size_hint": "5-10cm, upper chest area",
+        "model_pose": "front facing, upper body shot"
+      }
+    ]
+  },
+  "Jewellery Set": {
+    "description": "A complete matching jewellery set worn together — necklace with earrings, and optionally other matching pieces",
+    "is_set": true,
+    "templates": [
+      {
+        "name": "Necklace + Drop Earrings Set",
+        "placement": "necklace rests on collarbone/chest; matching drop earrings hang from both earlobes simultaneously",
+        "size_hint": "necklace 43-70cm at chest; earrings 3-7cm drop from lobes — both pieces must be equally visible",
+        "model_pose": "front-facing, chin slightly up, hair pinned up or swept back to fully expose ears and neck, upper body portrait shot",
+        "pieces": ["necklace", "earrings"],
+        "set_instruction": "BOTH the necklace AND the earrings from the reference image must appear on the model simultaneously. The necklace sits on the chest/neck and the matching earrings are visible on both ears. Do not omit either piece."
+      },
+      {
+        "name": "Necklace + Stud Earrings Set",
+        "placement": "necklace at collarbone; small stud earrings on both earlobes",
+        "size_hint": "necklace 43-50cm; studs 4-10mm at lobe center — ensure ear area is well-lit to show studs",
+        "model_pose": "front-facing or slight three-quarter turn, hair swept back, upper body shot showing neck and ears",
+        "pieces": ["necklace", "earrings"],
+        "set_instruction": "BOTH pieces must be visible: the necklace prominently on the chest/neck AND the small stud earrings on each ear. Ensure lighting highlights both earlobes. Do not omit either piece."
+      },
+      {
+        "name": "Necklace + Earrings + Bracelet Set",
+        "placement": "necklace on chest; earrings on both ears; bracelet on wrist — all three visible",
+        "size_hint": "necklace mid-chest; earrings as per design; bracelet 17-20cm wrist",
+        "model_pose": "three-quarter body shot, one wrist raised to display bracelet, face slightly turned to show earrings, hair up",
+        "pieces": ["necklace", "earrings", "bracelet"],
+        "set_instruction": "ALL THREE matching pieces must be shown: necklace on neck/chest, earrings on both ears, and bracelet on the wrist. Compose the shot to make all three pieces visible. Do not omit any piece."
+      },
+      {
+        "name": "Chandelier Earrings + Statement Necklace Set",
+        "placement": "bold statement necklace on chest; dramatic chandelier earrings on both ears",
+        "size_hint": "necklace 50-70cm, prominent; earrings 5-10cm elaborate drop — both pieces large and dramatic",
+        "model_pose": "front-facing, chin up, hair pinned completely up to fully reveal dramatic earrings, upper body portrait",
+        "pieces": ["necklace", "earrings"],
+        "set_instruction": "BOTH the dramatic necklace AND the chandelier earrings must appear together on the model. Hair must be fully up. Both pieces should be equally prominent in the frame. Do not render only one piece."
+      }
+    ]
+  }
+}

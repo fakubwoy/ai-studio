@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jewellery AI Studio</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+<div class="bg-texture"></div>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon">◈</span>
+      <span class="logo-text">Jewellery<em>AI</em> Studio</span>
+    </div>
+    <nav class="header-nav">
+      <button class="nav-btn active" data-tab="studio">Studio</button>
+      <button class="nav-btn" data-tab="categories">Categories</button>
+      <button class="nav-btn" data-tab="gallery">Gallery</button>
+    </nav>
+    <div class="api-status" id="apiStatus">
+      <span class="status-dot"></span>
+      <span class="status-text">Gemini Connected</span>
+    </div>
+  </div>
+</header>
+
+<!-- STUDIO TAB -->
+<main class="tab-content active" id="tab-studio">
+  <div class="studio-grid">
+
+    <!-- LEFT PANEL: Upload + Config -->
+    <section class="panel panel-left">
+      <div class="panel-header">
+        <h2>01 <span>Upload Jewellery</span></h2>
+      </div>
+
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="jewelleryFile" accept="image/*" hidden />
+        <div class="upload-placeholder" id="uploadPlaceholder">
+          <div class="upload-icon">⬡</div>
+          <p>Drop your jewellery image here</p>
+          <span>PNG, JPG, WEBP up to 16MB</span>
+          <button class="btn-outline" onclick="document.getElementById('jewelleryFile').click()">Browse Files</button>
+        </div>
+        <div class="upload-preview" id="uploadPreview" style="display:none">
+          <img id="previewImg" src="" alt="Jewellery preview" />
+          <button class="remove-btn" onclick="removeImage()">✕</button>
+        </div>
+      </div>
+
+      <div class="panel-header mt-2">
+        <h2>02 <span>Category & Template</span></h2>
+      </div>
+
+      <div class="form-group">
+        <label>Jewellery Category</label>
+        <div class="select-row">
+          <select id="categorySelect" onchange="onCategoryChange()">
+            <option value="">— Select category —</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}">{{ cat }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn-icon" title="Add new category" onclick="showAddCategory()">+</button>
+        </div>
+      </div>
+
+      <div class="form-group" id="templateSection" style="display:none">
+        <div class="template-header">
+          <label>Size & Placement Template</label>
+          <button class="btn-ai-suggest" id="suggestBtn" onclick="suggestTemplates()">
+            <span class="ai-spark">✦</span> AI Suggest
+          </button>
+        </div>
+        <div class="template-grid" id="templateGrid"></div>
+        <div class="selected-template" id="selectedTemplate" style="display:none">
+          <div class="template-detail-card">
+            <div class="td-label">Selected</div>
+            <div class="td-name" id="tdName"></div>
+            <div class="td-row"><span>Placement:</span><em id="tdPlacement"></em></div>
+            <div class="td-row"><span>Size:</span><em id="tdSize"></em></div>
+            <div class="td-row"><span>Pose:</span><em id="tdPose"></em></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MIDDLE PANEL: Options -->
+    <section class="panel panel-mid">
+      <div class="panel-header">
+        <h2>03 <span>Model & Style</span></h2>
+      </div>
+
+      <div class="form-group">
+        <label>Model Preference</label>
+        <div class="radio-grid">
+          <label class="radio-card">
+            <input type="radio" name="modelPref" value="diverse female model" checked />
+            <span class="rc-icon">👩</span>
+            <span>Diverse Female</span>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="modelPref" value="male model" />
+            <span class="rc-icon">👨</span>
+            <span>Male</span>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="modelPref" value="hand model close-up" />
+            <span class="rc-icon">🤚</span>
+            <span>Hand Close-up</span>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="modelPref" value="editorial fashion model" />
+            <span class="rc-icon">✦</span>
+            <span>Editorial</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Additional Instructions <small>(optional)</small></label>
+        <textarea id="customPrompt" placeholder="e.g. white studio background, warm golden lighting, minimal aesthetic..." rows="3"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Negative Prompt <small>(optional — what to avoid)</small></label>
+        <textarea id="negativePrompt" placeholder="e.g. blurry, distorted jewellery, wrong placement, extra limbs, low quality..." rows="3"></textarea>
+      </div>
+
+      <button class="btn-generate" id="generateBtn" onclick="generateImage()">
+        <span class="gen-icon">◈</span>
+        Generate Image
+      </button>
+
+      <div class="progress-area" id="progressArea" style="display:none">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <p class="progress-text" id="progressText">Analyzing jewellery...</p>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: Output -->
+    <section class="panel panel-right">
+      <div class="panel-header">
+        <h2>04 <span>Result</span></h2>
+      </div>
+
+      <div class="output-zone" id="outputZone">
+        <div class="output-placeholder" id="outputPlaceholder">
+          <div class="output-icon">◎</div>
+          <p>Your generated image will appear here</p>
+        </div>
+        <div class="output-result" id="outputResult" style="display:none">
+          <img id="resultImg" src="" alt="Generated result" />
+          <div class="result-actions">
+            <a id="downloadBtn" href="#" download="jewellery-model.png" class="btn-outline">↓ Download</a>
+            <button class="btn-outline" onclick="copyPrompt()">⌥ Copy Prompt</button>
+          </div>
+          <div class="result-meta" id="resultMeta"></div>
+          <!-- Satisfaction feedback -->
+          <div class="satisfaction-bar" id="satisfactionBar">
+            <p class="satisfaction-question">Happy with the result?</p>
+            <div class="satisfaction-btns">
+              <button class="btn-satisfy yes" onclick="onSatisfied(true)">✓ Yes, looks great</button>
+              <button class="btn-satisfy no" onclick="onSatisfied(false)">✗ No, improve it</button>
+            </div>
+          </div>
+          <!-- Feedback analysis panel -->
+          <div class="feedback-panel" id="feedbackPanel" style="display:none">
+            <div class="feedback-analyzing" id="feedbackAnalyzing">
+              <span class="ai-spark spinning">✦</span> Analyzing differences...
+            </div>
+            <div class="feedback-result" id="feedbackResult" style="display:none">
+              <div class="feedback-compare">
+                <div class="compare-col">
+                  <div class="compare-label">Original</div>
+                  <img id="compareOriginal" src="" alt="Original jewellery" />
+                </div>
+                <div class="compare-col">
+                  <div class="compare-label">Generated</div>
+                  <img id="compareGenerated" src="" alt="Generated result" />
+                </div>
+              </div>
+              <div class="feedback-issues" id="feedbackIssues"></div>
+              <div class="feedback-prompts">
+                <div class="fp-section">
+                  <label>Refined Positive Prompt <small>click to apply</small></label>
+                  <div class="fp-box" id="refinedPrompt" onclick="applyRefinedPrompts()"></div>
+                </div>
+                <div class="fp-section">
+                  <label>Refined Negative Prompt <small>click to apply</small></label>
+                  <div class="fp-box negative" id="refinedNegative" onclick="applyRefinedPrompts()"></div>
+                </div>
+                <button class="btn-generate" style="margin-top:12px" onclick="applyAndRegenerate()">
+                  <span class="gen-icon">◈</span> Apply & Regenerate
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="output-error" id="outputError" style="display:none">
+          <div class="error-icon">⚠</div>
+          <p id="errorText"></p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- CATEGORIES TAB -->
+<main class="tab-content" id="tab-categories">
+  <div class="categories-page">
+    <div class="page-header">
+      <h1>Jewellery Categories</h1>
+      <button class="btn-primary" onclick="showAddCategory()">+ Add Category</button>
+    </div>
+    <div class="categories-grid" id="categoriesGrid"></div>
+  </div>
+</main>
+
+<!-- GALLERY TAB -->
+<main class="tab-content" id="tab-gallery">
+  <div class="categories-page">
+    <div class="page-header">
+      <h1>Generation Gallery</h1>
+      <button class="btn-outline" onclick="clearGallery()">Clear Gallery</button>
+    </div>
+    <div class="gallery-grid" id="galleryGrid">
+      <div class="gallery-empty">
+        <p>Generated images will appear here</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <!-- Add Category Modal -->
+  <div class="modal" id="addCategoryModal">
+    <button class="modal-close" onclick="closeAllModals()">✕</button>
+    <h3>Add New Category</h3>
+    <div class="form-group">
+      <label>Category Name</label>
+      <input type="text" id="newCatName" placeholder="e.g. Anklet, Tiara, Nose Ring..." />
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="newCatDesc" placeholder="Brief description..." />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeAllModals()">Cancel</button>
+      <button class="btn-primary" onclick="addCategory()">
+        <span class="ai-spark">✦</span> Create & AI-Generate Templates
+      </button>
+    </div>
+  </div>
+
+  <!-- Template Detail Modal -->
+  <div class="modal modal-wide" id="templateDetailModal">
+    <button class="modal-close" onclick="closeAllModals()">✕</button>
+    <h3 id="modalCategoryTitle">Templates</h3>
+    <div id="modalTemplateList"></div>
+    <div class="modal-section-divider">
+      <span>Add Custom Template</span>
+    </div>
+    <div class="custom-template-form">
+      <div class="ctf-grid">
+        <div class="form-group"><label>Name</label><input type="text" id="ctName" placeholder="Template name" /></div>
+        <div class="form-group"><label>Placement</label><input type="text" id="ctPlacement" placeholder="Where it sits on body" /></div>
+        <div class="form-group"><label>Size Hint</label><input type="text" id="ctSize" placeholder="Measurements / proportions" /></div>
+        <div class="form-group"><label>Model Pose</label><input type="text" id="ctPose" placeholder="Ideal pose / angle" /></div>
+      </div>
+      <button class="btn-primary" onclick="addCustomTemplate()">Add Template</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
