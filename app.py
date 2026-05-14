@@ -12,13 +12,22 @@ import requests
 load_dotenv()
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
-app.config['OUTPUT_FOLDER'] = 'static/outputs'
+
+# Railway has an ephemeral filesystem — use /tmp for uploads/outputs
+# and keep categories.json in /tmp too so writes don't fail
+_IS_RAILWAY = os.getenv('RAILWAY_ENVIRONMENT') is not None
+_TMP = '/tmp' if _IS_RAILWAY else '.'
+
+app.config['UPLOAD_FOLDER'] = os.path.join(_TMP, 'static', 'uploads')
+app.config['OUTPUT_FOLDER'] = os.path.join(_TMP, 'static', 'outputs')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
-CATEGORIES_FILE = 'categories.json'
+CATEGORIES_FILE = os.path.join(_TMP, 'categories.json')
 
+# Ensure directories exist at module load time (for gunicorn workers)
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
 DEFAULT_CATEGORIES = {
     "Necklace": {
         "description": "Neck jewellery worn around the neck",
@@ -574,4 +583,6 @@ def output_file(filename):
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
-    app.run(debug=True, port=5050)
+    port = int(os.getenv('PORT', 5050))
+    debug = not _IS_RAILWAY
+    app.run(host='0.0.0.0', debug=debug, port=port)
