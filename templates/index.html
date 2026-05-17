@@ -40,16 +40,18 @@
       </div>
 
       <div class="upload-zone" id="uploadZone">
-        <input type="file" id="jewelleryFile" accept="image/*" hidden />
+        <input type="file" id="jewelleryFile" accept="image/*" multiple hidden />
         <div class="upload-placeholder" id="uploadPlaceholder">
           <div class="upload-icon">⬡</div>
-          <p>Drop your jewellery image here</p>
-          <span>PNG, JPG, WEBP up to 16MB</span>
+          <p>Drop jewellery images here</p>
+          <span>Add multiple angles for better accuracy · PNG, JPG, WEBP up to 16MB each</span>
           <button class="btn-outline" onclick="document.getElementById('jewelleryFile').click()">Browse Files</button>
         </div>
-        <div class="upload-preview" id="uploadPreview" style="display:none">
-          <img id="previewImg" src="" alt="Jewellery preview" />
-          <button class="remove-btn" onclick="removeImage()">✕</button>
+        <div class="upload-multi" id="uploadMulti" style="display:none">
+          <div class="multi-images" id="multiImages"></div>
+          <button class="multi-add-btn" onclick="document.getElementById('jewelleryFile').click()" title="Add more angles">
+            <span>+</span> Add angle
+          </button>
         </div>
       </div>
 
@@ -276,6 +278,51 @@
         <div class="form-group"><label>Model Pose</label><input type="text" id="ctPose" placeholder="Ideal pose / angle" /></div>
       </div>
       <button class="btn-primary" onclick="addCustomTemplate()">Add Template</button>
+    </div>
+  </div>
+</div>
+
+<!-- Correction Review Modal -->
+<div class="modal-overlay" id="correctionOverlay" onclick="closeCorrectionModal(event)">
+  <div class="modal modal-wide active" id="correctionModal" style="display:none">
+    <button class="modal-close" onclick="closeCorrectionModal()">✕</button>
+    <h3>✦ AI Correction Review</h3>
+    <p class="correction-subtitle">The AI identified the following issues. Review, edit, then apply.</p>
+
+    <div class="feedback-compare" style="margin-bottom:16px">
+      <div class="compare-col">
+        <div class="compare-label">Original</div>
+        <img id="cmOriginal" src="" alt="Original" />
+      </div>
+      <div class="compare-col">
+        <div class="compare-label">Generated</div>
+        <img id="cmGenerated" src="" alt="Generated" />
+      </div>
+    </div>
+
+    <div class="correction-section">
+      <div class="correction-section-title">⚠ Issues Found <small>— uncheck to ignore</small></div>
+      <div id="correctionIssuesList"></div>
+      <div class="correction-add-row">
+        <input type="text" id="correctionAddInput" placeholder="Add your own issue..." />
+        <button class="btn-icon" onclick="addCorrectionIssue()">+</button>
+      </div>
+    </div>
+
+    <div class="correction-section">
+      <div class="correction-section-title">Refined Positive Prompt <small>— edit freely</small></div>
+      <textarea id="cmRefinedPrompt" rows="4"></textarea>
+    </div>
+    <div class="correction-section">
+      <div class="correction-section-title">Refined Negative Prompt <small>— edit freely</small></div>
+      <textarea id="cmRefinedNegative" rows="3"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeCorrectionModal()">Cancel</button>
+      <button class="btn-primary" onclick="applyReviewAndRegenerate()">
+        <span class="ai-spark">◈</span> Apply & Regenerate
+      </button>
     </div>
   </div>
 </div>

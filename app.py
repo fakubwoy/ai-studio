@@ -8,10 +8,12 @@ from PIL import Image
 import io
 from dotenv import load_dotenv
 import requests
+from flask_cors import CORS
 
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)  # Allow mobile app requests
 
 # Railway has an ephemeral filesystem — use /tmp for uploads/outputs
 # and keep categories.json in /tmp too so writes don't fail
@@ -20,7 +22,7 @@ _TMP = '/tmp' if _IS_RAILWAY else '.'
 
 app.config['UPLOAD_FOLDER'] = os.path.join(_TMP, 'static', 'uploads')
 app.config['OUTPUT_FOLDER'] = os.path.join(_TMP, 'static', 'outputs')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32MB for mobile uploads
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
 CATEGORIES_FILE = os.path.join(_TMP, 'categories.json')
@@ -162,7 +164,7 @@ Include 4-7 templates covering the common styles/variations of this jewellery ty
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt
         )
         text = response.text.strip()
@@ -197,10 +199,10 @@ def add_template():
 
 @app.route('/api/generate-image', methods=['POST'])
 def generate_image():
-    if 'jewellery_image' not in request.files:
+    files = request.files.getlist('jewellery_image')
+    if not files or not files[0].filename:
         return jsonify({'error': 'No image uploaded'}), 400
 
-    file = request.files['jewellery_image']
     category = request.form.get('category', '')
     template_json = request.form.get('template', '{}')
     custom_prompt = request.form.get('custom_prompt', '')
@@ -213,13 +215,19 @@ def generate_image():
     except:
         template = {}
 
-    if not allowed_file(file.filename):
+    # Validate and save all uploaded files
+    saved_paths = []
+    for file in files:
+        if file and file.filename and allowed_file(file.filename):
+            filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            saved_paths.append(filepath)
+
+    if not saved_paths:
         return jsonify({'error': 'Invalid file type'}), 400
 
-    # Save uploaded file
-    filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(filepath)
+    primary_path = saved_paths[0]
 
     # Build the generation prompt
     placement = template.get('placement', 'naturally on the model')
@@ -296,23 +304,34 @@ CRITICAL RULES — follow exactly:
 4. The jewellery piece must appear exactly ONCE on the model, in exactly one location.
 5. Only ONE {category} total. Never place two or more pieces of jewellery on the model."""
 
-    result = generate_with_gemini(filepath, prompt, category)
+    result = generate_with_gemini(primary_path, prompt, category, extra_paths=saved_paths[1:])
 
     return jsonify(result)
 
-def generate_with_gemini(image_path, prompt, category):
+def generate_with_gemini(image_path, prompt, category, extra_paths=None):
     client, err = get_gemini_client()
     if err:
         return {'error': err}
 
     try:
-        # Open image with PIL (new SDK accepts PIL images directly)
+        # Open primary image
         image = Image.open(image_path)
+
+        # Build contents: prompt, primary image, then any extra angle images
+        contents = [prompt, image]
+        if extra_paths:
+            angle_note = f"\n\nNote: {len(extra_paths)} additional angle(s) of the same jewellery piece are provided below for reference. Use all angles to understand the full design before generating."
+            contents[0] = prompt + angle_note
+            for ep in extra_paths:
+                try:
+                    contents.append(Image.open(ep))
+                except Exception:
+                    pass  # skip unreadable extra images
 
         # Use the image editing model — text-and-image-to-image
         response = client.models.generate_content(
             model="gemini-2.5-flash-image",
-            contents=[prompt, image],
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=["TEXT", "IMAGE"]
             )
@@ -480,7 +499,7 @@ Return ONLY this JSON object (no markdown, no explanation):
             return types.Part.from_bytes(data=buf.getvalue(), mime_type='image/png')
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=[analysis_prompt, pil_to_part(orig_image), pil_to_part(gen_image)]
         )
 
@@ -570,6 +589,139 @@ def generate_with_stability(image_path, prompt):
             return {'error': f'Stability AI error: {response.text}'}
     except Exception as e:
         return {'error': f'Stability AI failed: {str(e)}'}
+
+
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    if 'files' not in request.files:
+        return jsonify({'error': 'No files provided'}), 400
+    files = request.files.getlist('files')
+    uploaded = []
+    for file in files:
+        if file and file.filename and allowed_file(file.filename):
+            filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            uploaded.append({'filename': filename, 'url': f'/static/uploads/{filename}'})
+    if not uploaded:
+        return jsonify({'error': 'No valid image files uploaded'}), 400
+    return jsonify({'success': True, 'files': uploaded})
+
+
+@app.route('/api/generate-both', methods=['POST'])
+def generate_both():
+    """Mobile app endpoint — returns a product shot AND a model shot in one call."""
+    try:
+        data = request.json
+        filenames = data.get('filenames', [])
+        category = data.get('category', 'Jewellery')
+        template = data.get('template', {})
+        model_pref = data.get('modelPref', 'diverse female model')
+        custom_prompt = data.get('customPrompt', '')
+        negative_prompt = data.get('negativePrompt', '')
+
+        if not filenames:
+            return jsonify({'error': 'No image filenames provided'}), 400
+
+        client, err = get_gemini_client()
+        if err:
+            return jsonify({'error': err}), 500
+
+        # Load and resize all uploaded images
+        images = []
+        for fn in filenames:
+            fp = os.path.join(app.config['UPLOAD_FOLDER'], fn)
+            if os.path.exists(fp):
+                img = Image.open(fp)
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                if max(img.size) > 1024:
+                    img.thumbnail((1024, 1024), Image.LANCZOS)
+                images.append(img)
+
+        if not images:
+            return jsonify({'error': 'No valid images found on server'}), 400
+
+        def pil_to_part(img):
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            return types.Part.from_bytes(data=buf.getvalue(), mime_type='image/png')
+
+        placement = template.get('placement', f'correctly placed on body')
+        size_hint = template.get('size_hint', 'standard size')
+        model_pose = template.get('model_pose', 'natural pose')
+        template_name = template.get('name', category)
+
+        # ── Prompt 1: E-commerce white background product shot ──────────────
+        product_prompt = f"""Ultra-realistic e-commerce product photograph of this {category}.
+- Pure white background (#FFFFFF), clean studio setup
+- Floating flat-lay or elegant prop presentation — NOT worn on a human body
+- Soft diffused studio lighting, no harsh shadows
+- Sharp focus on every detail of the jewellery
+- High resolution, commercial product photography quality
+- Show the full design from the best display angle
+- Accurate reproduction of shape, materials, texture and design
+- Professional product shot as seen on luxury e-commerce websites
+{('Additional: ' + custom_prompt) if custom_prompt else ''}
+{('Avoid: ' + negative_prompt) if negative_prompt else ''}"""
+
+        # ── Prompt 2: Model shot ─────────────────────────────────────────────
+        model_prompt = f"""Ultra-realistic fashion photograph of a {model_pref} wearing this exact {category} ({template_name} style).
+Placement: {placement}
+Size: {size_hint}
+Pose: {model_pose}
+- Realistic skin texture, professional model, hair styled to fully reveal the jewellery
+- High-end fashion/editorial lighting, sharp focus on the jewellery
+- The jewellery must match the reference images exactly — same design, same materials
+- E-commerce model photography quality
+{('Additional: ' + custom_prompt) if custom_prompt else ''}
+{('Avoid: ' + negative_prompt) if negative_prompt else 'Avoid: blurry jewellery, distorted proportions, extra limbs, wrong placement'}"""
+
+        results = {'success': True}
+
+        # Generate product shot
+        try:
+            contents = [product_prompt] + [pil_to_part(img) for img in images]
+            response = client.models.generate_content(
+                model="gemini-2.5-flash-image",
+                contents=contents,
+                config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
+            )
+            for part in response.candidates[0].content.parts:
+                if part.inline_data is not None:
+                    out_fn = f"product_{uuid.uuid4()}.png"
+                    out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
+                    Image.open(io.BytesIO(part.inline_data.data)).save(out_path)
+                    results['product_shot_url'] = f'/static/outputs/{out_fn}'
+                    break
+        except Exception as e:
+            results['product_shot_error'] = str(e)
+
+        # Generate model shot
+        try:
+            contents = [model_prompt] + [pil_to_part(img) for img in images]
+            response = client.models.generate_content(
+                model="gemini-2.5-flash-image",
+                contents=contents,
+                config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
+            )
+            for part in response.candidates[0].content.parts:
+                if part.inline_data is not None:
+                    out_fn = f"model_{uuid.uuid4()}.png"
+                    out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
+                    Image.open(io.BytesIO(part.inline_data.data)).save(out_path)
+                    results['model_shot_url'] = f'/static/outputs/{out_fn}'
+                    break
+        except Exception as e:
+            results['model_shot_error'] = str(e)
+
+        if not results.get('product_shot_url') and not results.get('model_shot_url'):
+            return jsonify({'error': 'Gemini returned no images. Check your API key permissions.'}), 500
+
+        return jsonify(results)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/static/uploads/<filename>')

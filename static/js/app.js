@@ -120,12 +120,69 @@ async function suggestTemplates() {
   }
 }
 
-// ── UPLOAD ────────────────────────────────────────────────
+// ── MULTI-IMAGE UPLOAD ────────────────────────────────────
+let uploadedFiles = []; // array of File objects
+
 function setupUploadZone() {
   const fileInput = document.getElementById('jewelleryFile');
   fileInput.addEventListener('change', e => {
-    if (e.target.files[0]) previewFile(e.target.files[0]);
+    const newFiles = Array.from(e.target.files);
+    newFiles.forEach(f => addUploadedFile(f));
+    fileInput.value = ''; // reset so same file can be re-added if needed
   });
+}
+
+function addUploadedFile(file) {
+  if (uploadedFiles.length >= 6) { showToast('Max 6 images allowed', 'error'); return; }
+  // Avoid exact duplicates by name+size
+  if (uploadedFiles.find(f => f.name === file.name && f.size === file.size)) return;
+  uploadedFiles.push(file);
+  renderMultiPreviews();
+}
+
+function renderMultiPreviews() {
+  const container = document.getElementById('multiImages');
+  container.innerHTML = '';
+  uploadedFiles.forEach((file, idx) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'multi-thumb';
+    const img = document.createElement('img');
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.readAsDataURL(file);
+    const badge = document.createElement('span');
+    badge.className = 'multi-thumb-badge';
+    badge.textContent = idx === 0 ? 'Primary' : `Angle ${idx + 1}`;
+    const rmBtn = document.createElement('button');
+    rmBtn.className = 'remove-btn';
+    rmBtn.textContent = '✕';
+    rmBtn.onclick = (e) => { e.stopPropagation(); removeUploadedFile(idx); };
+    wrap.appendChild(img);
+    wrap.appendChild(badge);
+    wrap.appendChild(rmBtn);
+    container.appendChild(wrap);
+  });
+
+  const hasFiles = uploadedFiles.length > 0;
+  document.getElementById('uploadPlaceholder').style.display = hasFiles ? 'none' : 'flex';
+  document.getElementById('uploadMulti').style.display = hasFiles ? 'flex' : 'none';
+
+  // Keep lastUploadedSrc pointing to the primary image (index 0)
+  if (uploadedFiles.length > 0) {
+    const reader = new FileReader();
+    reader.onload = e => { lastUploadedSrc = e.target.result; };
+    reader.readAsDataURL(uploadedFiles[0]);
+  }
+}
+
+function removeUploadedFile(idx) {
+  uploadedFiles.splice(idx, 1);
+  renderMultiPreviews();
+}
+
+function removeImage() {
+  uploadedFiles = [];
+  renderMultiPreviews();
 }
 
 function setupDragDrop() {
@@ -135,43 +192,18 @@ function setupDragDrop() {
   zone.addEventListener('drop', e => {
     e.preventDefault();
     zone.classList.remove('drag-over');
-    if (e.dataTransfer.files[0]) previewFile(e.dataTransfer.files[0]);
+    Array.from(e.dataTransfer.files).forEach(f => addUploadedFile(f));
   });
   zone.addEventListener('click', e => {
-    if (e.target.closest('.remove-btn') || e.target.closest('.btn-outline')) return;
-    if (document.getElementById('uploadPreview').style.display === 'none') {
-      document.getElementById('jewelleryFile').click();
-    }
+    if (e.target.closest('.remove-btn') || e.target.closest('.btn-outline') || e.target.closest('.multi-add-btn')) return;
+    if (uploadedFiles.length === 0) document.getElementById('jewelleryFile').click();
   });
 }
-
-function previewFile(file) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('previewImg').src = e.target.result;
-    document.getElementById('uploadPlaceholder').style.display = 'none';
-    document.getElementById('uploadPreview').style.display = 'block';
-  };
-  reader.readAsDataURL(file);
-  // Store file reference
-  const dt = new DataTransfer();
-  dt.items.add(file);
-  document.getElementById('jewelleryFile').files = dt.files;
-}
-
-function removeImage() {
-  document.getElementById('jewelleryFile').value = '';
-  document.getElementById('previewImg').src = '';
-  document.getElementById('uploadPlaceholder').style.display = 'flex';
-  document.getElementById('uploadPreview').style.display = 'none';
-}
-
 // ── GENERATE ──────────────────────────────────────────────
 async function generateImage() {
-  const fileInput = document.getElementById('jewelleryFile');
   const category = document.getElementById('categorySelect').value;
 
-  if (!fileInput.files || !fileInput.files[0]) {
+  if (!uploadedFiles.length) {
     showToast('Please upload a jewellery image', 'error'); return;
   }
   if (!category) {
@@ -185,18 +217,15 @@ async function generateImage() {
   const customPrompt = document.getElementById('customPrompt').value;
   const negativePrompt = document.getElementById('negativePrompt').value;
 
-  // Track uploaded image for comparison
-  lastUploadedSrc = document.getElementById('previewImg').src;
-
   const formData = new FormData();
-  formData.append('jewellery_image', fileInput.files[0]);
+  // Send all images; backend uses first as primary, rest as additional angles
+  uploadedFiles.forEach(f => formData.append('jewellery_image', f));
   formData.append('category', category);
   formData.append('template', JSON.stringify(selectedTemplate));
   formData.append('model_preference', modelPref);
   formData.append('custom_prompt', customPrompt);
   formData.append('negative_prompt', negativePrompt);
   formData.append('duplication_guard', _duplicationGuardActive ? 'true' : 'false');
-  // Reset after sending — guard is one-shot unless analysis re-triggers it
   _duplicationGuardActive = false;
 
   // UI state
@@ -427,65 +456,136 @@ async function analyzeResult() {
 
     if (data.error) { showToast('Analysis failed: ' + data.error, 'error'); return; }
 
-    // Show compare images
-    document.getElementById('compareOriginal').src = lastUploadedSrc;
-    document.getElementById('compareGenerated').src = lastGeneratedUrl + '?t=' + Date.now();
+    // Hide the inline feedback panel — we'll use the modal instead
+    document.getElementById('feedbackPanel').style.display = 'none';
 
-    // Show issues
-    const issuesEl = document.getElementById('feedbackIssues');
-    const descHtml = (data.original_description || data.generated_description) ? `
-      <div class="issues-counts">
-        <div class="ic-row"><span class="ic-label">Original:</span> <span>${data.original_description || '-'}</span></div>
-        <div class="ic-row"><span class="ic-label">Generated:</span> <span>${data.generated_description || '-'}</span></div>
-      </div>` : '';
-    issuesEl.innerHTML = descHtml +
-      '<div class="issues-title">&#9888; Issues found</div>' +
-      data.issues.map(i => `<div class="issue-item">• ${i}</div>`).join('');
+    // Store for the modal
+    window._analysisData = data;
 
-    // Show refined prompts
-    document.getElementById('refinedPrompt').textContent = data.refined_prompt;
-    document.getElementById('refinedNegative').textContent = data.refined_negative;
+    // Open the interactive correction review modal
+    openCorrectionModal(data);
 
-    // Store for apply
-    document.getElementById('refinedPrompt').dataset.value = data.refined_prompt;
-    document.getElementById('refinedNegative').dataset.value = data.refined_negative;
-    // Store duplication flag so regeneration can pass the hard guard
-    document.getElementById('refinedPrompt').dataset.duplicationDetected = data.duplication_detected ? 'true' : 'false';
-
-    // If duplication was detected, show a prominent warning
-    if (data.duplication_detected) {
-      const warningDiv = document.createElement('div');
-      warningDiv.className = 'issue-item';
-      warningDiv.style.cssText = 'background:rgba(255,80,80,0.12);border-left:3px solid #ff5050;font-weight:600;color:#ff5050';
-      warningDiv.textContent = '⚠ Duplication detected: jewellery appeared more than once on the model. Hard duplication guard will be applied on next generation.';
-      issuesEl.prepend(warningDiv);
-    }
-
-    document.getElementById('feedbackResult').style.display = 'block';
   } catch (e) {
     document.getElementById('feedbackAnalyzing').style.display = 'none';
     showToast('Analysis error: ' + e.message, 'error');
   }
 }
 
+// ── CORRECTION REVIEW MODAL ───────────────────────────────
+function openCorrectionModal(data) {
+  // Images
+  document.getElementById('cmOriginal').src = lastUploadedSrc;
+  document.getElementById('cmGenerated').src = lastGeneratedUrl + '?t=' + Date.now();
+
+  // Build issue checklist
+  const issuesList = document.getElementById('correctionIssuesList');
+  issuesList.innerHTML = '';
+
+  // Add duplication warning as first issue if detected
+  const allIssues = [...(data.issues || [])];
+  if (data.duplication_detected) {
+    allIssues.unshift('⚠ Duplication detected: jewellery appears more than once on the model');
+  }
+
+  allIssues.forEach((issue, i) => {
+    issuesList.appendChild(createIssueCheckItem(issue, true));
+  });
+
+  // Prompts
+  document.getElementById('cmRefinedPrompt').value = data.refined_prompt || '';
+  document.getElementById('cmRefinedNegative').value = data.refined_negative || '';
+
+  // Store duplication flag
+  document.getElementById('cmRefinedPrompt').dataset.duplicationDetected = data.duplication_detected ? 'true' : 'false';
+
+  // Show modal
+  document.getElementById('correctionOverlay').classList.add('active');
+  const modal = document.getElementById('correctionModal');
+  modal.style.display = 'block';
+  modal.classList.add('active');
+}
+
+function createIssueCheckItem(text, checked) {
+  const row = document.createElement('div');
+  row.className = 'correction-issue-row';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = checked;
+  cb.className = 'correction-checkbox';
+  const label = document.createElement('span');
+  label.className = 'correction-issue-text';
+  label.textContent = text;
+  const rmBtn = document.createElement('button');
+  rmBtn.className = 'correction-issue-rm';
+  rmBtn.textContent = '✕';
+  rmBtn.title = 'Remove this issue';
+  rmBtn.onclick = () => row.remove();
+  row.appendChild(cb);
+  row.appendChild(label);
+  row.appendChild(rmBtn);
+  return row;
+}
+
+function addCorrectionIssue() {
+  const input = document.getElementById('correctionAddInput');
+  const text = input.value.trim();
+  if (!text) return;
+  document.getElementById('correctionIssuesList').appendChild(createIssueCheckItem(text, true));
+  input.value = '';
+  input.focus();
+}
+
+function closeCorrectionModal(e) {
+  if (e && e.target !== document.getElementById('correctionOverlay')) return;
+  document.getElementById('correctionOverlay').classList.remove('active');
+  document.getElementById('correctionModal').style.display = 'none';
+  document.getElementById('correctionModal').classList.remove('active');
+}
+
+function applyReviewAndRegenerate() {
+  // Collect checked issues and build an augmented negative prompt note
+  const rows = document.querySelectorAll('#correctionIssuesList .correction-issue-row');
+  const confirmedIssues = [];
+  rows.forEach(row => {
+    const cb = row.querySelector('.correction-checkbox');
+    const text = row.querySelector('.correction-issue-text').textContent;
+    if (cb.checked) confirmedIssues.push(text);
+  });
+
+  const dupFlag = document.getElementById('cmRefinedPrompt').dataset.duplicationDetected === 'true';
+  const refinedPos = document.getElementById('cmRefinedPrompt').value;
+  const refinedNeg = document.getElementById('cmRefinedNegative').value;
+
+  // Apply to main fields
+  if (refinedPos) document.getElementById('customPrompt').value = refinedPos;
+  if (refinedNeg) document.getElementById('negativePrompt').value = refinedNeg;
+  _duplicationGuardActive = dupFlag;
+
+  closeCorrectionModal();
+  showToast(dupFlag
+    ? '⚠ Duplication guard active — regenerating...'
+    : `✦ Applied ${confirmedIssues.length} correction(s) — regenerating...`, 'success');
+
+  document.getElementById('generateBtn').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => generateImage(), 400);
+}
+
 // Track whether the next generation needs the hard duplication guard
 let _duplicationGuardActive = false;
 
 function applyRefinedPrompts() {
-  const pos = document.getElementById('refinedPrompt').dataset.value;
-  const neg = document.getElementById('refinedNegative').dataset.value;
-  const dupFlag = document.getElementById('refinedPrompt').dataset.duplicationDetected === 'true';
-  if (pos) document.getElementById('customPrompt').value = pos;
-  if (neg) document.getElementById('negativePrompt').value = neg;
-  _duplicationGuardActive = dupFlag;
-  showToast(dupFlag
-    ? '⚠ Duplication guard active — will be applied on next generation'
+  const data = window._analysisData;
+  if (!data) return;
+  if (data.refined_prompt) document.getElementById('customPrompt').value = data.refined_prompt;
+  if (data.refined_negative) document.getElementById('negativePrompt').value = data.refined_negative;
+  _duplicationGuardActive = !!data.duplication_detected;
+  showToast(_duplicationGuardActive
+    ? '⚠ Duplication guard active — click Generate to retry'
     : 'Prompts applied — click Generate to retry', 'success');
 }
 
 function applyAndRegenerate() {
   applyRefinedPrompts();
-  // Scroll up to generate button and trigger
   document.getElementById('generateBtn').scrollIntoView({ behavior: 'smooth', block: 'center' });
   setTimeout(() => generateImage(), 300);
 }
