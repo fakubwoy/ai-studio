@@ -724,6 +724,89 @@ Pose: {model_pose}
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/market-research', methods=['POST'])
+def api_market_research():
+    """
+    Mobile app endpoint — analyses a jewellery photo and returns
+    similar listings, keywords, price range, and a market summary
+    using Gemini with Google Search grounding.
+    """
+    category = request.form.get('category', 'Jewellery')
+    keyword  = request.form.get('keyword', '').strip() or None
+    image    = request.files.get('image')
+
+    if not image:
+        return jsonify({'success': False, 'error': 'No image provided'}), 400
+
+    client, err = get_gemini_client()
+    if err:
+        return jsonify({'success': False, 'error': err}), 500
+
+    try:
+        img_bytes = image.read()
+        filter_note = f'Focus results specifically on: "{keyword}".' if keyword else ''
+
+        prompt = f"""You are a jewellery market research expert for an Indian jewellery seller.
+
+Analyse this {category} image carefully. Then use Google Search to find similar items currently being sold online by other sellers.
+
+{filter_note}
+
+Respond ONLY with this exact JSON structure — no markdown, no explanation, no extra text:
+{{
+  "keywords": ["keyword1", "keyword2", "keyword3"],
+  "summary": "2-sentence market insight covering competition, pricing trends, and demand.",
+  "listings": [
+    {{
+      "title": "Product listing title",
+      "url": "https://actual-listing-url.com/product",
+      "source": "etsy.com",
+      "price": "Rs.1,200",
+      "thumbnail": "https://image-url.com/thumb.jpg"
+    }}
+  ],
+  "price_range": {{ "min": "Rs.500", "max": "Rs.5,000" }}
+}}
+
+Rules:
+- keywords: 8-12 specific tags covering material, style, gemstone, finish, occasion, era, setting type
+- listings: 8-12 real, currently-live results from Google Search — prefer Indian e-commerce (Flipkart, Meesho, Myntra, Amazon.in, Craftsvilla, BlueStone, Tanishq, CaratLane) and international (Etsy, Amazon)
+- price: use INR where possible; otherwise use the currency shown on the listing
+- price_range: computed from the listing prices you found
+- thumbnail: use the actual product image URL from the listing page if available, otherwise null
+- summary: be specific — mention approximate price range, number of sellers, and any trend you notice"""
+
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[
+                types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg'),
+                prompt,
+            ],
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.2,
+            ),
+        )
+
+        raw = response.text.strip().replace('```json', '').replace('```', '').strip()
+        match = re.search(r'\{[\s\S]*\}', raw)
+        if not match:
+            return jsonify({'success': False, 'error': 'Gemini did not return valid JSON. Raw: ' + raw[:300]}), 500
+
+        parsed = json.loads(match.group(0))
+        return jsonify({
+            'success':      True,
+            'keywords':     parsed.get('keywords', []),
+            'summary':      parsed.get('summary', ''),
+            'listings':     parsed.get('listings', []),
+            'seller_count': len(parsed.get('listings', [])),
+            'price_range':  parsed.get('price_range'),
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/static/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
