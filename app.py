@@ -1,4 +1,4 @@
-import os, json, base64, uuid, re
+import os, json, base64, uuid, re, time, logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_from_directory
@@ -13,8 +13,31 @@ from flask_cors import CORS
 
 load_dotenv()
 
+# ── Logging setup ──────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
+log = logging.getLogger('jewellery_ai')
+
 app = Flask(__name__)
 CORS(app)  # Allow mobile app requests
+
+# ── Per-request logging ────────────────────────────────────────────────────────
+@app.before_request
+def _log_request():
+    from flask import g
+    g.start_time = time.time()
+    log.info(f"→ {request.method} {request.path} | ip={request.remote_addr} | size={request.content_length or 0}b")
+
+@app.after_request
+def _log_response(response):
+    from flask import g
+    duration = (time.time() - g.get('start_time', time.time())) * 1000
+    level = logging.WARNING if response.status_code >= 400 else logging.INFO
+    log.log(level, f"← {request.method} {request.path} | status={response.status_code} | {duration:.0f}ms")
+    return response
 
 # Railway has an ephemeral filesystem — use /tmp for uploads/outputs
 # and keep categories.json in /tmp too so writes don't fail
@@ -314,8 +337,10 @@ CRITICAL RULES — follow exactly:
     return jsonify(result)
 
 def generate_with_gemini(image_path, prompt, category, extra_paths=None):
+    log.info(f"[generate-with-gemini] START | category={category} | extra_paths={len(extra_paths or [])}")
     client, err = get_gemini_client()
     if err:
+        log.error(f"[generate-with-gemini] FAIL | client error: {err}")
         return {'error': err}
 
     try:
@@ -599,23 +624,32 @@ def generate_with_stability(image_path, prompt):
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     if 'files' not in request.files:
+        log.warning("[upload] FAIL | no files in request")
         return jsonify({'error': 'No files provided'}), 400
     files = request.files.getlist('files')
+    log.info(f"[upload] received {len(files)} file(s)")
     uploaded = []
     for file in files:
         if file and file.filename and allowed_file(file.filename):
             filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
+            size_kb = os.path.getsize(filepath) / 1024
             uploaded.append({'filename': filename, 'url': f'/static/uploads/{filename}'})
+            log.info(f"[upload] saved: {filename} ({size_kb:.1f}KB)")
+        else:
+            log.warning(f"[upload] skipped invalid file: {getattr(file, 'filename', 'unknown')}")
     if not uploaded:
+        log.warning("[upload] FAIL | no valid image files in request")
         return jsonify({'error': 'No valid image files uploaded'}), 400
+    log.info(f"[upload] SUCCESS | {len(uploaded)} file(s) saved")
     return jsonify({'success': True, 'files': uploaded})
 
 
 @app.route('/api/generate-both', methods=['POST'])
 def generate_both():
     """Mobile app endpoint — returns a product shot AND a model shot in one call."""
+    t0 = time.time()
     try:
         data = request.json
         filenames = data.get('filenames', [])
@@ -625,11 +659,15 @@ def generate_both():
         custom_prompt = data.get('customPrompt', '')
         negative_prompt = data.get('negativePrompt', '')
 
+        log.info(f"[generate-both] START | category={category} | template={template.get('name','?')} | model={model_pref} | files={filenames}")
+
         if not filenames:
+            log.warning("[generate-both] FAIL | no filenames provided")
             return jsonify({'error': 'No image filenames provided'}), 400
 
         client, err = get_gemini_client()
         if err:
+            log.error(f"[generate-both] FAIL | gemini client error: {err}")
             return jsonify({'error': err}), 500
 
         # Load and resize all uploaded images
@@ -643,8 +681,12 @@ def generate_both():
                 if max(img.size) > 1024:
                     img.thumbnail((1024, 1024), Image.LANCZOS)
                 images.append(img)
+                log.info(f"[generate-both] loaded image: {fn} ({img.size})")
+            else:
+                log.warning(f"[generate-both] image not found on disk: {fn}")
 
         if not images:
+            log.error("[generate-both] FAIL | no valid images loaded from disk")
             return jsonify({'error': 'No valid images found on server'}), 400
 
         def pil_to_part(img):
@@ -686,46 +728,71 @@ Pose: {model_pose}
 
         # Generate product shot
         try:
+            log.info(f"[generate-both] calling Gemini for PRODUCT SHOT | model=gemini-2.5-flash-image")
+            t1 = time.time()
             contents = [product_prompt] + [pil_to_part(img) for img in images]
             response = client.models.generate_content(
                 model="gemini-2.5-flash-image",
                 contents=contents,
                 config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
             )
-            for part in response.candidates[0].content.parts:
-                if part.inline_data is not None:
-                    out_fn = f"product_{uuid.uuid4()}.png"
-                    out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
-                    Image.open(io.BytesIO(part.inline_data.data)).save(out_path)
-                    results['product_shot_url'] = f'/static/outputs/{out_fn}'
-                    break
+            parts = response.candidates[0].content.parts
+            text_parts = [p.text for p in parts if getattr(p, 'text', None)]
+            img_parts  = [p for p in parts if getattr(p, 'inline_data', None)]
+            log.info(f"[generate-both] product shot response | {time.time()-t1:.1f}s | text_parts={len(text_parts)} img_parts={len(img_parts)}")
+            if text_parts:
+                log.info(f"[generate-both] product shot Gemini text: {' '.join(text_parts)[:500]}")
+            for part in img_parts:
+                out_fn = f"product_{uuid.uuid4()}.png"
+                out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
+                Image.open(io.BytesIO(part.inline_data.data)).save(out_path)
+                results['product_shot_url'] = f'/static/outputs/{out_fn}'
+                log.info(f"[generate-both] product shot saved: {out_fn}")
+                break
+            if not results.get('product_shot_url'):
+                log.warning(f"[generate-both] product shot — Gemini returned no image part")
         except Exception as e:
+            log.error(f"[generate-both] product shot EXCEPTION: {e}", exc_info=True)
             results['product_shot_error'] = str(e)
 
         # Generate model shot
         try:
+            log.info(f"[generate-both] calling Gemini for MODEL SHOT | model=gemini-2.5-flash-image")
+            t2 = time.time()
             contents = [model_prompt] + [pil_to_part(img) for img in images]
             response = client.models.generate_content(
                 model="gemini-2.5-flash-image",
                 contents=contents,
                 config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
             )
-            for part in response.candidates[0].content.parts:
-                if part.inline_data is not None:
-                    out_fn = f"model_{uuid.uuid4()}.png"
-                    out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
-                    Image.open(io.BytesIO(part.inline_data.data)).save(out_path)
-                    results['model_shot_url'] = f'/static/outputs/{out_fn}'
-                    break
+            parts = response.candidates[0].content.parts
+            text_parts = [p.text for p in parts if getattr(p, 'text', None)]
+            img_parts  = [p for p in parts if getattr(p, 'inline_data', None)]
+            log.info(f"[generate-both] model shot response | {time.time()-t2:.1f}s | text_parts={len(text_parts)} img_parts={len(img_parts)}")
+            if text_parts:
+                log.info(f"[generate-both] model shot Gemini text: {' '.join(text_parts)[:500]}")
+            for part in img_parts:
+                out_fn = f"model_{uuid.uuid4()}.png"
+                out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
+                Image.open(io.BytesIO(part.inline_data.data)).save(out_path)
+                results['model_shot_url'] = f'/static/outputs/{out_fn}'
+                log.info(f"[generate-both] model shot saved: {out_fn}")
+                break
+            if not results.get('model_shot_url'):
+                log.warning(f"[generate-both] model shot — Gemini returned no image part")
         except Exception as e:
+            log.error(f"[generate-both] model shot EXCEPTION: {e}", exc_info=True)
             results['model_shot_error'] = str(e)
 
         if not results.get('product_shot_url') and not results.get('model_shot_url'):
+            log.error(f"[generate-both] FAIL — both shots missing | total={time.time()-t0:.1f}s")
             return jsonify({'error': 'Gemini returned no images. Check your API key permissions.'}), 500
 
+        log.info(f"[generate-both] SUCCESS | product={'yes' if results.get('product_shot_url') else 'no'} model={'yes' if results.get('model_shot_url') else 'no'} | total={time.time()-t0:.1f}s")
         return jsonify(results)
 
     except Exception as e:
+        log.error(f"[generate-both] UNHANDLED EXCEPTION: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -837,15 +904,20 @@ def api_market_research():
     keyword  = request.form.get('keyword', '').strip() or None
     image    = request.files.get('image')
 
+    log.info(f"[market-research] START | category={category} | keyword={keyword}")
+
     if not image:
+        log.warning("[market-research] FAIL | no image provided")
         return jsonify({'success': False, 'error': 'No image provided'}), 400
 
     client, err = get_gemini_client()
     if err:
+        log.error(f"[market-research] FAIL | gemini client error: {err}")
         return jsonify({'success': False, 'error': err}), 500
 
     try:
         img_bytes = image.read()
+        log.info(f"[market-research] image read | size={len(img_bytes)/1024:.1f}KB")
         filter_note = f'Focus results specifically on listings matching: "{keyword}".' if keyword else ''
 
         prompt = f"""You are a jewellery market research expert helping an Indian jewellery seller understand their competition.
@@ -881,6 +953,8 @@ STRICT RULES — follow exactly:
 3. price_range: min and max from the actual listings you found, in ₹
 4. summary: mention the total number of sellers/listings found, the price spread, which platforms dominate, and whether this is a competitive or niche segment"""
 
+        log.info(f"[market-research] calling Gemini with Google Search grounding…")
+        t_gemini = time.time()
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[
@@ -892,6 +966,7 @@ STRICT RULES — follow exactly:
                 temperature=0.1,
             ),
         )
+        log.info(f"[market-research] Gemini responded in {time.time()-t_gemini:.1f}s")
 
         raw = response.text.strip().replace('```json', '').replace('```', '').strip()
         match = re.search(r'\{[\s\S]*\}', raw)
@@ -921,6 +996,7 @@ STRICT RULES — follow exactly:
                         enriched[idx] = _enrich_listing_no_thumb(listings[idx])
         enriched = [e for e in enriched if e]
 
+        log.info(f"[market-research] SUCCESS | listings={len(enriched)} | keywords={len(parsed.get('keywords',[]))} | price_range={parsed.get('price_range')}")
         return jsonify({
             'success':      True,
             'keywords':     parsed.get('keywords', []),
@@ -931,6 +1007,7 @@ STRICT RULES — follow exactly:
         })
 
     except Exception as e:
+        log.error(f"[market-research] EXCEPTION: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
