@@ -724,6 +724,66 @@ Pose: {model_pose}
         return jsonify({'error': str(e)}), 500
 
 
+def _normalize_price_to_inr(price_str):
+    """Convert foreign currency prices to INR approximation, or return as-is with flag."""
+    if not price_str:
+        return None
+    price_str = price_str.strip()
+    # Already INR
+    if 'Rs' in price_str or '₹' in price_str or 'INR' in price_str:
+        return price_str
+    # USD → INR (approx 83x)
+    usd_match = re.search(r'\$\s*([\d,]+\.?\d*)', price_str)
+    if usd_match:
+        usd = float(usd_match.group(1).replace(',', ''))
+        inr = int(usd * 83)
+        return f'₹{inr:,} (~${usd_match.group(1)})'
+    # GBP → INR (approx 105x)
+    gbp_match = re.search(r'£\s*([\d,]+\.?\d*)', price_str)
+    if gbp_match:
+        gbp = float(gbp_match.group(1).replace(',', ''))
+        inr = int(gbp * 105)
+        return f'₹{inr:,} (~£{gbp_match.group(1)})'
+    # EUR → INR (approx 90x)
+    eur_match = re.search(r'€\s*([\d,]+\.?\d*)', price_str)
+    if eur_match:
+        eur = float(eur_match.group(1).replace(',', ''))
+        inr = int(eur * 90)
+        return f'₹{inr:,} (~€{eur_match.group(1)})'
+    return price_str
+
+
+def _fetch_og_thumbnail(url):
+    """Try to scrape the Open Graph image from a listing URL as thumbnail fallback."""
+    if not url:
+        return None
+    try:
+        resp = requests.get(url, timeout=4, headers={
+            'User-Agent': 'Mozilla/5.0 (compatible; JewelleryBot/1.0)',
+        }, allow_redirects=True)
+        if resp.status_code != 200:
+            return None
+        # Look for og:image meta tag
+        og_match = re.search(
+            r'<meta[^>]+(?:property=["\']og:image["\']|name=["\']og:image["\'])[^>]+content=["\']([^"\']+)["\']',
+            resp.text, re.IGNORECASE
+        )
+        if not og_match:
+            # alternate attribute order
+            og_match = re.search(
+                r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property=["\']og:image["\'])',
+                resp.text, re.IGNORECASE
+            )
+        if og_match:
+            img_url = og_match.group(1)
+            if img_url.startswith('//'):
+                img_url = 'https:' + img_url
+            return img_url
+    except Exception:
+        pass
+    return None
+
+
 @app.route('/api/market-research', methods=['POST'])
 def api_market_research():
     """
@@ -744,37 +804,40 @@ def api_market_research():
 
     try:
         img_bytes = image.read()
-        filter_note = f'Focus results specifically on: "{keyword}".' if keyword else ''
+        filter_note = f'Focus results specifically on listings matching: "{keyword}".' if keyword else ''
 
-        prompt = f"""You are a jewellery market research expert for an Indian jewellery seller.
+        prompt = f"""You are a jewellery market research expert helping an Indian jewellery seller understand their competition.
 
-Analyse this {category} image carefully. Then use Google Search to find similar items currently being sold online by other sellers.
+Carefully analyse this {category} image — note the style, material, gemstones, finish, and design motifs.
+Then use Google Search to find at least 10 similar items currently being sold online.
 
 {filter_note}
 
-Respond ONLY with this exact JSON structure — no markdown, no explanation, no extra text:
+Respond ONLY with this exact JSON — no markdown, no code fences, no extra text:
 {{
-  "keywords": ["keyword1", "keyword2", "keyword3"],
-  "summary": "2-sentence market insight covering competition, pricing trends, and demand.",
+  "keywords": ["keyword1", "keyword2"],
+  "summary": "3-4 sentence market analysis covering: how many sellers, price range, main platforms, and 1 actionable insight for the seller.",
   "listings": [
     {{
-      "title": "Product listing title",
-      "url": "https://actual-listing-url.com/product",
-      "source": "etsy.com",
-      "price": "Rs.1,200",
-      "thumbnail": "https://image-url.com/thumb.jpg"
+      "title": "Exact product title from the listing",
+      "url": "https://full-listing-url.com/product-page",
+      "source": "domain.com",
+      "price": "₹1,200",
+      "thumbnail": "https://cdn.domain.com/product-image.jpg"
     }}
   ],
-  "price_range": {{ "min": "Rs.500", "max": "Rs.5,000" }}
+  "price_range": {{ "min": "₹500", "max": "₹5,000" }}
 }}
 
-Rules:
-- keywords: 8-12 specific tags covering material, style, gemstone, finish, occasion, era, setting type
-- listings: 8-12 real, currently-live results from Google Search — prefer Indian e-commerce (Flipkart, Meesho, Myntra, Amazon.in, Craftsvilla, BlueStone, Tanishq, CaratLane) and international (Etsy, Amazon)
-- price: use INR where possible; otherwise use the currency shown on the listing
-- price_range: computed from the listing prices you found
-- thumbnail: use the actual product image URL from the listing page if available, otherwise null
-- summary: be specific — mention approximate price range, number of sellers, and any trend you notice"""
+STRICT RULES — follow exactly:
+1. keywords: exactly 8-10 SHORT tags (2-3 words max each) — material, style, stone, occasion, finish
+2. listings: find AT LEAST 10 real live listings — use multiple searches if needed
+   - Prioritise: Amazon.in, Flipkart, Myntra, Meesho, Nykaa, BlueStone, CaratLane, Tanishq, Craftsvilla, Etsy India
+   - Each listing must have a real, working URL
+   - price: ALWAYS use ₹ / Rs. format — convert foreign currency to INR (1 USD ≈ ₹83, 1 GBP ≈ ₹105)
+   - thumbnail: use the direct product image CDN URL from the listing (NOT the page URL). Look for image URLs ending in .jpg/.png/.webp in the search results. If not available, use null — do NOT make up image URLs.
+3. price_range: min and max from the actual listings you found, in ₹
+4. summary: mention the total number of sellers/listings found, the price spread, which platforms dominate, and whether this is a competitive or niche segment"""
 
         response = client.models.generate_content(
             model='gemini-2.5-flash',
@@ -784,7 +847,7 @@ Rules:
             ],
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.2,
+                temperature=0.1,
             ),
         )
 
@@ -794,12 +857,30 @@ Rules:
             return jsonify({'success': False, 'error': 'Gemini did not return valid JSON. Raw: ' + raw[:300]}), 500
 
         parsed = json.loads(match.group(0))
+        listings = parsed.get('listings', [])
+
+        # Post-process listings: normalize prices + attempt thumbnail fallback
+        enriched = []
+        for item in listings:
+            normalized_price = _normalize_price_to_inr(item.get('price'))
+            thumb = item.get('thumbnail')
+            # If no thumbnail from Gemini, try to scrape og:image (best-effort, non-blocking)
+            if not thumb and item.get('url'):
+                thumb = _fetch_og_thumbnail(item['url'])
+            enriched.append({
+                'title':     item.get('title', ''),
+                'url':       item.get('url', ''),
+                'source':    item.get('source', ''),
+                'price':     normalized_price,
+                'thumbnail': thumb,
+            })
+
         return jsonify({
             'success':      True,
             'keywords':     parsed.get('keywords', []),
             'summary':      parsed.get('summary', ''),
-            'listings':     parsed.get('listings', []),
-            'seller_count': len(parsed.get('listings', [])),
+            'listings':     enriched,
+            'seller_count': len(enriched),
             'price_range':  parsed.get('price_range'),
         })
 
