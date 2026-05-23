@@ -1,4 +1,5 @@
 import os, json, base64, uuid, re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
@@ -107,7 +108,11 @@ def get_gemini_client():
     api_key = os.getenv('GEMINI_API_KEY')
     if not api_key:
         return None, "GEMINI_API_KEY not set in .env file"
-    client = genai.Client(api_key=api_key)
+    # market-research with Google Search grounding can take 60-120s
+    client = genai.Client(
+        api_key=api_key,
+        http_options={"timeout": 240},
+    )
     return client, None
 
 @app.route('/')
@@ -754,34 +759,71 @@ def _normalize_price_to_inr(price_str):
 
 
 def _fetch_og_thumbnail(url):
-    """Try to scrape the Open Graph image from a listing URL as thumbnail fallback."""
+    """
+    Scrape og:image from a listing page. Designed to fail fast:
+    - 1.5s connect+read timeout (combined)
+    - No retries, no redirects beyond 1 hop
+    - Returns None immediately on any error
+    """
     if not url:
         return None
     try:
-        resp = requests.get(url, timeout=4, headers={
-            'User-Agent': 'Mozilla/5.0 (compatible; JewelleryBot/1.0)',
-        }, allow_redirects=True)
-        if resp.status_code != 200:
-            return None
-        # Look for og:image meta tag
-        og_match = re.search(
-            r'<meta[^>]+(?:property=["\']og:image["\']|name=["\']og:image["\'])[^>]+content=["\']([^"\']+)["\']',
-            resp.text, re.IGNORECASE
+        resp = requests.get(
+            url,
+            timeout=(1.0, 1.5),   # (connect_timeout, read_timeout)
+            headers={'User-Agent': 'Mozilla/5.0 (compatible; JewelleryBot/1.0)'},
+            allow_redirects=True,
+            stream=True,           # don't download the full page body upfront
         )
-        if not og_match:
-            # alternate attribute order
-            og_match = re.search(
-                r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property=["\']og:image["\'])',
-                resp.text, re.IGNORECASE
-            )
+        if resp.status_code != 200:
+            resp.close()
+            return None
+        # Read only the first 8KB — og:image is always in <head>
+        chunk = next(resp.iter_content(8192), b'')
+        resp.close()
+        text = chunk.decode('utf-8', errors='ignore')
+        og_match = re.search(
+            r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\'>]+)',
+            text, re.IGNORECASE
+        ) or re.search(
+            r'<meta[^>]+content=["\']([^"\'>]+)["\'][^>]+property=["\']og:image',
+            text, re.IGNORECASE
+        )
         if og_match:
-            img_url = og_match.group(1)
+            img_url = og_match.group(1).strip()
             if img_url.startswith('//'):
                 img_url = 'https:' + img_url
-            return img_url
+            if img_url.startswith('http'):
+                return img_url
     except Exception:
-        pass
+        pass   # timeout, SSL error, redirect loop — all silently dropped
     return None
+
+
+def _enrich_listing(item):
+    """Normalize price and fetch thumbnail for one listing (runs in thread pool)."""
+    normalized_price = _normalize_price_to_inr(item.get('price'))
+    thumb = item.get('thumbnail')
+    if not thumb and item.get('url'):
+        thumb = _fetch_og_thumbnail(item['url'])
+    return {
+        'title':     item.get('title', ''),
+        'url':       item.get('url', ''),
+        'source':    item.get('source', ''),
+        'price':     normalized_price,
+        'thumbnail': thumb,
+    }
+
+
+def _enrich_listing_no_thumb(item):
+    """Price normalisation only — used as fallback when thumbnail fetch timed out."""
+    return {
+        'title':     item.get('title', ''),
+        'url':       item.get('url', ''),
+        'source':    item.get('source', ''),
+        'price':     _normalize_price_to_inr(item.get('price')),
+        'thumbnail': None,
+    }
 
 
 @app.route('/api/market-research', methods=['POST'])
@@ -859,21 +901,25 @@ STRICT RULES — follow exactly:
         parsed = json.loads(match.group(0))
         listings = parsed.get('listings', [])
 
-        # Post-process listings: normalize prices + attempt thumbnail fallback
-        enriched = []
-        for item in listings:
-            normalized_price = _normalize_price_to_inr(item.get('price'))
-            thumb = item.get('thumbnail')
-            # If no thumbnail from Gemini, try to scrape og:image (best-effort, non-blocking)
-            if not thumb and item.get('url'):
-                thumb = _fetch_og_thumbnail(item['url'])
-            enriched.append({
-                'title':     item.get('title', ''),
-                'url':       item.get('url', ''),
-                'source':    item.get('source', ''),
-                'price':     normalized_price,
-                'thumbnail': thumb,
-            })
+        # Enrich listings in parallel (price normalisation + thumbnail fetch).
+        # Hard wall: 8s total for ALL thumbnails combined — we'd rather show
+        # listings without images than stall the whole response.
+        enriched = [None] * len(listings)
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            futures = {pool.submit(_enrich_listing, item): i for i, item in enumerate(listings)}
+            try:
+                for future in as_completed(futures, timeout=8):
+                    idx = futures[future]
+                    try:
+                        enriched[idx] = future.result(timeout=3)
+                    except Exception:
+                        enriched[idx] = _enrich_listing_no_thumb(listings[idx])
+            except Exception:
+                # as_completed timed out — fill remaining slots without thumbnails
+                for future, idx in futures.items():
+                    if enriched[idx] is None:
+                        enriched[idx] = _enrich_listing_no_thumb(listings[idx])
+        enriched = [e for e in enriched if e]
 
         return jsonify({
             'success':      True,
