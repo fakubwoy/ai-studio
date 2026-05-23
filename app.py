@@ -131,11 +131,9 @@ def get_gemini_client():
     api_key = os.getenv('GEMINI_API_KEY')
     if not api_key:
         return None, "GEMINI_API_KEY not set in .env file"
-    # market-research with Google Search grounding can take 60-120s
-    client = genai.Client(
-        api_key=api_key,
-        http_options={"timeout": 240},
-    )
+    # No custom timeout — SDK default is sufficient (well above 120s).
+    # Gunicorn's 300s worker timeout is the hard ceiling.
+    client = genai.Client(api_key=api_key)
     return client, None
 
 @app.route('/')
