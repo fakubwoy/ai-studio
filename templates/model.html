@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Model Try-On — Atelié{% endblock %}
+{% block title %}Model Try-On — glymr{% endblock %}
 
 {% block head %}
 <style>
@@ -469,9 +469,9 @@ async function generateModelShot() {
       document.getElementById('satisfactionBar').style.display = 'block';
 
       // Save to gallery
-      const gallery = JSON.parse(localStorage.getItem('atelieGallery') || '[]');
+      const gallery = JSON.parse(localStorage.getItem('glymrGallery') || '[]');
       gallery.unshift({ url: data.image_url, category: cat, ts: Date.now(), type: 'model' });
-      localStorage.setItem('atelieGallery', JSON.stringify(gallery.slice(0, 48)));
+      localStorage.setItem('glymrGallery', JSON.stringify(gallery.slice(0, 48)));
 
       saveState();
     }

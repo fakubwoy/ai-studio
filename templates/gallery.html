@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Gallery — Atelié{% endblock %}
+{% block title %}Gallery — glymr{% endblock %}
 
 {% block head %}
 <style>
@@ -144,7 +144,7 @@ let currentFilter = 'all';
 let lightboxUrl = '';
 
 function loadGallery() {
-  allItems = JSON.parse(localStorage.getItem('atelieGallery') || '[]');
+  allItems = JSON.parse(localStorage.getItem('glymrGallery') || '[]');
   renderGallery(allItems);
 }
 
@@ -186,13 +186,13 @@ function renderGallery(items) {
 
 function deleteItem(idx) {
   allItems.splice(idx, 1);
-  localStorage.setItem('atelieGallery', JSON.stringify(allItems));
+  localStorage.setItem('glymrGallery', JSON.stringify(allItems));
   filterGallery(currentFilter, document.querySelector(`.filter-tab[data-filter="${currentFilter}"]`));
 }
 
 function clearGallery() {
   if (!confirm('Clear all gallery images?')) return;
-  localStorage.removeItem('atelieGallery');
+  localStorage.removeItem('glymrGallery');
   allItems = [];
   renderGallery([]);
 }
