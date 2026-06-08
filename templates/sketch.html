@@ -1,0 +1,482 @@
+{% extends "base.html" %}
+{% block title %}Sketch Studio — Atelié{% endblock %}
+
+{% block head %}
+<style>
+  .studio-layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 24px;
+    padding: 32px 40px;
+    min-height: calc(100vh - var(--nav-h));
+    align-items: start;
+  }
+  .studio-sidebar { display: flex; flex-direction: column; gap: 20px; position: sticky; top: calc(var(--nav-h) + 24px); }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--paper-3);
+    border-radius: var(--radius-lg);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition);
+    background: var(--paper);
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--gold); background: rgba(184,146,74,.04); }
+  .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 32px; margin-bottom: 12px; opacity: .5; }
+  .upload-zone p { font-size: 14px; color: var(--ink-3); margin-bottom: 4px; }
+  .upload-zone small { font-size: 12px; color: var(--ink-3); opacity: .6; font-family: var(--font-mono); }
+  .upload-preview {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--paper-2);
+  }
+  .upload-preview img { width: 100%; height: 200px; object-fit: cover; }
+  .preview-remove {
+    position: absolute; top: 8px; right: 8px;
+    width: 28px; height: 28px;
+    background: rgba(14,12,11,.7); color: #fff;
+    border-radius: 50%; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .preview-remove:hover { background: var(--error); }
+
+  /* Mode selector */
+  .mode-tabs { display: flex; background: var(--paper-2); border-radius: var(--radius); padding: 3px; gap: 2px; }
+  .mode-tab {
+    flex: 1; padding: 8px; text-align: center;
+    border-radius: var(--radius); font-size: 12px; font-weight: 600;
+    letter-spacing: .05em; text-transform: uppercase;
+    color: var(--ink-3); transition: all var(--transition);
+  }
+  .mode-tab.active { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .mode-tab:hover:not(.active) { color: var(--ink); }
+
+  /* Concept output */
+  .concepts-area {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .concept-card {
+    background: #fff;
+    border: 1px solid var(--paper-3);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: transform var(--transition), box-shadow var(--transition);
+  }
+  .concept-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+  .concept-img {
+    width: 100%; height: 260px;
+    object-fit: cover;
+    background: var(--paper-2);
+  }
+  .concept-img-placeholder {
+    width: 100%; height: 260px;
+    background: linear-gradient(135deg, var(--paper-2), var(--paper-3));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; opacity: .3;
+  }
+  .concept-body { padding: 18px 20px; }
+  .concept-variant {
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--gold); letter-spacing: .1em; text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .concept-title {
+    font-family: var(--font-serif); font-size: 18px; font-weight: 600;
+    color: var(--ink); margin-bottom: 8px;
+  }
+  .concept-desc { font-size: 13px; color: var(--ink-3); line-height: 1.6; margin-bottom: 14px; }
+  .concept-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .concept-actions { display: flex; gap: 8px; }
+  .concept-actions .btn { flex: 1; justify-content: center; }
+
+  /* Text prompt area */
+  .prompt-area {
+    display: flex; flex-direction: column; gap: 12px;
+  }
+
+  /* Variations selector */
+  .var-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .var-chip {
+    padding: 8px 12px; border-radius: var(--radius);
+    border: 1.5px solid var(--paper-3);
+    font-size: 12px; text-align: center;
+    cursor: pointer; transition: all var(--transition);
+    color: var(--ink-3);
+  }
+  .var-chip.active { border-color: var(--gold); color: var(--gold); background: rgba(184,146,74,.08); }
+
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center; padding: 80px 40px;
+    color: var(--ink-3);
+  }
+  .empty-state .empty-icon { font-size: 56px; opacity: .2; margin-bottom: 20px; }
+  .empty-state h3 { font-family: var(--font-serif); font-size: 24px; color: var(--ink); margin-bottom: 8px; }
+  .empty-state p { font-size: 14px; }
+
+  .gen-loading {
+    grid-column: 1 / -1;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    padding: 80px 40px;
+  }
+  .gen-loading p { font-size: 14px; color: var(--ink-3); font-family: var(--font-mono); }
+
+  @media (max-width: 900px) {
+    .studio-layout { grid-template-columns: 1fr; padding: 24px 20px; }
+    .studio-sidebar { position: static; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="studio-layout">
+  <!-- SIDEBAR -->
+  <aside class="studio-sidebar">
+    <div class="panel">
+      <div class="panel-title">
+        <span class="step">Step 01</span>
+        Upload Sketch
+      </div>
+      <div class="upload-zone" id="sketchUploadZone">
+        <input type="file" id="sketchFile" accept="image/*" />
+        <div id="sketchPlaceholder">
+          <div class="upload-icon">✏️</div>
+          <p>Drop your sketch here</p>
+          <small>PNG, JPG, WEBP · up to 16MB</small>
+        </div>
+        <div id="sketchPreview" class="upload-preview" style="display:none">
+          <img id="sketchPreviewImg" src="" alt="sketch" />
+          <button class="preview-remove" onclick="clearSketch(event)">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">
+        <span class="step">Step 02</span>
+        Describe & Configure
+      </div>
+
+      <div class="form-row">
+        <label>Mode</label>
+        <div class="mode-tabs" id="modeTabs">
+          <div class="mode-tab active" data-mode="sketch" onclick="setMode('sketch')">Sketch → AI</div>
+          <div class="mode-tab" data-mode="text" onclick="setMode('text')">Text Only</div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Jewellery Category</label>
+        <select id="sketchCategory">
+          <option value="">— Select —</option>
+          {% for cat in categories %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-row prompt-area">
+        <label>Description / Prompt</label>
+        <textarea id="sketchPrompt" rows="4" placeholder="e.g. Traditional Kundan necklace, 22K gold, emerald drops, bridal, Rajasthani style..."></textarea>
+      </div>
+
+      <div class="form-row">
+        <label>Generate Variations</label>
+        <div class="var-grid" id="varGrid">
+          <div class="var-chip active" data-var="Classic" onclick="toggleVar(this)">Classic</div>
+          <div class="var-chip" data-var="Modern" onclick="toggleVar(this)">Modern</div>
+          <div class="var-chip" data-var="Minimal" onclick="toggleVar(this)">Minimal</div>
+          <div class="var-chip" data-var="Ornate" onclick="toggleVar(this)">Ornate</div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Metal Finish</label>
+        <select id="metalFinish">
+          <option value="22K Yellow Gold">22K Yellow Gold</option>
+          <option value="Rose Gold">Rose Gold</option>
+          <option value="White Gold / Silver">White Gold / Silver</option>
+          <option value="Oxidised Silver">Oxidised Silver</option>
+          <option value="Platinum">Platinum</option>
+          <option value="Panchdhatu">Panchdhatu</option>
+        </select>
+      </div>
+
+      <button class="btn btn-gold" style="width:100%;justify-content:center" id="conceptualiseBtn" onclick="runConceptualise()">
+        <span>✦</span> Conceptualise
+      </button>
+    </div>
+  </aside>
+
+  <!-- OUTPUT AREA -->
+  <div>
+    <div style="margin-bottom:24px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--gold);letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px">AI Concepts</div>
+        <h1 style="font-family:var(--font-serif);font-size:28px;font-weight:600;color:var(--ink)">Sketch Conceptualiser</h1>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="clearConcepts()" id="clearConceptsBtn" style="display:none">Clear All</button>
+    </div>
+
+    <div class="concepts-area" id="conceptsArea">
+      <div class="empty-state">
+        <div class="empty-icon">◈</div>
+        <h3>Your concepts will appear here</h3>
+        <p>Upload a sketch or describe your idea, then click Conceptualise.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SS_KEY = 'sketchStudioState';
+
+let currentMode = 'sketch';
+let sketchDataUrl = null;
+let activeVars = new Set(['Classic']);
+let concepts = [];
+
+// ── Persist state to sessionStorage ──
+function saveState() {
+  try {
+    sessionStorage.setItem(SS_KEY, JSON.stringify({
+      mode:        currentMode,
+      sketchDataUrl,
+      activeVars:  [...activeVars],
+      concepts,
+      prompt:      document.getElementById('sketchPrompt').value,
+      category:    document.getElementById('sketchCategory').value,
+      metal:       document.getElementById('metalFinish').value,
+    }));
+  } catch(e) {
+    // sessionStorage can fail if the sketch data URL is very large; fail silently
+    try {
+      // retry without the sketch image (concepts are the most important thing to keep)
+      sessionStorage.setItem(SS_KEY, JSON.stringify({
+        mode:        currentMode,
+        sketchDataUrl: null,
+        activeVars:  [...activeVars],
+        concepts,
+        prompt:      document.getElementById('sketchPrompt').value,
+        category:    document.getElementById('sketchCategory').value,
+        metal:       document.getElementById('metalFinish').value,
+      }));
+    } catch(e2) { /* give up silently */ }
+  }
+}
+
+// ── Restore state from sessionStorage ──
+function restoreState() {
+  let saved;
+  try { saved = JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch(e) { return; }
+  if (!saved) return;
+
+  // Form fields
+  if (saved.prompt)   document.getElementById('sketchPrompt').value   = saved.prompt;
+  if (saved.category) document.getElementById('sketchCategory').value = saved.category;
+  if (saved.metal)    document.getElementById('metalFinish').value    = saved.metal;
+
+  // Mode
+  if (saved.mode) setMode(saved.mode);
+
+  // Variations
+  if (Array.isArray(saved.activeVars) && saved.activeVars.length) {
+    activeVars = new Set(saved.activeVars);
+    document.querySelectorAll('.var-chip').forEach(el => {
+      el.classList.toggle('active', activeVars.has(el.dataset.var));
+    });
+  }
+
+  // Sketch preview
+  if (saved.sketchDataUrl) {
+    sketchDataUrl = saved.sketchDataUrl;
+    document.getElementById('sketchPreviewImg').src = sketchDataUrl;
+    document.getElementById('sketchPlaceholder').style.display = 'none';
+    document.getElementById('sketchPreview').style.display = 'block';
+  }
+
+  // Concepts
+  if (Array.isArray(saved.concepts) && saved.concepts.length) {
+    concepts = saved.concepts;
+    renderConcepts(concepts);
+    document.getElementById('clearConceptsBtn').style.display = 'inline-flex';
+  }
+}
+
+// ── Upload ──
+const sketchFile = document.getElementById('sketchFile');
+const sketchZone = document.getElementById('sketchUploadZone');
+
+sketchFile.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    sketchDataUrl = ev.target.result;
+    document.getElementById('sketchPreviewImg').src = sketchDataUrl;
+    document.getElementById('sketchPlaceholder').style.display = 'none';
+    document.getElementById('sketchPreview').style.display = 'block';
+    saveState();
+  };
+  reader.readAsDataURL(file);
+});
+
+sketchZone.addEventListener('dragover', e => { e.preventDefault(); sketchZone.classList.add('drag'); });
+sketchZone.addEventListener('dragleave', () => sketchZone.classList.remove('drag'));
+sketchZone.addEventListener('drop', e => {
+  e.preventDefault(); sketchZone.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) { sketchFile.files = e.dataTransfer.files; sketchFile.dispatchEvent(new Event('change')); }
+});
+
+function clearSketch(e) {
+  e.stopPropagation();
+  sketchDataUrl = null;
+  sketchFile.value = '';
+  document.getElementById('sketchPlaceholder').style.display = 'block';
+  document.getElementById('sketchPreview').style.display = 'none';
+  saveState();
+}
+
+// ── Mode ──
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+}
+
+// ── Variations ──
+function toggleVar(el) {
+  const v = el.dataset.var;
+  if (activeVars.has(v) && activeVars.size === 1) return;
+  if (activeVars.has(v)) { activeVars.delete(v); el.classList.remove('active'); }
+  else { activeVars.add(v); el.classList.add('active'); }
+  saveState();
+}
+
+// ── Conceptualise ──
+async function runConceptualise() {
+  const prompt = document.getElementById('sketchPrompt').value.trim();
+  const category = document.getElementById('sketchCategory').value;
+  const metal = document.getElementById('metalFinish').value;
+
+  if (!prompt && !sketchDataUrl) {
+    showToast('Please upload a sketch or enter a description.', 'error'); return;
+  }
+
+  const btn = document.getElementById('conceptualiseBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Generating...';
+
+  showLoading();
+
+  try {
+    const fd = new FormData();
+    fd.append('prompt', prompt);
+    fd.append('category', category);
+    fd.append('metal', metal);
+    fd.append('variations', JSON.stringify([...activeVars]));
+    if (sketchDataUrl) fd.append('sketch_data', sketchDataUrl);
+
+    const res = await fetch('/api/conceptualise', { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (data.error) { showToast(data.error, 'error'); showEmpty(); return; }
+
+    concepts = data.concepts || [];
+    renderConcepts(concepts);
+    document.getElementById('clearConceptsBtn').style.display = 'inline-flex';
+    saveState();
+  } catch(err) {
+    showToast('Network error: ' + err.message, 'error');
+    showEmpty();
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>✦</span> Conceptualise';
+  }
+}
+
+function showLoading() {
+  document.getElementById('conceptsArea').innerHTML = `
+    <div class="gen-loading">
+      <div class="spinner" style="width:40px;height:40px;border-width:3px"></div>
+      <p>Analysing sketch and generating concepts...</p>
+    </div>`;
+}
+function showEmpty() {
+  document.getElementById('conceptsArea').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">◈</div>
+      <h3>Your concepts will appear here</h3>
+      <p>Upload a sketch or describe your idea, then click Conceptualise.</p>
+    </div>`;
+}
+function clearConcepts() {
+  concepts = [];
+  showEmpty();
+  document.getElementById('clearConceptsBtn').style.display = 'none';
+  saveState();
+}
+
+function renderConcepts(list) {
+  if (!list.length) { showEmpty(); return; }
+  const area = document.getElementById('conceptsArea');
+  area.innerHTML = list.map((c, i) => `
+    <div class="concept-card" id="concept-${i}">
+      ${c.image_url
+        ? `<img class="concept-img" src="${c.image_url}" alt="${c.title}" />`
+        : `<div class="concept-img-placeholder">◈</div>`}
+      <div class="concept-body">
+        <div class="concept-variant">${c.variation || 'Concept ' + (i+1)}</div>
+        <div class="concept-title">${c.title}</div>
+        <p class="concept-desc">${c.description}</p>
+        <div class="concept-tags">
+          ${(c.tags || []).map(t => `<span class="tag tag-gold">${t}</span>`).join('')}
+        </div>
+        <div class="concept-actions">
+          <button class="btn btn-outline btn-sm" onclick="sendToModel(${i})">→ Try on Model</button>
+          <button class="btn btn-outline btn-sm" onclick="sendToCAD(${i})">→ 3D CAD</button>
+          ${c.image_url ? `<a href="${c.image_url}" download="concept-${i+1}.png" class="btn btn-outline btn-sm">↓</a>` : ''}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function sendToModel(i) {
+  const c = concepts[i];
+  if (c && c.image_url) {
+    sessionStorage.setItem('pendingModelImage', c.image_url);
+    sessionStorage.setItem('pendingModelCategory', document.getElementById('sketchCategory').value);
+    window.location.href = '/studio/model';
+  } else {
+    showToast('Generate a concept image first.', 'error');
+  }
+}
+function sendToCAD(i) {
+  const c = concepts[i];
+  if (c && c.image_url) {
+    sessionStorage.setItem('pendingCADImage', c.image_url);
+    window.location.href = '/studio/cad';
+  } else {
+    showToast('Generate a concept image first.', 'error');
+  }
+}
+
+// ── Auto-save form fields on input ──
+document.getElementById('sketchPrompt').addEventListener('input', saveState);
+document.getElementById('sketchCategory').addEventListener('change', saveState);
+document.getElementById('metalFinish').addEventListener('change', saveState);
+document.querySelectorAll('.mode-tab').forEach(t => t.addEventListener('click', () => saveState()));
+
+// ── Restore on load ──
+restoreState();
+</script>
+{% endblock %}

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Atelié — Jewellery AI Studio{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,600&family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink:       #0e0c0b;
+      --ink-2:     #2a2521;
+      --ink-3:     #5a5047;
+      --paper:     #faf7f2;
+      --paper-2:   #f2ede4;
+      --paper-3:   #e8e0d2;
+      --gold:      #b8924a;
+      --gold-lt:   #d4a96a;
+      --gold-dk:   #8a6830;
+      --rose:      #c9786a;
+      --sage:      #7a9e8e;
+      --error:     #c04040;
+      --radius:    4px;
+      --radius-lg: 10px;
+      --shadow:    0 2px 16px rgba(14,12,11,.08);
+      --shadow-lg: 0 8px 48px rgba(14,12,11,.14);
+      --font-serif: 'Cormorant Garamond', Georgia, serif;
+      --font-sans:  'Syne', system-ui, sans-serif;
+      --font-mono:  'DM Mono', monospace;
+      --nav-h:     64px;
+      --transition: 220ms cubic-bezier(.4,0,.2,1);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; }
+    input, textarea, select {
+      font-family: inherit;
+      font-size: inherit;
+      background: var(--paper);
+      border: 1px solid var(--paper-3);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      color: var(--ink);
+      transition: border-color var(--transition), box-shadow var(--transition);
+      width: 100%;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(184,146,74,.12);
+    }
+    textarea { resize: vertical; }
+    img { display: block; max-width: 100%; }
+
+    /* ── NAV ── */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: var(--nav-h);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 40px;
+      background: rgba(250,247,242,.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--paper-3);
+    }
+    .nav-logo {
+      display: flex; align-items: baseline; gap: 8px;
+      font-family: var(--font-serif);
+      font-size: 22px; font-weight: 600; letter-spacing: .02em;
+    }
+    .nav-logo .dot { color: var(--gold); font-size: 28px; line-height: 0; position: relative; top: 4px; }
+    .nav-links { display: flex; align-items: center; gap: 6px; }
+    .nav-links a {
+      padding: 7px 16px;
+      border-radius: 20px;
+      font-size: 13px; font-weight: 500; letter-spacing: .04em;
+      color: var(--ink-3);
+      transition: color var(--transition), background var(--transition);
+    }
+    .nav-links a:hover { color: var(--ink); background: var(--paper-2); }
+    .nav-links a.active { color: var(--gold); background: rgba(184,146,74,.1); }
+    .nav-cta {
+      background: var(--ink);
+      color: var(--paper) !important;
+      padding: 8px 20px !important;
+      border-radius: 20px;
+    }
+    .nav-cta:hover { background: var(--ink-2) !important; color: var(--paper) !important; }
+
+    /* ── PAGE WRAPPER ── */
+    .page { padding-top: var(--nav-h); min-height: 100vh; }
+
+    /* ── SHARED COMPONENTS ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 24px;
+      border-radius: var(--radius);
+      font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase;
+      transition: all var(--transition);
+      cursor: pointer;
+    }
+    .btn-gold {
+      background: var(--gold); color: #fff;
+    }
+    .btn-gold:hover { background: var(--gold-dk); transform: translateY(-1px); box-shadow: 0 4px 20px rgba(184,146,74,.35); }
+    .btn-outline {
+      background: transparent; color: var(--ink);
+      border: 1.5px solid var(--paper-3);
+    }
+    .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+    .btn-dark {
+      background: var(--ink); color: var(--paper);
+    }
+    .btn-dark:hover { background: var(--ink-2); transform: translateY(-1px); }
+    .btn-sm { padding: 7px 16px; font-size: 12px; }
+    .btn-lg { padding: 15px 36px; font-size: 14px; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
+
+    .panel {
+      background: #fff;
+      border: 1px solid var(--paper-3);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+    .panel-title {
+      font-family: var(--font-serif);
+      font-size: 20px; font-weight: 600;
+      color: var(--ink-2);
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--paper-2);
+    }
+    .panel-title .step {
+      font-family: var(--font-mono);
+      font-size: 11px; color: var(--gold);
+      letter-spacing: .1em; text-transform: uppercase;
+      display: block; margin-bottom: 4px;
+    }
+
+    .form-row { margin-bottom: 18px; }
+    .form-row label {
+      display: block; font-size: 12px; font-weight: 600;
+      letter-spacing: .06em; text-transform: uppercase;
+      color: var(--ink-3); margin-bottom: 6px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px; font-weight: 600; letter-spacing: .05em;
+      background: var(--paper-2); color: var(--ink-3);
+    }
+    .tag-gold { background: rgba(184,146,74,.15); color: var(--gold-dk); }
+
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid rgba(184,146,74,.2);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .toast-container {
+      position: fixed; bottom: 28px; right: 28px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .toast {
+      background: var(--ink); color: var(--paper);
+      padding: 12px 20px; border-radius: var(--radius);
+      font-size: 13px; box-shadow: var(--shadow-lg);
+      animation: toast-in .25s ease;
+      max-width: 320px;
+    }
+    .toast.success { background: #2d6a4f; }
+    .toast.error   { background: var(--error); }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+    .divider {
+      border: none; border-top: 1px solid var(--paper-3);
+      margin: 32px 0;
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--paper-2); }
+    ::-webkit-scrollbar-thumb { background: var(--paper-3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--gold-lt); }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/" class="nav-logo">
+    <span class="dot">◈</span>
+    <span>Atelié</span>
+  </a>
+  <div class="nav-links">
+    <a href="/studio/sketch" class="{{ 'active' if active_nav == 'sketch' }}">Sketch Studio</a>
+    <a href="/studio/model" class="{{ 'active' if active_nav == 'model' }}">Model Try-On</a>
+    <a href="/studio/cad" class="{{ 'active' if active_nav == 'cad' }}">3D CAD</a>
+    <a href="/studio/market" class="{{ 'active' if active_nav == 'market' }}">Market Trends</a>
+    <a href="/studio/gallery" class="{{ 'active' if active_nav == 'gallery' }}">Gallery</a>
+    <a href="/studio/sketch" class="nav-cta">Open Studio →</a>
+  </div>
+</nav>
+
+<div class="page">
+  {% block content %}{% endblock %}
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+function showToast(msg, type = '') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast' + (type ? ' ' + type : '');
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
