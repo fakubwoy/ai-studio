@@ -10,11 +10,17 @@ pip install -r requirements.txt
 
 # 2. Set up environment
 cp .env.example .env
-# Edit .env and add your API keys
+# Edit .env and add your API keys, DATABASE_URL, and REDIS_URL
 
-# 3. Run
+# 3. Start Postgres & Redis locally (Docker is easiest)
+docker run -d --name glymr-pg  -e POSTGRES_PASSWORD=pass -e POSTGRES_DB=glymr -p 5432:5432 postgres:16
+docker run -d --name glymr-redis -p 6379:6379 redis:7
+
+# 4. Run
 python app.py
 ```
+
+Tables are created automatically on first run — no migration step needed.
 
 Open [http://localhost:5050](http://localhost:5050)
 
@@ -33,7 +39,7 @@ Open [http://localhost:5050](http://localhost:5050)
 
 ---
 
-## API Keys
+## API Keys & Services
 
 ### Gemini (required for Sketch, Model, Market)
 1. Go to [https://aistudio.google.com](https://aistudio.google.com)
@@ -45,6 +51,21 @@ Open [http://localhost:5050](http://localhost:5050)
 2. Free tier available
 3. Add to `.env` as `MESHY_API_KEY`
 4. **Important**: Meshy needs to reach your server's public URL to fetch the input image. For local testing, use [ngrok](https://ngrok.com) or deploy to Railway.
+
+### PostgreSQL (required for gallery persistence and categories)
+- **Railway**: add the Postgres plugin — `DATABASE_URL` is injected automatically.
+- **Local**: `postgresql://user:password@localhost:5432/glymr`
+- Tables (`categories`, `gallery`) are created automatically on startup.
+- Falls back to a local `categories.json` file if `DATABASE_URL` is not set.
+
+### Redis (optional — enables caching)
+- **Railway**: add the Redis plugin — `REDIS_URL` is injected automatically.
+- **Local**: `redis://localhost:6379/0`
+- If `REDIS_URL` is unset, the app runs without caching (slightly slower on repeated market research queries).
+- **What's cached** (TTL):
+  - `glymr:categories` — category list (5 min)
+  - `glymr:market:<hash>` — market research results per image+keyword (1 hr)
+  - `glymr:templates:<hash>` — AI-suggested templates per category (24 hr)
 
 ---
 
@@ -91,13 +112,17 @@ Images flow between modules via `sessionStorage`:
 
 1. Push to GitHub
 2. Connect repo to [Railway](https://railway.app)
-3. Add environment variables (`GEMINI_API_KEY`, `MESHY_API_KEY`)
-4. Deploy — `railway.toml` handles the rest
+3. Add a **Postgres** plugin — Railway sets `DATABASE_URL` automatically
+4. Add a **Redis** plugin — Railway sets `REDIS_URL` automatically
+5. Add environment variables (`GEMINI_API_KEY`, `MESHY_API_KEY`)
+6. Deploy — `railway.toml` handles the rest
 
 ---
 
 ## Notes
 
-- Gallery items are stored in `localStorage` (per-browser, session-persistent)
-- Uploaded/output images go to `/tmp/static/` on Railway (ephemeral), or `./static/` locally
+- Gallery items are stored in **PostgreSQL** (`gallery` table), shared across all sessions and deploys
+- Categories are stored in **PostgreSQL** (`categories` table), with a JSON file fallback for local dev without Postgres
+- Uploaded/output images go to `/tmp/static/` on Railway (ephemeral), or `./static/` locally — store images externally (S3/R2) for permanent storage
 - The 3D CAD feature requires Meshy to fetch your image via a public URL — deploy to Railway or use ngrok for local testing
+- Redis caching is optional but recommended to avoid redundant Gemini calls for market research

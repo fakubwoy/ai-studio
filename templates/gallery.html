@@ -142,9 +142,33 @@
 let allItems = [];
 let currentFilter = 'all';
 let lightboxUrl = '';
+let lightboxId  = '';
 
-function loadGallery() {
-  allItems = JSON.parse(localStorage.getItem('glymrGallery') || '[]');
+async function loadGallery() {
+  try {
+    const res = await fetch('/api/gallery');
+    const data = await res.json();
+    allItems = data.items || [];
+    // Migrate any legacy localStorage items to the server
+    const legacy = JSON.parse(localStorage.getItem('glymrGallery') || '[]');
+    if (legacy.length) {
+      await Promise.allSettled(legacy.map(item =>
+        fetch('/api/gallery', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({url: item.url, type: item.type || 'image', category: item.category || '', title: item.title || '', tags: item.tags || []}),
+        })
+      ));
+      localStorage.removeItem('glymrGallery');
+      // Reload after migration
+      const res2 = await fetch('/api/gallery');
+      const data2 = await res2.json();
+      allItems = data2.items || [];
+    }
+  } catch (e) {
+    console.error('Failed to load gallery', e);
+    allItems = [];
+  }
   renderGallery(allItems);
 }
 
@@ -168,37 +192,47 @@ function renderGallery(items) {
       </div>`;
     return;
   }
-  grid.innerHTML = items.map((item, i) => `
-    <div class="gallery-item" data-idx="${i}">
-      <img src="${item.url}" alt="${item.category || 'Generated'}" loading="lazy" onclick="openLightbox('${item.url}')" />
+  grid.innerHTML = items.map((item) => `
+    <div class="gallery-item" data-id="${item.id}">
+      <img src="${item.url}" alt="${item.category || 'Generated'}" loading="lazy" onclick="openLightbox('${item.url}','${item.id}')" />
       <div class="gallery-item-overlay">
         <div>
           <div class="gallery-item-label">${item.category || ''} · ${item.type || 'image'}</div>
           <div class="gallery-actions">
             <a href="${item.url}" download class="ga-btn">↓ Save</a>
             <button class="ga-btn" onclick="event.stopPropagation();sendToModel('${item.url}','${item.category || ''}')">→ Model</button>
-            <button class="ga-btn" onclick="event.stopPropagation();deleteItem(${i})">✕</button>
+            <button class="ga-btn" onclick="event.stopPropagation();deleteItem('${item.id}')">✕</button>
           </div>
         </div>
       </div>
     </div>`).join('');
 }
 
-function deleteItem(idx) {
-  allItems.splice(idx, 1);
-  localStorage.setItem('glymrGallery', JSON.stringify(allItems));
-  filterGallery(currentFilter, document.querySelector(`.filter-tab[data-filter="${currentFilter}"]`));
+async function deleteItem(id) {
+  try {
+    await fetch(`/api/gallery/${id}`, {method: 'DELETE'});
+    allItems = allItems.filter(i => i.id !== id);
+    filterGallery(currentFilter, document.querySelector(`.filter-tab[data-filter="${currentFilter}"]`));
+  } catch (e) {
+    showToast('Failed to delete item', 'error');
+  }
 }
 
-function clearGallery() {
+async function clearGallery() {
   if (!confirm('Clear all gallery images?')) return;
-  localStorage.removeItem('glymrGallery');
-  allItems = [];
-  renderGallery([]);
+  try {
+    await fetch('/api/gallery', {method: 'DELETE'});
+    allItems = [];
+    renderGallery([]);
+    showToast('Gallery cleared');
+  } catch (e) {
+    showToast('Failed to clear gallery', 'error');
+  }
 }
 
-function openLightbox(url) {
+function openLightbox(url, id) {
   lightboxUrl = url;
+  lightboxId  = id;
   document.getElementById('lightboxImg').src = url;
   document.getElementById('lightboxDl').href = url;
   document.getElementById('lightbox').classList.add('open');

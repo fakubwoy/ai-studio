@@ -1,8 +1,11 @@
-import os, json, base64, uuid, re, time, logging
+import os, json, base64, uuid, re, time, logging, hashlib, secrets, string, random
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
+from functools import wraps
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 from google import genai
 from google.genai import types
 from PIL import Image
@@ -10,6 +13,9 @@ import io
 from dotenv import load_dotenv
 import requests
 from flask_cors import CORS
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import redis as redis_lib
 
 load_dotenv()
 
@@ -22,7 +28,154 @@ logging.basicConfig(
 log = logging.getLogger('atelier')
 
 app = Flask(__name__)
-CORS(app)
+app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
+CORS(app, supports_credentials=True)
+
+# ── PostgreSQL ─────────────────────────────────────────────────────────────────
+_DB_URL = os.getenv('DATABASE_URL', '')
+
+def get_db():
+    """Return a new psycopg2 connection. Caller must close it."""
+    if not _DB_URL:
+        raise RuntimeError('DATABASE_URL is not set')
+    conn = psycopg2.connect(_DB_URL, cursor_factory=RealDictCursor)
+    conn.autocommit = False
+    return conn
+
+def init_db():
+    """Create tables if they don't exist yet."""
+    if not _DB_URL:
+        log.warning('[db] DATABASE_URL not set — skipping DB init, falling back to JSON file')
+        return
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            # ── Auth tables ──────────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    email        TEXT UNIQUE NOT NULL,
+                    password_hash TEXT,
+                    google_id    TEXT UNIQUE,
+                    display_name TEXT NOT NULL DEFAULT '',
+                    avatar_url   TEXT NOT NULL DEFAULT '',
+                    verified     BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    last_login   TIMESTAMPTZ
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS otp_codes (
+                    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    email      TEXT NOT NULL,
+                    code       TEXT NOT NULL,
+                    purpose    TEXT NOT NULL DEFAULT 'verify',
+                    expires_at TIMESTAMPTZ NOT NULL,
+                    used       BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_codes(email);
+            """)
+            # ── App tables ───────────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS categories (
+                    name        TEXT PRIMARY KEY,
+                    description TEXT NOT NULL DEFAULT '',
+                    is_set      BOOLEAN NOT NULL DEFAULT FALSE,
+                    templates   JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS gallery (
+                    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
+                    url         TEXT NOT NULL,
+                    type        TEXT NOT NULL DEFAULT 'image',
+                    category    TEXT NOT NULL DEFAULT '',
+                    title       TEXT NOT NULL DEFAULT '',
+                    tags        JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+            # Migrate: add user_id column if it was missing (existing deploys)
+            cur.execute("""
+                ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+            """)
+            # Seed categories from DEFAULT_CATEGORIES if table is empty
+            cur.execute('SELECT COUNT(*) AS n FROM categories')
+            row = cur.fetchone()
+            if row['n'] == 0:
+                log.info('[db] seeding categories table from defaults')
+                for name, meta in DEFAULT_CATEGORIES.items():
+                    cur.execute(
+                        """INSERT INTO categories (name, description, is_set, templates)
+                           VALUES (%s, %s, %s, %s)
+                           ON CONFLICT (name) DO NOTHING""",
+                        (
+                            name,
+                            meta.get('description', ''),
+                            meta.get('is_set', False),
+                            json.dumps(meta.get('templates', [])),
+                        )
+                    )
+        conn.commit()
+        conn.close()
+        log.info('[db] tables ready')
+    except Exception as e:
+        log.error(f'[db] init_db failed: {e}', exc_info=True)
+
+# ── Redis ──────────────────────────────────────────────────────────────────────
+_REDIS_URL = os.getenv('REDIS_URL', '')
+_redis: redis_lib.Redis | None = None
+
+def get_redis() -> redis_lib.Redis | None:
+    """Return the Redis client, or None if unavailable."""
+    global _redis
+    if _redis is not None:
+        return _redis
+    if not _REDIS_URL:
+        return None
+    try:
+        client = redis_lib.from_url(_REDIS_URL, decode_responses=True, socket_connect_timeout=2)
+        client.ping()
+        _redis = client
+        log.info('[redis] connected')
+    except Exception as e:
+        log.warning(f'[redis] unavailable, caching disabled: {e}')
+        _redis = None
+    return _redis
+
+def cache_get(key: str):
+    r = get_redis()
+    if r is None:
+        return None
+    try:
+        val = r.get(key)
+        return json.loads(val) if val else None
+    except Exception:
+        return None
+
+def cache_set(key: str, value, ttl: int = 3600):
+    r = get_redis()
+    if r is None:
+        return
+    try:
+        r.setex(key, ttl, json.dumps(value))
+    except Exception:
+        pass
+
+def cache_del(key: str):
+    r = get_redis()
+    if r is None:
+        return
+    try:
+        r.delete(key)
+    except Exception:
+        pass
 
 @app.before_request
 def _log_req():
@@ -46,7 +199,7 @@ app.config['UPLOAD_FOLDER'] = os.path.join(_TMP, 'static', 'uploads')
 app.config['OUTPUT_FOLDER'] = os.path.join(_TMP, 'static', 'outputs')
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
-CATEGORIES_FILE = os.path.join(_TMP, 'categories.json')
+CATEGORIES_FILE = os.path.join(_TMP, 'categories.json')  # fallback only
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
@@ -88,16 +241,91 @@ DEFAULT_CATEGORIES = {
     ]},
 }
 
-def load_categories():
+_CATEGORIES_CACHE_KEY = 'glymr:categories'
+
+def load_categories() -> dict:
+    """Load categories from Redis cache → Postgres → JSON file fallback."""
+    # 1. Redis cache
+    cached = cache_get(_CATEGORIES_CACHE_KEY)
+    if cached is not None:
+        return cached
+
+    # 2. Postgres
+    if _DB_URL:
+        try:
+            conn = get_db()
+            with conn.cursor() as cur:
+                cur.execute('SELECT name, description, is_set, templates FROM categories ORDER BY name')
+                rows = cur.fetchall()
+            conn.close()
+            if rows:
+                cats = {
+                    r['name']: {
+                        'description': r['description'],
+                        'is_set': r['is_set'],
+                        'templates': r['templates'],
+                    }
+                    for r in rows
+                }
+                cache_set(_CATEGORIES_CACHE_KEY, cats, ttl=300)
+                return cats
+        except Exception as e:
+            log.error(f'[db] load_categories failed: {e}', exc_info=True)
+
+    # 3. JSON file fallback
     if os.path.exists(CATEGORIES_FILE):
         with open(CATEGORIES_FILE, 'r') as f:
-            return json.load(f)
+            cats = json.load(f)
+        cache_set(_CATEGORIES_CACHE_KEY, cats, ttl=300)
+        return cats
+
     save_categories(DEFAULT_CATEGORIES)
     return DEFAULT_CATEGORIES
 
-def save_categories(cats):
-    with open(CATEGORIES_FILE, 'w') as f:
-        json.dump(cats, f, indent=2)
+
+def save_categories(cats: dict):
+    """Persist categories to Postgres (primary) and JSON file (fallback). Bust cache."""
+    # 1. Postgres
+    if _DB_URL:
+        try:
+            conn = get_db()
+            with conn.cursor() as cur:
+                # Upsert every category
+                for name, meta in cats.items():
+                    cur.execute(
+                        """INSERT INTO categories (name, description, is_set, templates, updated_at)
+                           VALUES (%s, %s, %s, %s, NOW())
+                           ON CONFLICT (name) DO UPDATE SET
+                               description = EXCLUDED.description,
+                               is_set      = EXCLUDED.is_set,
+                               templates   = EXCLUDED.templates,
+                               updated_at  = NOW()""",
+                        (
+                            name,
+                            meta.get('description', ''),
+                            meta.get('is_set', False),
+                            json.dumps(meta.get('templates', [])),
+                        )
+                    )
+                # Remove categories deleted from the dict
+                cur.execute(
+                    'DELETE FROM categories WHERE name <> ALL(%s)',
+                    (list(cats.keys()),)
+                )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            log.error(f'[db] save_categories failed: {e}', exc_info=True)
+
+    # 2. JSON file fallback
+    try:
+        with open(CATEGORIES_FILE, 'w') as f:
+            json.dump(cats, f, indent=2)
+    except Exception as e:
+        log.warning(f'[file] save_categories json fallback failed: {e}')
+
+    # 3. Bust Redis cache
+    cache_del(_CATEGORIES_CACHE_KEY)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -114,43 +342,378 @@ def get_meshy_key():
         return None, "MESHY_API_KEY not set in .env file"
     return key, None
 
+# ── Auth helpers ───────────────────────────────────────────────────────────────
+
+def _otp_code(length=6):
+    return ''.join(random.choices(string.digits, k=length))
+
+def _send_otp_gmail(to_email: str, code: str, purpose: str = 'verify') -> bool:
+    """Send OTP via Gmail API using a service-account / OAuth2 access token stored in env."""
+    gmail_token = os.getenv('GMAIL_OAUTH_TOKEN')  # short-lived access token, or use refresh flow
+    gmail_sender = os.getenv('GMAIL_SENDER_EMAIL')
+    if not gmail_token or not gmail_sender:
+        log.error('[otp] GMAIL_OAUTH_TOKEN or GMAIL_SENDER_EMAIL not set')
+        return False
+    subject_map = {'verify': 'Verify your glymr account', 'login': 'Your glymr sign-in code'}
+    subject = subject_map.get(purpose, 'Your glymr code')
+    body = (
+        f"Subject: {subject}\r\n"
+        f"To: {to_email}\r\n"
+        f"From: glymr Studio <{gmail_sender}>\r\n"
+        f"Content-Type: text/html; charset=utf-8\r\n\r\n"
+        f"<div style='font-family:sans-serif;max-width:480px;margin:40px auto;padding:32px;border:1px solid #e8e0d2;border-radius:10px;background:#faf7f2'>"
+        f"<div style='font-size:28px;margin-bottom:4px'>◈ glymr</div>"
+        f"<h2 style='font-size:20px;margin:16px 0 8px'>Your verification code</h2>"
+        f"<p style='color:#5a5047;margin-bottom:24px'>Enter this code to {'verify your account' if purpose=='verify' else 'sign in'}. It expires in 10 minutes.</p>"
+        f"<div style='font-size:40px;font-weight:700;letter-spacing:10px;text-align:center;padding:20px;background:#f2ede4;border-radius:8px;margin-bottom:24px'>{code}</div>"
+        f"<p style='color:#5a5047;font-size:13px'>If you didn't request this, you can safely ignore this email.</p>"
+        f"</div>"
+    )
+    raw = base64.urlsafe_b64encode(body.encode()).decode()
+    try:
+        r = requests.post(
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+            headers={'Authorization': f'Bearer {gmail_token}', 'Content-Type': 'application/json'},
+            json={'raw': raw},
+            timeout=10,
+        )
+        if r.status_code in (200, 202):
+            log.info(f'[otp] sent to {to_email}')
+            return True
+        log.error(f'[otp] Gmail API error {r.status_code}: {r.text[:200]}')
+        return False
+    except Exception as e:
+        log.error(f'[otp] send failed: {e}')
+        return False
+
+
+def _get_gmail_access_token() -> str | None:
+    """Exchange refresh token for a fresh access token (called lazily per request)."""
+    refresh_token = os.getenv('GMAIL_REFRESH_TOKEN')
+    client_id     = os.getenv('GOOGLE_CLIENT_ID')
+    client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+    if not all([refresh_token, client_id, client_secret]):
+        return os.getenv('GMAIL_OAUTH_TOKEN')  # fallback: static token in env
+    try:
+        r = requests.post('https://oauth2.googleapis.com/token', data={
+            'grant_type':    'refresh_token',
+            'refresh_token': refresh_token,
+            'client_id':     client_id,
+            'client_secret': client_secret,
+        }, timeout=8)
+        return r.json().get('access_token')
+    except Exception as e:
+        log.error(f'[gmail-token] refresh failed: {e}')
+        return None
+
+
+def send_otp(to_email: str, purpose: str = 'verify') -> bool:
+    """Generate, store, and email an OTP. Returns True on success."""
+    if not _DB_URL:
+        return False
+    code = _otp_code()
+    expires = datetime.now(timezone.utc) + timedelta(minutes=10)
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            # Invalidate previous unused codes for this email+purpose
+            cur.execute(
+                "UPDATE otp_codes SET used=TRUE WHERE email=%s AND purpose=%s AND used=FALSE",
+                (to_email, purpose)
+            )
+            cur.execute(
+                "INSERT INTO otp_codes (email, code, purpose, expires_at) VALUES (%s,%s,%s,%s)",
+                (to_email, code, purpose, expires)
+            )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        log.error(f'[otp] db error: {e}')
+        return False
+    token = _get_gmail_access_token()
+    if token:
+        import os as _os
+        _os.environ['GMAIL_OAUTH_TOKEN'] = token
+    return _send_otp_gmail(to_email, code, purpose)
+
+
+def verify_otp(email: str, code: str, purpose: str = 'verify') -> bool:
+    """Check OTP. Marks it used if valid. Returns True on success."""
+    if not _DB_URL:
+        return False
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id FROM otp_codes
+                   WHERE email=%s AND code=%s AND purpose=%s AND used=FALSE AND expires_at > NOW()
+                   ORDER BY created_at DESC LIMIT 1""",
+                (email, code.strip(), purpose)
+            )
+            row = cur.fetchone()
+            if not row:
+                conn.close()
+                return False
+            cur.execute("UPDATE otp_codes SET used=TRUE WHERE id=%s", (row['id'],))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        log.error(f'[otp] verify error: {e}')
+        return False
+
+
+def get_current_user():
+    """Return current user dict from session, or None."""
+    uid = session.get('user_id')
+    if not uid:
+        return None
+    if not _DB_URL:
+        return None
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute(
+                'SELECT id, email, display_name, avatar_url, verified FROM users WHERE id=%s',
+                (uid,)
+            )
+            row = cur.fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except Exception:
+        return None
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('user_id'):
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({'error': 'Authentication required', 'redirect': '/auth'}), 401
+            return redirect(url_for('auth_page', next=request.path))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ── Auth Routes ────────────────────────────────────────────────────────────────
+
+@app.route('/auth')
+def auth_page():
+    if session.get('user_id'):
+        return redirect(url_for('page_sketch'))
+    google_client_id = os.getenv('GOOGLE_CLIENT_ID', '')
+    next_url = request.args.get('next', '/studio/sketch')
+    return render_template('auth.html', active_nav='', google_client_id=google_client_id, next_url=next_url)
+
+
+@app.route('/auth/logout')
+def auth_logout():
+    session.clear()
+    return redirect(url_for('landing'))
+
+
+@app.route('/api/auth/send-otp', methods=['POST'])
+def api_send_otp():
+    data  = request.json or {}
+    email = data.get('email', '').strip().lower()
+    if not email or '@' not in email:
+        return jsonify({'error': 'Valid email required'}), 400
+    # Determine purpose: if user exists & verified → login, else verify
+    purpose = 'login'
+    if _DB_URL:
+        try:
+            conn = get_db()
+            with conn.cursor() as cur:
+                cur.execute('SELECT id, verified FROM users WHERE email=%s', (email,))
+                row = cur.fetchone()
+            conn.close()
+            if not row or not row['verified']:
+                purpose = 'verify'
+        except Exception:
+            pass
+    ok = send_otp(email, purpose)
+    if not ok:
+        return jsonify({'error': 'Failed to send OTP. Check GMAIL_OAUTH_TOKEN and GMAIL_SENDER_EMAIL env vars.'}), 500
+    return jsonify({'success': True, 'purpose': purpose})
+
+
+@app.route('/api/auth/verify-otp', methods=['POST'])
+def api_verify_otp():
+    data     = request.json or {}
+    email    = data.get('email', '').strip().lower()
+    code     = data.get('code', '').strip()
+    password = data.get('password', '').strip()  # only for new accounts
+    name     = data.get('name', '').strip()
+    purpose  = data.get('purpose', 'verify')
+
+    if not email or not code:
+        return jsonify({'error': 'Email and code required'}), 400
+
+    if not verify_otp(email, code, purpose):
+        return jsonify({'error': 'Invalid or expired code'}), 400
+
+    if not _DB_URL:
+        return jsonify({'error': 'DATABASE_URL not set'}), 500
+
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute('SELECT id, email, display_name, avatar_url, verified FROM users WHERE email=%s', (email,))
+            user = cur.fetchone()
+
+            if user:
+                # Existing user: mark verified, update last_login
+                cur.execute(
+                    'UPDATE users SET verified=TRUE, last_login=NOW() WHERE id=%s',
+                    (user['id'],)
+                )
+                user_id = str(user['id'])
+                display = user['display_name'] or email.split('@')[0]
+                avatar  = user['avatar_url'] or ''
+            else:
+                # New user: create account
+                pw_hash = generate_password_hash(password) if password else None
+                display = name or email.split('@')[0]
+                cur.execute(
+                    """INSERT INTO users (email, password_hash, display_name, verified, last_login)
+                       VALUES (%s,%s,%s,TRUE,NOW()) RETURNING id""",
+                    (email, pw_hash, display)
+                )
+                user_id = str(cur.fetchone()['id'])
+                avatar  = ''
+
+        conn.commit()
+        conn.close()
+
+        session['user_id']    = user_id
+        session['user_email'] = email
+        session['user_name']  = display
+        session['user_avatar']= avatar
+        session.permanent     = True
+
+        return jsonify({'success': True, 'user': {'id': user_id, 'email': email, 'name': display, 'avatar': avatar}})
+    except Exception as e:
+        log.error(f'[auth] verify-otp error: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/auth/google', methods=['POST'])
+def api_auth_google():
+    """Exchange Google OAuth code for user info and create/login user."""
+    data         = request.json or {}
+    access_token = data.get('access_token', '')
+    if not access_token:
+        return jsonify({'error': 'access_token required'}), 400
+    try:
+        # Fetch user info from Google
+        r = requests.get(
+            'https://www.googleapis.com/oauth2/v2/userinfo',
+            headers={'Authorization': f'Bearer {access_token}'},
+            timeout=8,
+        )
+        if r.status_code != 200:
+            return jsonify({'error': 'Invalid Google token'}), 401
+        g = r.json()
+        google_id = g.get('id', '')
+        email     = g.get('email', '').lower()
+        name      = g.get('name', email.split('@')[0])
+        avatar    = g.get('picture', '')
+        if not email:
+            return jsonify({'error': 'Could not get email from Google'}), 400
+
+        if not _DB_URL:
+            return jsonify({'error': 'DATABASE_URL not set'}), 500
+
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute('SELECT id FROM users WHERE email=%s OR google_id=%s', (email, google_id))
+            row = cur.fetchone()
+            if row:
+                user_id = str(row['id'])
+                cur.execute(
+                    'UPDATE users SET google_id=%s, display_name=%s, avatar_url=%s, verified=TRUE, last_login=NOW() WHERE id=%s',
+                    (google_id, name, avatar, user_id)
+                )
+            else:
+                cur.execute(
+                    """INSERT INTO users (email, google_id, display_name, avatar_url, verified, last_login)
+                       VALUES (%s,%s,%s,%s,TRUE,NOW()) RETURNING id""",
+                    (email, google_id, name, avatar)
+                )
+                user_id = str(cur.fetchone()['id'])
+        conn.commit()
+        conn.close()
+
+        session['user_id']    = user_id
+        session['user_email'] = email
+        session['user_name']  = name
+        session['user_avatar']= avatar
+        session.permanent     = True
+
+        return jsonify({'success': True, 'user': {'id': user_id, 'email': email, 'name': name, 'avatar': avatar}})
+    except Exception as e:
+        log.error(f'[auth] google error: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/auth/me')
+def api_auth_me():
+    user = get_current_user()
+    if not user:
+        return jsonify({'authenticated': False}), 401
+    return jsonify({'authenticated': True, 'user': {
+        'id':     str(user['id']),
+        'email':  user['email'],
+        'name':   user['display_name'],
+        'avatar': user['avatar_url'],
+    }})
+
+
 # ── Pages ──────────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def landing():
-    return render_template('landing.html', active_nav='')
+    user = get_current_user()
+    return render_template('landing.html', active_nav='', current_user=user)
 
 @app.route('/studio/sketch')
+@login_required
 def page_sketch():
     cats = load_categories()
-    return render_template('sketch.html', categories=list(cats.keys()), active_nav='sketch')
+    return render_template('sketch.html', categories=list(cats.keys()), active_nav='sketch', current_user=get_current_user())
 
 @app.route('/studio/model')
+@login_required
 def page_model():
     cats = load_categories()
-    return render_template('model.html', categories=list(cats.keys()), active_nav='model')
+    return render_template('model.html', categories=list(cats.keys()), active_nav='model', current_user=get_current_user())
 
 @app.route('/studio/cad')
+@login_required
 def page_cad():
     cats = load_categories()
-    return render_template('cad.html', categories=list(cats.keys()), active_nav='cad')
+    return render_template('cad.html', categories=list(cats.keys()), active_nav='cad', current_user=get_current_user())
 
 @app.route('/studio/market')
+@login_required
 def page_market():
     cats = load_categories()
-    return render_template('market.html', categories=list(cats.keys()), active_nav='market')
+    return render_template('market.html', categories=list(cats.keys()), active_nav='market', current_user=get_current_user())
 
 @app.route('/studio/gallery')
+@login_required
 def page_gallery():
-    return render_template('gallery.html', active_nav='gallery')
+    return render_template('gallery.html', active_nav='gallery', current_user=get_current_user())
 
 # ── API: Categories ────────────────────────────────────────────────────────────
 
 @app.route('/api/categories', methods=['GET'])
+@login_required
 def get_categories():
     return jsonify(load_categories())
 
 @app.route('/api/categories/add', methods=['POST'])
+@login_required
 def add_category():
     data = request.json
     name = data.get('name', '').strip()
@@ -165,6 +728,7 @@ def add_category():
     return jsonify({'success': True, 'categories': cats})
 
 @app.route('/api/suggest-templates', methods=['POST'])
+@login_required
 def suggest_templates():
     data = request.json
     category = data.get('category', '')
@@ -172,6 +736,12 @@ def suggest_templates():
     client, err = get_gemini_client()
     if err:
         return jsonify({'error': err}), 500
+
+    cache_key = f'glymr:templates:{hashlib.sha1((category + description).encode()).hexdigest()}'
+    cached = cache_get(cache_key)
+    if cached:
+        log.info(f'[suggest-templates] cache HIT | category={category}')
+        return jsonify(cached)
 
     prompt = f"""You are a professional jewellery sizing and styling expert.
 For the jewellery category: "{category}" ({description})
@@ -189,11 +759,14 @@ Return ONLY a JSON array:
             existing = {t['name'] for t in cats[category].get('templates', [])}
             cats[category]['templates'].extend([t for t in templates if t['name'] not in existing])
             save_categories(cats)
-        return jsonify({'templates': templates, 'success': True})
+        result = {'templates': templates, 'success': True}
+        cache_set(cache_key, result, ttl=86400)  # cache 24 h — templates rarely change
+        return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/add-template', methods=['POST'])
+@login_required
 def add_template():
     data = request.json
     category = data.get('category')
@@ -208,6 +781,7 @@ def add_template():
 # ── API: Sketch Conceptualiser ─────────────────────────────────────────────────
 
 @app.route('/api/conceptualise', methods=['POST'])
+@login_required
 def api_conceptualise():
     """
     Takes a sketch image (optional) + text description + variations list.
@@ -310,6 +884,7 @@ Return ONLY the JSON, no markdown."""
 # ── API: Model Image Generation (existing logic, cleaned up) ───────────────────
 
 @app.route('/api/generate-image', methods=['POST'])
+@login_required
 def generate_image():
     files = request.files.getlist('jewellery_image')
     if not files or not files[0].filename:
@@ -410,6 +985,7 @@ def _generate_with_gemini(image_path, prompt, category, extra_paths=None):
 # ── API: Analyse result (AI feedback loop) ─────────────────────────────────────
 
 @app.route('/api/analyze-result', methods=['POST'])
+@login_required
 def analyze_result():
     data = request.json
     original_src = data.get('original_src', '')
@@ -465,6 +1041,7 @@ Return ONLY this JSON:
 # ── API: 3D CAD (Meshy AI) ─────────────────────────────────────────────────────
 
 @app.route('/api/generate-cad', methods=['POST'])
+@login_required
 def api_generate_cad():
     """Submit an image to Meshy AI image-to-3D and return a task_id for polling."""
     image_data = request.form.get('image_data', '')
@@ -544,6 +1121,7 @@ def api_generate_cad():
 
 
 @app.route('/api/cad-status/<task_id>', methods=['GET'])
+@login_required
 def api_cad_status(task_id):
     """Poll Meshy for task status. Returns progress, status, and download URLs when done."""
     meshy_key, err = get_meshy_key()
@@ -625,6 +1203,7 @@ def _fetch_og_thumbnail(url):
     return None
 
 @app.route('/api/market-research', methods=['POST'])
+@login_required
 def api_market_research():
     category = request.form.get('category', 'Jewellery')
     keyword  = request.form.get('keyword', '').strip() or None
@@ -639,6 +1218,16 @@ def api_market_research():
 
     try:
         img_bytes = image.read()
+
+        # Redis cache key: SHA1 of image bytes + category + keyword
+        cache_key = 'glymr:market:' + hashlib.sha1(
+            img_bytes + category.encode() + (keyword or '').encode()
+        ).hexdigest()
+        cached = cache_get(cache_key)
+        if cached:
+            log.info(f'[market-research] cache HIT | key={cache_key[:20]}…')
+            return jsonify(cached)
+
         filter_note = f'Focus results specifically on listings matching: "{keyword}".' if keyword else ''
 
         prompt = f"""You are a jewellery market research expert for Indian sellers.
@@ -689,18 +1278,126 @@ RULES:
                         enriched[idx] = {'title': listings[idx].get('title',''), 'url': listings[idx].get('url',''), 'source': listings[idx].get('source',''), 'price': _normalize_price_to_inr(listings[idx].get('price')), 'thumbnail': None}
 
         enriched = [e for e in enriched if e]
-        return jsonify({
+        result = {
             'success': True,
             'keywords': parsed.get('keywords', []),
             'summary': parsed.get('summary', ''),
             'listings': enriched,
             'seller_count': len(enriched),
             'price_range': parsed.get('price_range'),
-        })
+        }
+        cache_set(cache_key, result, ttl=3600)  # cache for 1 hour
+        return jsonify(result)
 
     except Exception as e:
         log.error(f"[market-research] exception: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# ── API: Gallery (DB-backed, user-scoped) ─────────────────────────────────────
+
+@app.route('/api/gallery', methods=['GET'])
+@login_required
+def api_gallery_list():
+    """Return gallery items for the current user, newest first."""
+    if not _DB_URL:
+        return jsonify({'items': [], 'warning': 'DATABASE_URL not set'}), 200
+    user_id = session['user_id']
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute(
+                'SELECT id, url, type, category, title, tags, created_at FROM gallery WHERE user_id=%s ORDER BY created_at DESC',
+                (user_id,)
+            )
+            rows = cur.fetchall()
+        conn.close()
+        items = [
+            {
+                'id':        str(r['id']),
+                'url':       r['url'],
+                'type':      r['type'],
+                'category':  r['category'],
+                'title':     r['title'],
+                'tags':      r['tags'],
+                'created_at': r['created_at'].isoformat(),
+            }
+            for r in rows
+        ]
+        return jsonify({'items': items})
+    except Exception as e:
+        log.error(f'[gallery] list failed: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gallery', methods=['POST'])
+@login_required
+def api_gallery_add():
+    """Save a generated image to the gallery, linked to current user."""
+    if not _DB_URL:
+        return jsonify({'error': 'DATABASE_URL not set'}), 500
+    user_id  = session['user_id']
+    data     = request.json or {}
+    url      = data.get('url', '').strip()
+    img_type = data.get('type', 'image')
+    category = data.get('category', '')
+    title    = data.get('title', '')
+    tags     = data.get('tags', [])
+    if not url:
+        return jsonify({'error': 'url required'}), 400
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO gallery (user_id, url, type, category, title, tags)
+                   VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+                (user_id, url, img_type, category, title, json.dumps(tags))
+            )
+            item_id = cur.fetchone()['id']
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'id': str(item_id)})
+    except Exception as e:
+        log.error(f'[gallery] add failed: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gallery/<item_id>', methods=['DELETE'])
+@login_required
+def api_gallery_delete(item_id):
+    """Delete a gallery item by UUID — only if it belongs to current user."""
+    if not _DB_URL:
+        return jsonify({'error': 'DATABASE_URL not set'}), 500
+    user_id = session['user_id']
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute('DELETE FROM gallery WHERE id=%s AND user_id=%s', (item_id, user_id))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        log.error(f'[gallery] delete failed: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gallery', methods=['DELETE'])
+@login_required
+def api_gallery_clear():
+    """Delete all gallery items for current user only."""
+    if not _DB_URL:
+        return jsonify({'error': 'DATABASE_URL not set'}), 500
+    user_id = session['user_id']
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute('DELETE FROM gallery WHERE user_id=%s', (user_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        log.error(f'[gallery] clear failed: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
 
 # ── Static file serving ────────────────────────────────────────────────────────
 
@@ -713,6 +1410,10 @@ def output_file(filename):
     return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
 
 # ── Main ───────────────────────────────────────────────────────────────────────
+
+# Initialise DB tables (no-op if DATABASE_URL is not set)
+with app.app_context():
+    init_db()
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)

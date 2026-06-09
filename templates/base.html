@@ -96,6 +96,48 @@
     }
     .nav-cta:hover { background: var(--ink-2) !important; color: var(--paper) !important; }
 
+    /* ── NAV USER MENU ── */
+    .nav-user-menu { position: relative; }
+    .nav-user-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 10px 5px 5px;
+      border-radius: 24px;
+      border: 1.5px solid var(--paper-3);
+      background: none; cursor: pointer;
+      transition: border-color var(--transition), background var(--transition);
+      font-family: var(--font-sans); font-size: 13px;
+    }
+    .nav-user-btn:hover { border-color: var(--gold); background: rgba(184,146,74,.06); }
+    .nav-avatar {
+      width: 28px; height: 28px; border-radius: 50%; object-fit: cover;
+    }
+    .nav-avatar-initials {
+      background: var(--gold); color: #fff;
+      font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nav-user-name { font-weight: 500; color: var(--ink); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      min-width: 200px;
+      background: #fff; border: 1px solid var(--paper-3);
+      border-radius: var(--radius-lg); padding: 8px;
+      box-shadow: var(--shadow-lg);
+      display: none; z-index: 200;
+    }
+    .nav-dropdown.open { display: block; }
+    .nav-dropdown-email {
+      font-size: 12px; color: var(--ink-3); padding: 4px 8px 8px;
+      font-family: var(--font-mono);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .nav-dropdown-item {
+      display: block; padding: 8px 12px; border-radius: var(--radius);
+      font-size: 13px; color: var(--ink); cursor: pointer;
+      transition: background var(--transition);
+    }
+    .nav-dropdown-item:hover { background: var(--paper-2); color: var(--rose); }
+
     /* ── PAGE WRAPPER ── */
     .page { padding-top: var(--nav-h); min-height: 100vh; }
 
@@ -213,7 +255,26 @@
     <a href="/studio/cad" class="{{ 'active' if active_nav == 'cad' }}">3D CAD</a>
     <a href="/studio/market" class="{{ 'active' if active_nav == 'market' }}">Market Trends</a>
     <a href="/studio/gallery" class="{{ 'active' if active_nav == 'gallery' }}">Gallery</a>
-    <a href="/studio/sketch" class="nav-cta">Open Studio →</a>
+    {% if current_user %}
+    <div class="nav-user-menu" id="navUserMenu">
+      <button class="nav-user-btn" onclick="toggleUserMenu()">
+        {% if current_user.avatar_url %}
+        <img src="{{ current_user.avatar_url }}" alt="" class="nav-avatar" />
+        {% else %}
+        <div class="nav-avatar nav-avatar-initials">{{ (current_user.display_name or current_user.email)[0].upper() }}</div>
+        {% endif %}
+        <span class="nav-user-name">{{ current_user.display_name or current_user.email.split('@')[0] }}</span>
+        <span style="font-size:10px;opacity:.5">▾</span>
+      </button>
+      <div class="nav-dropdown" id="navDropdown">
+        <div class="nav-dropdown-email">{{ current_user.email }}</div>
+        <hr style="border:none;border-top:1px solid var(--paper-3);margin:6px 0"/>
+        <a href="/auth/logout" class="nav-dropdown-item">Sign out</a>
+      </div>
+    </div>
+    {% else %}
+    <a href="/auth" class="nav-cta">Sign In →</a>
+    {% endif %}
   </div>
 </nav>
 
@@ -232,6 +293,15 @@ function showToast(msg, type = '') {
   c.appendChild(t);
   setTimeout(() => t.remove(), 3500);
 }
+function toggleUserMenu() {
+  document.getElementById('navDropdown')?.classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('navUserMenu');
+  if (menu && !menu.contains(e.target)) {
+    document.getElementById('navDropdown')?.classList.remove('open');
+  }
+});
 </script>
 {% block scripts %}{% endblock %}
 </body>
