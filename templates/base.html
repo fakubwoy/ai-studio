@@ -501,8 +501,20 @@
   <a href="/" class="nav-logo">
     <span class="nav-logo-mark">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2L9 7H3L7.5 11L5.5 17L12 13.5L18.5 17L16.5 11L21 7H15L12 2Z" fill="var(--gold)" opacity=".9"/>
-        <path d="M12 2L9 7H3L7.5 11L5.5 17L12 13.5L18.5 17L16.5 11L21 7H15L12 2Z" fill="none" stroke="var(--gold-dk)" stroke-width="1" stroke-linejoin="round"/>
+        <!-- crown / top facets -->
+        <polygon points="12,3 7,9 12,8 17,9" fill="var(--gold)" opacity=".95"/>
+        <!-- left facet -->
+        <polygon points="3,11 7,9 12,8 8,18" fill="var(--gold)" opacity=".55"/>
+        <!-- right facet -->
+        <polygon points="21,11 17,9 12,8 16,18" fill="var(--gold)" opacity=".75"/>
+        <!-- bottom point -->
+        <polygon points="8,18 12,8 16,18 12,22" fill="var(--gold)" opacity=".65"/>
+        <!-- outline -->
+        <polyline points="3,11 7,9 12,3 17,9 21,11 16,18 12,22 8,18 3,11" fill="none" stroke="var(--gold-dk)" stroke-width="1" stroke-linejoin="round"/>
+        <line x1="3" y1="11" x2="21" y2="11" stroke="var(--gold-dk)" stroke-width=".8" opacity=".5"/>
+        <line x1="7" y1="9" x2="12" y2="22" stroke="var(--gold-dk)" stroke-width=".6" opacity=".35"/>
+        <line x1="17" y1="9" x2="12" y2="22" stroke="var(--gold-dk)" stroke-width=".6" opacity=".35"/>
+        <line x1="12" y1="3" x2="12" y2="8" stroke="var(--gold-dk)" stroke-width=".8" opacity=".4"/>
       </svg>
     </span>
     <span>glymr</span>
