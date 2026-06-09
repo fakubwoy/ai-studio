@@ -39,9 +39,7 @@
     margin-bottom: 64px;
   }
   .auth-features { display: flex; flex-direction: column; gap: 28px; }
-  .auth-feat {
-    display: flex; align-items: flex-start; gap: 16px;
-  }
+  .auth-feat { display: flex; align-items: flex-start; gap: 16px; }
   .auth-feat-icon {
     width: 36px; height: 36px; border-radius: 8px;
     background: rgba(184,146,74,.15);
@@ -63,17 +61,40 @@
     padding: 80px 48px;
     background: var(--paper);
   }
-  .auth-card {
-    width: 100%; max-width: 400px;
+  .auth-card { width: 100%; max-width: 400px; }
+
+  /* ── Tabs ── */
+  .auth-tabs {
+    display: flex;
+    border-bottom: 1.5px solid var(--paper-3);
+    margin-bottom: 32px;
+    gap: 0;
   }
+  .auth-tab {
+    flex: 1; padding: 10px 0;
+    font-size: 14px; font-weight: 600;
+    font-family: var(--font-sans);
+    color: var(--ink-3);
+    background: none; border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1.5px;
+    cursor: pointer;
+    transition: color var(--transition), border-color var(--transition);
+  }
+  .auth-tab.active {
+    color: var(--ink);
+    border-bottom-color: var(--gold);
+  }
+  .auth-tab:hover:not(.active) { color: var(--ink); }
+
   .auth-title {
     font-family: var(--font-serif);
-    font-size: 32px; font-weight: 500;
+    font-size: 30px; font-weight: 500;
     color: var(--ink); margin-bottom: 6px;
   }
   .auth-subtitle {
     font-size: 14px; color: var(--ink-3);
-    margin-bottom: 36px; line-height: 1.6;
+    margin-bottom: 28px; line-height: 1.6;
   }
 
   /* Google button */
@@ -92,7 +113,7 @@
 
   .auth-divider {
     display: flex; align-items: center; gap: 14px;
-    margin: 24px 0;
+    margin: 22px 0;
     color: var(--ink-3); font-size: 12px;
     font-family: var(--font-mono); letter-spacing: .06em;
   }
@@ -102,13 +123,20 @@
 
   .auth-form { display: flex; flex-direction: column; gap: 14px; }
   .auth-input-wrap { position: relative; }
-  .auth-input-wrap input {
-    padding-right: 44px;
-  }
+  .auth-input-wrap input { padding-right: 44px; }
   .auth-input-icon {
     position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
     color: var(--ink-3); font-size: 16px; pointer-events: none;
   }
+  /* Toggle password visibility button */
+  .auth-input-toggle {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--ink-3); font-size: 15px;
+    background: none; border: none; padding: 0; cursor: pointer;
+    line-height: 1;
+    transition: color var(--transition);
+  }
+  .auth-input-toggle:hover { color: var(--gold); }
 
   .auth-btn {
     width: 100%; padding: 13px;
@@ -125,16 +153,13 @@
   .auth-btn.loading { pointer-events: none; }
 
   /* OTP input */
-  .otp-row {
-    display: flex; gap: 8px; justify-content: center;
-  }
+  .otp-row { display: flex; gap: 8px; justify-content: center; }
   .otp-digit {
     width: 48px; height: 56px;
     text-align: center; font-size: 24px; font-weight: 700;
     font-family: var(--font-mono);
     border: 1.5px solid var(--paper-3); border-radius: var(--radius);
-    background: var(--paper);
-    padding: 0;
+    background: var(--paper); padding: 0;
     transition: border-color var(--transition), box-shadow var(--transition);
   }
   .otp-digit:focus {
@@ -157,14 +182,8 @@
   }
   .auth-back:hover { color: var(--gold); }
 
-  .otp-hint {
-    font-size: 13px; color: var(--ink-3);
-    text-align: center; margin-top: 14px;
-  }
+  .otp-hint { font-size: 13px; color: var(--ink-3); text-align: center; margin-top: 14px; }
   .otp-hint a { color: var(--gold); cursor: pointer; }
-
-  .auth-name-row { display: none; }
-  .auth-name-row.show { display: block; }
 
   .auth-error {
     background: rgba(192,64,64,.08);
@@ -185,6 +204,11 @@
     display: none;
   }
   .auth-info.show { display: block; }
+
+  .auth-footnote {
+    font-size: 12px; color: var(--ink-3);
+    text-align: center; margin-top: 20px; line-height: 1.6;
+  }
 
   @media (max-width: 768px) {
     .auth-wrap { grid-template-columns: 1fr; }
@@ -241,12 +265,15 @@
   <div class="auth-right">
     <div class="auth-card">
 
-      <!-- STEP 1: Email entry -->
-      <div class="auth-step active" id="stepEmail">
-        <h1 class="auth-title">Welcome back</h1>
-        <p class="auth-subtitle">Sign in or create your account to access the studio.</p>
+      <!-- ══ SIGN IN / SIGN UP TABS ══ -->
+      <div class="auth-step active" id="stepMain">
 
-        <!-- Google Sign-In -->
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tabSignIn" onclick="switchTab('signin')">Sign in</button>
+          <button class="auth-tab"        id="tabSignUp" onclick="switchTab('signup')">Create account</button>
+        </div>
+
+        <!-- Google button (shared) -->
         <button class="google-btn" id="googleSignInBtn" onclick="startGoogleSignIn()">
           <svg width="18" height="18" viewBox="0 0 18 18">
             <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/>
@@ -257,44 +284,62 @@
           Continue with Google
         </button>
 
-        <div class="auth-divider">or continue with email</div>
+        <div class="auth-divider" id="mainDivider">or</div>
 
-        <div class="auth-form">
-          <div class="auth-error" id="emailError"></div>
-          <div class="auth-input-wrap">
-            <input type="email" id="emailInput" placeholder="your@email.com" autocomplete="email"
-              onkeydown="if(event.key==='Enter') sendOtp()" />
-            <span class="auth-input-icon">@</span>
+        <!-- ── SIGN IN FORM ── -->
+        <div id="signinForm">
+          <div class="auth-form">
+            <div class="auth-error" id="signinError"></div>
+            <div class="auth-input-wrap">
+              <input type="email" id="siEmail" placeholder="your@email.com" autocomplete="email"
+                onkeydown="if(event.key==='Enter') document.getElementById('siPassword').focus()" />
+              <span class="auth-input-icon">@</span>
+            </div>
+            <div class="auth-input-wrap">
+              <input type="password" id="siPassword" placeholder="Password" autocomplete="current-password"
+                onkeydown="if(event.key==='Enter') doSignIn()" />
+              <button class="auth-input-toggle" type="button" onclick="togglePw('siPassword', this)" tabindex="-1">👁</button>
+            </div>
+            <button class="auth-btn" id="signinBtn" onclick="doSignIn()">
+              <span>Sign in</span>
+              <span>→</span>
+            </button>
           </div>
-          <button class="auth-btn" id="sendOtpBtn" onclick="sendOtp()">
-            <span>Continue with email</span>
-            <span>→</span>
-          </button>
         </div>
 
-        <p style="font-size:12px;color:var(--ink-3);text-align:center;margin-top:24px;line-height:1.6">
-          By continuing, you agree to glymr's terms of service.<br/>
-          New accounts are created automatically.
-        </p>
-      </div>
+        <!-- ── SIGN UP FORM ── -->
+        <div id="signupForm" style="display:none">
+          <div class="auth-form">
+            <div class="auth-error" id="signupError"></div>
+            <div class="auth-input-wrap">
+              <input type="text" id="suName" placeholder="Your full name" autocomplete="name"
+                onkeydown="if(event.key==='Enter') document.getElementById('suEmail').focus()" />
+              <span class="auth-input-icon">✦</span>
+            </div>
+            <div class="auth-input-wrap">
+              <input type="email" id="suEmail" placeholder="your@email.com" autocomplete="email"
+                onkeydown="if(event.key==='Enter') doSendOtp()" />
+              <span class="auth-input-icon">@</span>
+            </div>
+            <button class="auth-btn" id="sendOtpBtn" onclick="doSendOtp()">
+              <span>Continue — verify email</span>
+              <span>→</span>
+            </button>
+          </div>
+          <p class="auth-footnote">We'll send a one-time code to confirm your email.</p>
+        </div>
 
-      <!-- STEP 2: OTP verification -->
+      </div><!-- /stepMain -->
+
+      <!-- ── OTP VERIFICATION STEP ── -->
       <div class="auth-step" id="stepOtp">
-        <button class="auth-back" onclick="goBack()">← Back</button>
+        <button class="auth-back" onclick="goBackToMain()">← Back</button>
         <h1 class="auth-title">Check your inbox</h1>
-        <p class="auth-subtitle" id="otpSubtitle">We sent a 6-digit code to <strong id="otpEmailDisplay"></strong></p>
+        <p class="auth-subtitle">We sent a 6-digit code to <strong id="otpEmailDisplay"></strong></p>
 
         <div class="auth-form">
           <div class="auth-error" id="otpError"></div>
-          <div class="auth-info" id="otpInfo"></div>
-
-          <!-- Name field — shown only for new users -->
-          <div class="auth-name-row" id="nameRow">
-            <div class="auth-input-wrap">
-              <input type="text" id="nameInput" placeholder="Your name (optional)" autocomplete="name" />
-              <span class="auth-input-icon">✦</span>
-            </div>
-          </div>
+          <div class="auth-info"  id="otpInfo"></div>
 
           <div>
             <div class="otp-row" id="otpRow">
@@ -309,7 +354,7 @@
           </div>
 
           <button class="auth-btn" id="verifyOtpBtn" onclick="verifyOtp()" disabled>
-            <span>Verify & Sign In</span>
+            <span>Verify & create account</span>
             <span>→</span>
           </button>
         </div>
@@ -325,6 +370,7 @@
   // ── State ────────────────────────────────────────────────────────────────────
   let currentEmail   = '';
   let currentPurpose = 'verify';
+  let signupName     = '';
   let nextUrl        = new URLSearchParams(window.location.search).get('next') || '/studio/sketch';
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -334,13 +380,11 @@
   }
   function setError(elId, msg) {
     const el = document.getElementById(elId);
-    el.textContent = msg;
-    el.classList.toggle('show', !!msg);
+    el.textContent = msg; el.classList.toggle('show', !!msg);
   }
   function setInfo(elId, msg) {
     const el = document.getElementById(elId);
-    el.textContent = msg;
-    el.classList.toggle('show', !!msg);
+    el.textContent = msg; el.classList.toggle('show', !!msg);
   }
   function setLoading(btnId, loading, label = '') {
     const btn = document.getElementById(btnId);
@@ -348,16 +392,56 @@
     btn.disabled = loading;
     if (label) btn.querySelector('span').textContent = loading ? '…' : label;
   }
+  function togglePw(inputId, btn) {
+    const inp = document.getElementById(inputId);
+    if (inp.type === 'password') { inp.type = 'text';     btn.textContent = '🙈'; }
+    else                          { inp.type = 'password'; btn.textContent = '👁';  }
+  }
 
-  // ── Step 1: Send OTP ─────────────────────────────────────────────────────────
-  async function sendOtp() {
-    const email = document.getElementById('emailInput').value.trim().toLowerCase();
-    if (!email || !email.includes('@')) {
-      setError('emailError', 'Please enter a valid email address.');
-      return;
+  // ── Tab switching ─────────────────────────────────────────────────────────────
+  function switchTab(tab) {
+    document.getElementById('tabSignIn').classList.toggle('active', tab === 'signin');
+    document.getElementById('tabSignUp').classList.toggle('active', tab === 'signup');
+    document.getElementById('signinForm').style.display = tab === 'signin' ? 'block' : 'none';
+    document.getElementById('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
+    setError('signinError', ''); setError('signupError', '');
+    // Focus first field
+    if (tab === 'signin') document.getElementById('siEmail').focus();
+    else                  document.getElementById('suName').focus();
+  }
+
+  // ── Sign In (email + password) ────────────────────────────────────────────────
+  async function doSignIn() {
+    const email    = document.getElementById('siEmail').value.trim().toLowerCase();
+    const password = document.getElementById('siPassword').value;
+    setError('signinError', '');
+    if (!email || !email.includes('@')) { setError('signinError', 'Please enter a valid email.'); return; }
+    if (!password)                       { setError('signinError', 'Please enter your password.'); return; }
+    setLoading('signinBtn', true, 'Sign in');
+    try {
+      const res  = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) { setError('signinError', data.error || 'Sign-in failed.'); return; }
+      window.location.href = nextUrl;
+    } catch (e) {
+      setError('signinError', 'Network error. Please try again.');
+    } finally {
+      setLoading('signinBtn', false, 'Sign in');
     }
-    setError('emailError', '');
-    setLoading('sendOtpBtn', true, 'Continue with email');
+  }
+
+  // ── Sign Up: send OTP ─────────────────────────────────────────────────────────
+  async function doSendOtp() {
+    const name  = document.getElementById('suName').value.trim();
+    const email = document.getElementById('suEmail').value.trim().toLowerCase();
+    setError('signupError', '');
+    if (!name)                          { setError('signupError', 'Please enter your name.');          return; }
+    if (!email || !email.includes('@')) { setError('signupError', 'Please enter a valid email.');      return; }
+    setLoading('sendOtpBtn', true, 'Continue — verify email');
     try {
       const res  = await fetch('/api/auth/send-otp', {
         method: 'POST',
@@ -365,36 +449,27 @@
         body: JSON.stringify({ email }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) {
-        setError('emailError', data.error || 'Failed to send code.');
-        return;
-      }
+      if (!res.ok || data.error) { setError('signupError', data.error || 'Failed to send code.'); return; }
       currentEmail   = email;
       currentPurpose = data.purpose;
+      signupName     = name;
 
-      // Show name field for new users
-      document.getElementById('nameRow').classList.toggle('show', currentPurpose === 'verify');
       document.getElementById('otpEmailDisplay').textContent = email;
-      document.getElementById('otpSubtitle').innerHTML =
-        (currentPurpose === 'verify'
-          ? 'Create your account — enter the code sent to '
-          : 'Enter the sign-in code sent to ') +
-        `<strong>${email}</strong>`;
-
+      setError('otpError', ''); setInfo('otpInfo', '');
+      document.querySelectorAll('.otp-digit').forEach(d => d.value = '');
       showStep('stepOtp');
       document.querySelector('.otp-digit').focus();
     } catch (e) {
-      setError('emailError', 'Network error. Please try again.');
+      setError('signupError', 'Network error. Please try again.');
     } finally {
-      setLoading('sendOtpBtn', false, 'Continue with email');
+      setLoading('sendOtpBtn', false, 'Continue — verify email');
     }
   }
 
-  function goBack() {
-    setError('otpError', '');
-    setInfo('otpInfo', '');
+  function goBackToMain() {
+    setError('otpError', ''); setInfo('otpInfo', '');
     document.querySelectorAll('.otp-digit').forEach(d => d.value = '');
-    showStep('stepEmail');
+    showStep('stepMain');
   }
 
   async function resendOtp() {
@@ -409,18 +484,16 @@
       const data = await res.json();
       if (data.success) {
         currentPurpose = data.purpose;
-        setInfo('otpInfo', 'A new code has been sent to your inbox.');
+        setInfo('otpInfo', 'A new code has been sent.');
         document.querySelectorAll('.otp-digit').forEach(d => d.value = '');
         document.querySelector('.otp-digit').focus();
       } else {
         setError('otpError', data.error || 'Failed to resend.');
       }
-    } catch (e) {
-      setError('otpError', 'Network error.');
-    }
+    } catch (e) { setError('otpError', 'Network error.'); }
   }
 
-  // ── OTP digit navigation ─────────────────────────────────────────────────────
+  // ── OTP digit navigation ──────────────────────────────────────────────────────
   document.getElementById('otpRow').addEventListener('input', function(e) {
     const digits = [...document.querySelectorAll('.otp-digit')];
     const idx    = digits.indexOf(e.target);
@@ -429,16 +502,13 @@
     document.getElementById('verifyOtpBtn').disabled = code.length < 6;
     if (code.length === 6) verifyOtp();
   });
-
   document.getElementById('otpRow').addEventListener('keydown', function(e) {
     const digits = [...document.querySelectorAll('.otp-digit')];
     const idx    = digits.indexOf(e.target);
     if (e.key === 'Backspace' && !e.target.value && idx > 0) digits[idx - 1].focus();
-    if (e.key === 'ArrowLeft'  && idx > 0) digits[idx - 1].focus();
-    if (e.key === 'ArrowRight' && idx < digits.length - 1) digits[idx + 1].focus();
+    if (e.key === 'ArrowLeft'  && idx > 0)                   digits[idx - 1].focus();
+    if (e.key === 'ArrowRight' && idx < digits.length - 1)   digits[idx + 1].focus();
   });
-
-  // Handle paste into OTP row
   document.getElementById('otpRow').addEventListener('paste', function(e) {
     e.preventDefault();
     const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g,'').slice(0,6);
@@ -450,36 +520,34 @@
     if (filled === 6) verifyOtp();
   });
 
-  // ── Step 2: Verify OTP ───────────────────────────────────────────────────────
+  // ── Verify OTP → create account ──────────────────────────────────────────────
   async function verifyOtp() {
     const digits = [...document.querySelectorAll('.otp-digit')];
     const code   = digits.map(d => d.value).join('');
     if (code.length < 6) return;
-    const name   = document.getElementById('nameInput').value.trim();
     setError('otpError', '');
-    setLoading('verifyOtpBtn', true, 'Verify & Sign In');
+    setLoading('verifyOtpBtn', true, 'Verify & create account');
     try {
       const res  = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentEmail, code, purpose: currentPurpose, name }),
+        body: JSON.stringify({ email: currentEmail, code, purpose: currentPurpose, name: signupName }),
       });
       const data = await res.json();
       if (!res.ok || data.error) {
         setError('otpError', data.error || 'Invalid code. Please try again.');
-        digits.forEach(d => d.value = '');
-        digits[0].focus();
+        digits.forEach(d => d.value = ''); digits[0].focus();
         return;
       }
       window.location.href = nextUrl;
     } catch (e) {
       setError('otpError', 'Network error. Please try again.');
     } finally {
-      setLoading('verifyOtpBtn', false, 'Verify & Sign In');
+      setLoading('verifyOtpBtn', false, 'Verify & create account');
     }
   }
 
-  // ── Google Sign-In ───────────────────────────────────────────────────────────
+  // ── Google Sign-In ────────────────────────────────────────────────────────────
   const GOOGLE_CLIENT_ID = '{{ google_client_id | default("") }}';
 
   function startGoogleSignIn() {
@@ -491,10 +559,7 @@
       client_id: GOOGLE_CLIENT_ID,
       scope: 'email profile openid',
       callback: async (response) => {
-        if (response.error) {
-          showToast('Google sign-in failed: ' + response.error, 'error');
-          return;
-        }
+        if (response.error) { showToast('Google sign-in failed: ' + response.error, 'error'); return; }
         try {
           const res  = await fetch('/api/auth/google', {
             method: 'POST',
@@ -502,14 +567,9 @@
             body: JSON.stringify({ access_token: response.access_token }),
           });
           const data = await res.json();
-          if (data.success) {
-            window.location.href = nextUrl;
-          } else {
-            showToast(data.error || 'Sign-in failed', 'error');
-          }
-        } catch (e) {
-          showToast('Network error', 'error');
-        }
+          if (data.success) window.location.href = nextUrl;
+          else showToast(data.error || 'Sign-in failed', 'error');
+        } catch (e) { showToast('Network error', 'error'); }
       },
     });
     client.requestAccessToken({ prompt: 'select_account' });
@@ -518,7 +578,7 @@
   // Hide Google button if client ID not configured
   if (!GOOGLE_CLIENT_ID) {
     document.getElementById('googleSignInBtn').style.display = 'none';
-    document.querySelector('.auth-divider').style.display = 'none';
+    document.getElementById('mainDivider').style.display = 'none';
   }
 </script>
 {% endblock %}

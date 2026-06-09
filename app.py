@@ -673,6 +673,68 @@ def api_auth_me():
     }})
 
 
+@app.route('/api/auth/signin', methods=['POST'])
+def api_auth_signin():
+    """Sign in with email + password (for users who registered via email/OTP)."""
+    data     = request.json or {}
+    email    = data.get('email', '').strip().lower()
+    password = data.get('password', '').strip()
+
+    if not email or not password:
+        return jsonify({'error': 'Email and password are required'}), 400
+
+    if not _DB_URL:
+        return jsonify({'error': 'DATABASE_URL not set'}), 500
+
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute(
+                'SELECT id, email, display_name, avatar_url, password_hash, verified FROM users WHERE email=%s',
+                (email,)
+            )
+            user = cur.fetchone()
+        conn.close()
+    except Exception as e:
+        log.error(f'[auth] signin db error: {e}', exc_info=True)
+        return jsonify({'error': 'Server error'}), 500
+
+    if not user:
+        return jsonify({'error': 'No account found with that email'}), 401
+
+    if not user['verified']:
+        return jsonify({'error': 'Account not verified. Please sign up again to verify your email.'}), 401
+
+    if not user['password_hash']:
+        return jsonify({'error': 'This account uses Google sign-in. Please use "Continue with Google" instead.'}), 401
+
+    if not check_password_hash(user['password_hash'], password):
+        return jsonify({'error': 'Incorrect password'}), 401
+
+    # Update last_login
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute('UPDATE users SET last_login=NOW() WHERE id=%s', (user['id'],))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+    user_id = str(user['id'])
+    display  = user['display_name'] or email.split('@')[0]
+    avatar   = user['avatar_url'] or ''
+
+    session['user_id']     = user_id
+    session['user_email']  = email
+    session['user_name']   = display
+    session['user_avatar'] = avatar
+    session.permanent      = True
+
+    log.info(f'[auth] password sign-in: {email}')
+    return jsonify({'success': True, 'user': {'id': user_id, 'email': email, 'name': display, 'avatar': avatar}})
+
+
 # ── Pages ──────────────────────────────────────────────────────────────────────
 
 @app.route('/')
