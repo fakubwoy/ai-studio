@@ -318,8 +318,14 @@
             </div>
             <div class="auth-input-wrap">
               <input type="email" id="suEmail" placeholder="your@email.com" autocomplete="email"
-                onkeydown="if(event.key==='Enter') doSendOtp()" />
+                onkeydown="if(event.key==='Enter') document.getElementById('suPassword').focus()" />
               <span class="auth-input-icon">@</span>
+            </div>
+            <div class="auth-input-wrap">
+              <input type="password" id="suPassword" placeholder="Password (min 8 characters)"
+                autocomplete="new-password"
+                onkeydown="if(event.key==='Enter') doSendOtp()" />
+              <button class="auth-input-toggle" type="button" onclick="togglePw('suPassword', this)" tabindex="-1">&#128065;</button>
             </div>
             <button class="auth-btn" id="sendOtpBtn" onclick="doSendOtp()">
               <span>Continue — verify email</span>
@@ -354,10 +360,11 @@
           </div>
 
           <button class="auth-btn" id="verifyOtpBtn" onclick="verifyOtp()" disabled>
-            <span>Verify & create account</span>
+            <span>Verify email</span>
             <span>→</span>
           </button>
         </div>
+      </div>
       </div>
 
     </div>
@@ -368,9 +375,10 @@
 {% block scripts %}
 <script>
   // ── State ────────────────────────────────────────────────────────────────────
-  let currentEmail   = '';
-  let currentPurpose = 'verify';
-  let signupName     = '';
+  let currentEmail    = '';
+  let currentPurpose  = 'verify';
+  let signupName      = '';
+  let signupPassword  = '';
   let nextUrl        = new URLSearchParams(window.location.search).get('next') || '/studio/sketch';
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -436,11 +444,13 @@
 
   // ── Sign Up: send OTP ─────────────────────────────────────────────────────────
   async function doSendOtp() {
-    const name  = document.getElementById('suName').value.trim();
-    const email = document.getElementById('suEmail').value.trim().toLowerCase();
+    const name     = document.getElementById('suName').value.trim();
+    const email    = document.getElementById('suEmail').value.trim().toLowerCase();
+    const password = document.getElementById('suPassword').value;
     setError('signupError', '');
-    if (!name)                          { setError('signupError', 'Please enter your name.');          return; }
-    if (!email || !email.includes('@')) { setError('signupError', 'Please enter a valid email.');      return; }
+    if (!name)                          { setError('signupError', 'Please enter your name.');               return; }
+    if (!email || !email.includes('@')) { setError('signupError', 'Please enter a valid email.');           return; }
+    if (!password || password.length < 8) { setError('signupError', 'Password must be at least 8 characters.'); return; }
     setLoading('sendOtpBtn', true, 'Continue — verify email');
     try {
       const res  = await fetch('/api/auth/send-otp', {
@@ -450,9 +460,10 @@
       });
       const data = await res.json();
       if (!res.ok || data.error) { setError('signupError', data.error || 'Failed to send code.'); return; }
-      currentEmail   = email;
-      currentPurpose = data.purpose;
-      signupName     = name;
+      currentEmail    = email;
+      currentPurpose  = data.purpose;
+      signupName      = name;
+      signupPassword  = password;
 
       document.getElementById('otpEmailDisplay').textContent = email;
       setError('otpError', ''); setInfo('otpInfo', '');
@@ -531,7 +542,7 @@
       const res  = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentEmail, code, purpose: currentPurpose, name: signupName }),
+        body: JSON.stringify({ email: currentEmail, code, purpose: currentPurpose, name: signupName, password: signupPassword }),
       });
       const data = await res.json();
       if (!res.ok || data.error) {
