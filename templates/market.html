@@ -3,118 +3,224 @@
 
 {% block head %}
 <style>
+
   .market-layout {
     display: grid;
-    grid-template-columns: 340px 1fr;
+    grid-template-columns: 320px 1fr;
     gap: 24px;
-    padding: 32px 40px;
+    padding: 32px 36px;
     min-height: calc(100vh - var(--nav-h));
     align-items: start;
   }
-  .market-sidebar { display: flex; flex-direction: column; gap: 20px; position: sticky; top: calc(var(--nav-h) + 24px); }
 
+  .market-sidebar {
+    display: flex; flex-direction: column; gap: 18px;
+    position: sticky; top: calc(var(--nav-h) + 24px);
+  }
+
+  /* Upload */
   .upload-zone {
-    border: 2px dashed var(--paper-3); border-radius: var(--radius-lg);
-    padding: 24px 16px; text-align: center; cursor: pointer;
-    transition: border-color var(--transition), background var(--transition);
-    background: var(--paper); position: relative; min-height: 140px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 1.5px dashed var(--paper-3); border-radius: var(--radius-lg);
+    padding: 22px 16px; text-align: center; cursor: pointer;
+    transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
+    background: var(--paper); position: relative; min-height: 130px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
   }
-  .upload-zone:hover { border-color: var(--gold); background: rgba(184,146,74,.04); }
+
+  .upload-zone:hover { border-color: var(--gold); background: var(--gold-bg); }
   .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-zone p  { font-size: 13px; color: var(--ink-3); margin: 0; }
+  .upload-zone small { font-size: 11px; color: var(--ink-4); font-family: var(--font-mono); }
+
   .upload-preview { border-radius: var(--radius); overflow: hidden; background: var(--paper-2); position: relative; }
-  .upload-preview img { width: 100%; height: 180px; object-fit: cover; }
+  .upload-preview img { width: 100%; height: 180px; object-fit: cover; display: block; }
+
   .preview-remove {
-    position: absolute; top: 8px; right: 8px; width: 26px; height: 26px;
-    background: rgba(14,12,11,.7); color: #fff; border-radius: 50%; font-size: 13px;
+    position: absolute; top: 8px; right: 8px;
+    width: 26px; height: 26px;
+    background: rgba(26,22,20,.75); color: #fff; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
+    border: none; cursor: pointer;
+    transition: background var(--t) var(--ease);
   }
+
+  .preview-remove:hover { background: var(--error); }
 
   /* Keyword tags */
-  .kw-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
+  .kw-cloud { display: flex; flex-wrap: wrap; gap: 7px; }
+
   .kw-tag {
     padding: 5px 12px; border-radius: 20px;
-    border: 1.5px solid var(--paper-3); font-size: 12px;
-    cursor: pointer; transition: all var(--transition); color: var(--ink-3);
+    border: 1.5px solid var(--paper-3);
+    font-size: 12px; cursor: pointer;
+    transition: all var(--t) var(--ease); color: var(--ink-3); font-weight: 500;
   }
-  .kw-tag.active { border-color: var(--gold); color: var(--gold); background: rgba(184,146,74,.08); }
 
-  /* Price range bar */
+  .kw-tag.active {
+    border-color: var(--gold); color: var(--gold-dk); background: var(--gold-bg);
+  }
+
+  /* Price range */
   .price-range-bar {
-    background: var(--paper-2); border-radius: var(--radius-lg); padding: 20px 24px;
-    margin-bottom: 24px;
+    background: var(--surface);
+    border: 1px solid var(--paper-3);
+    border-radius: var(--radius-lg); padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
   }
-  .pr-label { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); letter-spacing: .08em; margin-bottom: 12px; }
-  .pr-track { height: 6px; background: var(--paper-3); border-radius: 3px; position: relative; margin-bottom: 10px; }
-  .pr-fill { height: 100%; background: linear-gradient(90deg, var(--gold-dk), var(--gold), var(--gold-lt)); border-radius: 3px; }
-  .pr-vals { display: flex; justify-content: space-between; }
-  .pr-val { font-family: var(--font-serif); font-size: 18px; font-weight: 600; color: var(--ink); }
-  .pr-val small { display: block; font-family: var(--font-sans); font-size: 11px; color: var(--ink-3); font-weight: 400; }
 
-  /* Summary card */
+  .pr-label {
+    font-family: var(--font-mono); font-size: 10px; color: var(--ink-3);
+    letter-spacing: .1em; margin-bottom: 14px; text-transform: uppercase;
+  }
+
+  .pr-track {
+    height: 5px; background: var(--paper-3); border-radius: 3px;
+    position: relative; margin-bottom: 12px;
+  }
+
+  .pr-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold-dk), var(--gold), var(--gold-lt));
+    border-radius: 3px;
+  }
+
+  .pr-vals { display: flex; justify-content: space-between; }
+
+  .pr-val {
+    font-family: var(--font-serif);
+    font-size: 20px; font-weight: 600; color: var(--ink);
+    line-height: 1.1;
+  }
+
+  .pr-val small {
+    display: block; font-family: var(--font-sans);
+    font-size: 10px; color: var(--ink-3); font-weight: 400;
+    letter-spacing: .04em; margin-top: 2px;
+  }
+
+  /* AI Summary */
   .summary-card {
-    background: linear-gradient(135deg, var(--ink), var(--ink-2));
-    color: var(--paper); border-radius: var(--radius-lg); padding: 24px;
-    margin-bottom: 24px;
+    background: var(--ink);
+    border-radius: var(--radius-lg); padding: 22px 24px;
+    margin-bottom: 20px; position: relative; overflow: hidden;
   }
+
+  .summary-card::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 80% 20%, rgba(184,146,74,.12) 0%, transparent 60%);
+  }
+
   .summary-card .sc-label {
-    font-family: var(--font-mono); font-size: 11px; color: rgba(184,146,74,.8);
-    letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px;
+    font-family: var(--font-mono); font-size: 10px;
+    color: rgba(184,146,74,.7);
+    letter-spacing: .12em; text-transform: uppercase; margin-bottom: 10px;
+    position: relative;
   }
-  .summary-card p { font-size: 14px; line-height: 1.7; color: rgba(250,247,242,.8); }
+
+  .summary-card p {
+    font-size: 13px; line-height: 1.7;
+    color: rgba(250,247,242,.75);
+    position: relative;
+  }
+
+  /* Keywords section */
+  .kw-section { margin-bottom: 20px; }
+
+  .kw-section-title {
+    font-size: 11px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px;
+  }
 
   /* Listings grid */
   .listings-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
   }
+
   .listing-card {
-    background: #fff; border: 1px solid var(--paper-3);
+    background: var(--surface); border: 1px solid var(--paper-3);
     border-radius: var(--radius-lg); overflow: hidden;
-    transition: transform var(--transition), box-shadow var(--transition);
+    transition: transform var(--t-slow) var(--ease), box-shadow var(--t-slow) var(--ease), border-color var(--t-slow) var(--ease);
     text-decoration: none; color: inherit;
     display: flex; flex-direction: column;
   }
-  .listing-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: rgba(184,146,74,.3); }
-  .listing-thumb {
-    width: 100%; height: 160px; object-fit: cover; background: var(--paper-2);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 32px; opacity: .3;
+
+  .listing-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+    border-color: rgba(184,146,74,.25);
   }
-  .listing-thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .listing-body { padding: 14px 16px; flex: 1; display: flex; flex-direction: column; }
+
+  .listing-thumb {
+    width: 100%; height: 150px;
+    background: var(--paper-2);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+
+  .listing-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .listing-body { padding: 14px 16px; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+
   .listing-source {
     font-family: var(--font-mono); font-size: 10px; color: var(--gold);
-    letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px;
+    letter-spacing: .08em; text-transform: uppercase;
   }
-  .listing-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 8px; line-height: 1.4; }
+
+  .listing-title { font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+
   .listing-price {
-    margin-top: auto; font-family: var(--font-serif);
+    margin-top: auto; padding-top: 8px;
+    font-family: var(--font-serif);
     font-size: 18px; font-weight: 600; color: var(--gold-dk);
   }
 
-  /* Keywords section */
-  .kw-section { margin-bottom: 24px; }
-  .kw-section-title { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 12px; }
-
-  /* Empty / loading */
+  /* Empty / Loading */
   .market-empty {
     grid-column: 1 / -1; text-align: center; padding: 80px 40px; color: var(--ink-3);
   }
-  .market-empty .me-icon { font-size: 56px; opacity: .2; margin-bottom: 20px; }
-  .market-empty h3 { font-family: var(--font-serif); font-size: 22px; color: var(--ink); margin-bottom: 8px; }
+
+  .market-empty-icon {
+    width: 72px; height: 72px;
+    border-radius: var(--radius-lg);
+    background: var(--paper-2);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px; opacity: .6;
+  }
+
+  .market-empty h3 {
+    font-family: var(--font-serif); font-size: 22px; color: var(--ink); margin-bottom: 8px;
+  }
 
   .market-loading {
     grid-column: 1 / -1; text-align: center; padding: 80px 40px;
   }
-  .market-loading p { font-size: 13px; color: var(--ink-3); font-family: var(--font-mono); margin-top: 16px; }
-  .market-loading .loading-steps { display: flex; flex-direction: column; gap: 8px; max-width: 320px; margin: 20px auto 0; }
+
+  .market-loading p { font-size: 12px; color: var(--ink-3); font-family: var(--font-mono); margin-top: 16px; }
+
+  .loading-steps {
+    display: flex; flex-direction: column; gap: 8px;
+    max-width: 300px; margin: 18px auto 0;
+  }
+
   .ls-item { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-3); }
-  .ls-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--paper-3); animation: blink 1.5s ease infinite; }
+
+  .ls-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--paper-3);
+    animation: ls-blink 1.5s ease infinite; flex-shrink: 0;
+  }
+
   .ls-item:nth-child(2) .ls-dot { animation-delay: .3s; }
   .ls-item:nth-child(3) .ls-dot { animation-delay: .6s; }
-  @keyframes blink { 0%, 100% { background: var(--paper-3); } 50% { background: var(--gold); } }
+
+  @keyframes ls-blink {
+    0%, 100% { background: var(--paper-3); }
+    50%       { background: var(--gold); }
+  }
 
   @media (max-width: 900px) {
     .market-layout { grid-template-columns: 1fr; padding: 20px; }
@@ -125,6 +231,7 @@
 
 {% block content %}
 <div class="market-layout">
+
   <!-- SIDEBAR -->
   <aside class="market-sidebar">
     <div class="panel">
@@ -132,19 +239,26 @@
       <div class="upload-zone" id="marketUploadZone">
         <input type="file" id="marketFile" accept="image/*" />
         <div id="marketPlaceholder">
-          <div style="font-size:28px;margin-bottom:8px;opacity:.4">📈</div>
-          <p style="font-size:13px;color:var(--ink-3)">Upload jewellery for research</p>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          <p>Upload jewellery for research</p>
           <small>We'll find similar live listings</small>
         </div>
         <div id="marketPreview" class="upload-preview" style="display:none">
           <img id="marketPreviewImg" src="" alt="jewellery" />
-          <button class="preview-remove" onclick="clearMarketUpload(event)">✕</button>
+          <button class="preview-remove" onclick="clearMarketUpload(event)">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
 
     <div class="panel">
       <div class="panel-title"><span class="step">Configure</span>Research Options</div>
+
       <div class="form-row">
         <label>Category</label>
         <select id="marketCategory">
@@ -154,12 +268,17 @@
           {% endfor %}
         </select>
       </div>
+
       <div class="form-row">
         <label>Keyword Filter (optional)</label>
-        <input type="text" id="marketKeyword" placeholder="e.g. Kundan, temple jewellery..." />
+        <input type="text" id="marketKeyword" placeholder="e.g. Kundan, temple jewellery…" />
       </div>
-      <button class="btn btn-gold" style="width:100%;justify-content:center" id="marketBtn" onclick="runMarketResearch()">
-        <span>🔍</span> Research Market
+
+      <button class="btn btn-gold" style="width:100%;margin-top:4px" id="marketBtn" onclick="runMarketResearch()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        Research Market
       </button>
     </div>
   </aside>
@@ -168,7 +287,7 @@
   <div>
     <div style="margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
       <div>
-        <div style="font-family:var(--font-mono);font-size:11px;color:var(--gold);letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px">Live Competitive Intelligence</div>
+        <div class="eyebrow" style="margin-bottom:4px">Live Competitive Intelligence</div>
         <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink)">Market Trends</h1>
       </div>
       <div id="sellerCountBadge" style="display:none">
@@ -179,7 +298,7 @@
     <!-- Price range -->
     <div id="priceRangeSection" style="display:none">
       <div class="price-range-bar">
-        <div class="pr-label">PRICE RANGE FOUND IN MARKET</div>
+        <div class="pr-label">Price Range Found in Market</div>
         <div class="pr-track"><div class="pr-fill" id="prFill" style="width:100%"></div></div>
         <div class="pr-vals">
           <div class="pr-val" id="prMin">—<small>Min</small></div>
@@ -191,7 +310,7 @@
     <!-- AI Summary -->
     <div id="summarySection" style="display:none">
       <div class="summary-card">
-        <div class="sc-label">✦ AI Market Analysis</div>
+        <div class="sc-label">AI Market Analysis</div>
         <p id="summaryText"></p>
       </div>
     </div>
@@ -202,13 +321,19 @@
       <div class="kw-cloud" id="kwCloud"></div>
     </div>
 
-    <!-- Listings -->
-    <div id="listingsHeader" style="display:none;margin-bottom:16px">
-      <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">Similar Listings</div>
+    <!-- Listings header -->
+    <div id="listingsHeader" style="display:none;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">Similar Listings</div>
     </div>
+
+    <!-- Listings grid -->
     <div class="listings-grid" id="listingsGrid">
       <div class="market-empty">
-        <div class="me-icon">📈</div>
+        <div class="market-empty-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+        </div>
         <h3>Market data will appear here</h3>
         <p>Upload a jewellery image and click Research Market.<br>We'll search live listings across major Indian platforms.</p>
       </div>
@@ -222,7 +347,7 @@
 let marketImageFile = null;
 
 window.addEventListener('DOMContentLoaded', () => {
-  const pending = sessionStorage.getItem('pendingMarketImage');
+  const pending    = sessionStorage.getItem('pendingMarketImage');
   const pendingCat = sessionStorage.getItem('pendingMarketCategory');
   if (pending) {
     document.getElementById('marketPreviewImg').src = pending;
@@ -252,8 +377,7 @@ marketFile.addEventListener('change', e => {
 
 function clearMarketUpload(e) {
   e.stopPropagation();
-  marketImageFile = null;
-  marketFile.value = '';
+  marketImageFile = null; marketFile.value = '';
   document.getElementById('marketPlaceholder').style.display = 'flex';
   document.getElementById('marketPreview').style.display = 'none';
 }
@@ -266,12 +390,12 @@ async function runMarketResearch() {
 
   const btn = document.getElementById('marketBtn');
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Researching...';
+  btn.innerHTML = '<div class="spinner"></div> Researching…';
 
   hideResults();
   showLoadingState();
 
-  const fd = new FormData();
+  const fd       = new FormData();
   const category = document.getElementById('marketCategory').value;
   const keyword  = document.getElementById('marketKeyword').value.trim();
   fd.append('category', category);
@@ -280,21 +404,21 @@ async function runMarketResearch() {
   if (marketImageFile) {
     fd.append('image', marketImageFile);
   } else {
-    // convert URL to blob
     try {
       const resp = await fetch(previewSrc);
       const blob = await resp.blob();
       fd.append('image', blob, 'jewellery.jpg');
     } catch(e) {
       showToast('Could not load image.', 'error');
-      btn.disabled = false; btn.innerHTML = '<span>🔍</span> Research Market'; return;
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Research Market';
+      return;
     }
   }
 
   try {
-    const res = await fetch('/api/market-research', { method: 'POST', body: fd });
+    const res  = await fetch('/api/market-research', { method: 'POST', body: fd });
     const data = await res.json();
-
     if (!data.success) {
       showToast(data.error || 'Research failed.', 'error');
       showEmptyState();
@@ -306,19 +430,19 @@ async function runMarketResearch() {
     showEmptyState();
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<span>🔍</span> Research Market';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Research Market';
   }
 }
 
 function showLoadingState() {
   document.getElementById('listingsGrid').innerHTML = `
     <div class="market-loading">
-      <div class="spinner" style="width:40px;height:40px;border-width:3px;margin:0 auto"></div>
+      <div class="spinner" style="width:36px;height:36px;border-width:3px;margin:0 auto"></div>
       <p>Searching live jewellery listings…</p>
       <div class="loading-steps">
-        <div class="ls-item"><div class="ls-dot"></div> Analysing jewellery style & materials</div>
-        <div class="ls-item"><div class="ls-dot"></div> Searching Amazon, Flipkart, CaratLane…</div>
-        <div class="ls-item"><div class="ls-dot"></div> Compiling price range & insights</div>
+        <div class="ls-item"><div class="ls-dot"></div><span>Analysing jewellery style &amp; materials</span></div>
+        <div class="ls-item"><div class="ls-dot"></div><span>Searching Amazon, Flipkart, CaratLane…</span></div>
+        <div class="ls-item"><div class="ls-dot"></div><span>Compiling price range &amp; insights</span></div>
       </div>
     </div>`;
 }
@@ -332,41 +456,36 @@ function hideResults() {
 function showEmptyState() {
   document.getElementById('listingsGrid').innerHTML = `
     <div class="market-empty">
-      <div class="me-icon">⚠</div>
+      <div class="market-empty-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
       <h3>No results found</h3>
       <p>Try uploading a clearer image or adding a keyword filter.</p>
     </div>`;
 }
 
 function renderResults(data) {
-  // Price range
   if (data.price_range) {
     document.getElementById('priceRangeSection').style.display = 'block';
     document.getElementById('prMin').innerHTML = `${data.price_range.min || '—'}<small>Min</small>`;
     document.getElementById('prMax').innerHTML = `${data.price_range.max || '—'}<small>Max</small>`;
   }
-
-  // Summary
   if (data.summary) {
     document.getElementById('summarySection').style.display = 'block';
     document.getElementById('summaryText').textContent = data.summary;
   }
-
-  // Keywords
   if (data.keywords && data.keywords.length) {
     document.getElementById('keywordsSection').style.display = 'block';
     document.getElementById('kwCloud').innerHTML = data.keywords.map(k =>
       `<span class="kw-tag tag-gold">${k}</span>`
     ).join('');
   }
-
-  // Seller count badge
   if (data.seller_count) {
     document.getElementById('sellerCountBadge').style.display = 'block';
     document.getElementById('sellerCountText').textContent = `${data.seller_count} listings found`;
   }
-
-  // Listings
   const listings = data.listings || [];
   if (listings.length) {
     document.getElementById('listingsHeader').style.display = 'block';
@@ -374,8 +493,10 @@ function renderResults(data) {
       <a class="listing-card" href="${l.url || '#'}" target="_blank" rel="noopener">
         <div class="listing-thumb">
           ${l.thumbnail
-            ? `<img src="${l.thumbnail}" alt="${l.title}" onerror="this.parentElement.innerHTML='🛍️'" />`
-            : '🛍️'}
+            ? `<img src="${l.thumbnail}" alt="${l.title}" onerror="this.parentElement.innerHTML='<svg width=\'32\' height=\'32\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'var(--paper-4)\' stroke-width=\'1.2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'><path d=\'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z\'/><line x1=\'3\' y1=\'6\' x2=\'21\' y2=\'6\'/><path d=\'M16 10a4 4 0 0 1-8 0\'/></svg>'" />`
+            : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--paper-4)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+              </svg>`}
         </div>
         <div class="listing-body">
           <div class="listing-source">${l.source || ''}</div>

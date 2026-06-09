@@ -3,84 +3,144 @@
 
 {% block head %}
 <style>
+
   .studio-layout {
     display: grid;
-    grid-template-columns: 340px 1fr 340px;
+    grid-template-columns: 320px 1fr 320px;
     gap: 20px;
     padding: 28px 32px;
     min-height: calc(100vh - var(--nav-h));
     align-items: start;
   }
-  .col-sticky { position: sticky; top: calc(var(--nav-h) + 20px); display: flex; flex-direction: column; gap: 16px; }
+
+  .col-sticky {
+    position: sticky; top: calc(var(--nav-h) + 20px);
+    display: flex; flex-direction: column; gap: 16px;
+  }
 
   /* Upload */
   .upload-zone {
-    border: 2px dashed var(--paper-3); border-radius: var(--radius-lg);
-    padding: 24px 16px; text-align: center; cursor: pointer;
-    transition: border-color var(--transition), background var(--transition);
-    background: var(--paper); position: relative; min-height: 140px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-  }
-  .upload-zone:hover { border-color: var(--gold); background: rgba(184,146,74,.04); }
-  .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .upload-zone p { font-size: 13px; color: var(--ink-3); margin-bottom: 4px; }
-  .upload-zone small { font-size: 11px; color: var(--ink-3); opacity:.6; font-family: var(--font-mono); }
-  .upload-preview { border-radius: var(--radius); overflow:hidden; background: var(--paper-2); position:relative; }
-  .upload-preview img { width:100%; height:180px; object-fit:cover; }
-  .preview-remove {
-    position:absolute;top:8px;right:8px;width:26px;height:26px;
-    background:rgba(14,12,11,.7);color:#fff;border-radius:50%;font-size:13px;
-    display:flex;align-items:center;justify-content:center;
+    border: 1.5px dashed var(--paper-3); border-radius: var(--radius-lg);
+    padding: 22px 16px; text-align: center; cursor: pointer;
+    transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
+    background: var(--paper); position: relative; min-height: 130px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
   }
 
-  /* Radio model select */
+  .upload-zone:hover { border-color: var(--gold); background: var(--gold-bg); }
+  .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-zone p  { font-size: 13px; color: var(--ink-3); margin: 0; }
+  .upload-zone small { font-size: 11px; color: var(--ink-4); font-family: var(--font-mono); }
+
+  .upload-preview { border-radius: var(--radius); overflow: hidden; background: var(--paper-2); position: relative; }
+  .upload-preview img { width: 100%; height: 180px; object-fit: cover; display: block; }
+
+  .preview-remove {
+    position: absolute; top: 8px; right: 8px;
+    width: 26px; height: 26px;
+    background: rgba(26,22,20,.75); color: #fff; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: none; cursor: pointer;
+    transition: background var(--t) var(--ease);
+  }
+
+  .preview-remove:hover { background: var(--error); }
+
+  /* Model type grid */
   .model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
   .model-card {
     border: 1.5px solid var(--paper-3); border-radius: var(--radius);
-    padding: 12px 10px; text-align: center; cursor: pointer;
-    transition: all var(--transition);
+    padding: 12px 8px; text-align: center; cursor: pointer;
+    transition: all var(--t) var(--ease);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
   }
+
   .model-card input { display: none; }
-  .model-card .mc-icon { font-size: 24px; margin-bottom: 4px; }
-  .model-card .mc-label { font-size: 11px; color: var(--ink-3); font-weight: 600; letter-spacing:.04em; }
-  .model-card.selected { border-color: var(--gold); background: rgba(184,146,74,.07); }
-  .model-card.selected .mc-label { color: var(--gold); }
+
+  .model-card-icon {
+    width: 36px; height: 36px;
+    border-radius: var(--radius-sm);
+    background: var(--paper-2);
+    display: flex; align-items: center; justify-content: center;
+    transition: background var(--t) var(--ease);
+  }
+
+  .model-card .mc-label {
+    font-size: 11px; color: var(--ink-3); font-weight: 600;
+    letter-spacing: .03em;
+  }
+
+  .model-card.selected {
+    border-color: var(--gold);
+    background: var(--gold-bg);
+  }
+
+  .model-card.selected .model-card-icon { background: var(--gold-bg-2); }
+  .model-card.selected .mc-label { color: var(--gold-dk); }
 
   /* Template pills */
   .template-pills { display: flex; flex-direction: column; gap: 6px; }
+
   .tpl-pill {
     padding: 10px 14px; border-radius: var(--radius);
     border: 1.5px solid var(--paper-3); cursor: pointer;
-    transition: all var(--transition); background: var(--paper);
+    transition: all var(--t) var(--ease); background: var(--surface);
   }
-  .tpl-pill:hover { border-color: var(--gold-lt); }
-  .tpl-pill.active { border-color: var(--gold); background: rgba(184,146,74,.06); }
-  .tpl-pill-name { font-size: 13px; font-weight: 600; color: var(--ink); }
-  .tpl-pill-desc { font-size: 11px; color: var(--ink-3); margin-top: 2px; font-family: var(--font-mono); }
+
+  .tpl-pill:hover { border-color: var(--gold-lt); background: var(--gold-bg); }
+  .tpl-pill.active { border-color: var(--gold); background: var(--gold-bg); }
+  .tpl-pill-name  { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .tpl-pill-desc  { font-size: 11px; color: var(--ink-3); margin-top: 2px; font-family: var(--font-mono); }
 
   /* Output */
   .output-zone {
-    background: #fff; border: 1px solid var(--paper-3);
+    background: var(--surface); border: 1px solid var(--paper-3);
     border-radius: var(--radius-lg); overflow: hidden;
     min-height: 500px; display: flex; flex-direction: column;
   }
+
   .output-header {
-    padding: 16px 20px; border-bottom: 1px solid var(--paper-2);
+    padding: 14px 20px; border-bottom: 1px solid var(--paper-2);
     display: flex; align-items: center; justify-content: space-between;
   }
+
+  .output-header-label {
+    font-family: var(--font-mono);
+    font-size: 10px; color: var(--ink-3); letter-spacing: .1em; text-transform: uppercase;
+  }
+
+  .output-actions { display: none; align-items: center; gap: 8px; }
+
   .output-body {
     flex: 1; display: flex; align-items: center; justify-content: center;
-    padding: 32px;
+    padding: 28px;
   }
-  .output-placeholder { text-align: center; color: var(--ink-3); }
-  .output-placeholder .op-icon { font-size: 48px; opacity: .2; margin-bottom: 16px; }
-  .output-placeholder p { font-size: 14px; }
 
-  .result-img-wrap { position: relative; }
-  .result-img-wrap img { max-height: 560px; border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+  .output-placeholder {
+    text-align: center; color: var(--ink-3);
+  }
+
+  .output-placeholder-icon {
+    width: 64px; height: 64px;
+    border-radius: var(--radius-lg);
+    background: var(--paper-2);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px;
+    opacity: .6;
+  }
+
+  .output-placeholder p { font-size: 13px; }
+
+  .result-img-wrap img {
+    max-height: 540px; border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+  }
+
   .result-footer {
-    padding: 16px 20px; border-top: 1px solid var(--paper-2);
-    display: flex; gap: 10px; align-items: center;
+    padding: 14px 20px;
+    border-top: 1px solid var(--paper-2);
+    display: flex; gap: 8px; align-items: center;
   }
 
   /* Satisfaction */
@@ -88,27 +148,49 @@
     background: var(--paper-2); border-radius: var(--radius);
     padding: 14px 16px; text-align: center;
   }
-  .satisfy-q { font-size: 13px; color: var(--ink-3); margin-bottom: 10px; font-family: var(--font-mono); }
-  .satisfy-btns { display: flex; gap: 8px; justify-content: center; }
-  .satisfy-btn {
-    padding: 8px 18px; border-radius: 20px; font-size: 12px; font-weight: 600;
-    letter-spacing: .05em; border: 1.5px solid var(--paper-3);
-    transition: all var(--transition); cursor: pointer;
-  }
-  .satisfy-btn.yes:hover { background: #2d6a4f; color: #fff; border-color: #2d6a4f; }
-  .satisfy-btn.no:hover  { background: var(--rose); color: #fff; border-color: var(--rose); }
 
-  .progress-wrap { padding: 24px; text-align: center; }
-  .progress-bar { background: var(--paper-2); border-radius: 3px; height: 4px; overflow: hidden; margin-bottom: 12px; }
-  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-lt)); animation: prog 2.5s ease-in-out infinite; }
+  .satisfy-q {
+    font-size: 12px; color: var(--ink-3); margin-bottom: 10px;
+    font-family: var(--font-mono); letter-spacing: .04em;
+  }
+
+  .satisfy-btns { display: flex; gap: 8px; justify-content: center; }
+
+  .satisfy-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 18px; border-radius: 20px;
+    font-size: 12px; font-weight: 600; letter-spacing: .04em;
+    border: 1.5px solid var(--paper-3);
+    transition: all var(--t) var(--ease); cursor: pointer; background: none;
+    font-family: var(--font-sans);
+  }
+
+  .satisfy-btn.yes:hover { background: var(--success); color: #fff; border-color: var(--success); }
+  .satisfy-btn.no:hover  { background: var(--rose);    color: #fff; border-color: var(--rose);    }
+
+  /* Progress */
+  .progress-wrap { padding: 24px; text-align: center; width: 100%; max-width: 320px; }
+  .progress-bar  { background: var(--paper-2); border-radius: 3px; height: 3px; overflow: hidden; margin-bottom: 12px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold-dk), var(--gold-lt)); animation: prog 2.5s ease-in-out infinite; }
   @keyframes prog { 0% { width: 10%; } 50% { width: 85%; } 100% { width: 10%; } }
   .progress-label { font-size: 12px; color: var(--ink-3); font-family: var(--font-mono); }
 
+  /* AI Suggest label */
+  .ai-suggest-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600;
+    color: var(--gold-dk); background: none; border: none;
+    cursor: pointer; font-family: var(--font-sans);
+    transition: color var(--t);
+  }
+  .ai-suggest-btn:hover { color: var(--gold); }
+
   @media (max-width: 1200px) {
-    .studio-layout { grid-template-columns: 300px 1fr; }
+    .studio-layout { grid-template-columns: 280px 1fr; }
     .col-right { grid-column: 1 / -1; }
     .col-sticky.right { position: static; }
   }
+
   @media (max-width: 800px) {
     .studio-layout { grid-template-columns: 1fr; padding: 20px; }
     .col-sticky { position: static; }
@@ -118,6 +200,7 @@
 
 {% block content %}
 <div class="studio-layout">
+
   <!-- LEFT -->
   <aside class="col-sticky">
     <div class="panel">
@@ -125,19 +208,25 @@
       <div class="upload-zone" id="modelUploadZone">
         <input type="file" id="modelFile" accept="image/*" multiple />
         <div id="modelPlaceholder">
-          <div style="font-size:28px;margin-bottom:8px;opacity:.4">⬡</div>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+          </svg>
           <p>Drop jewellery photos</p>
           <small>Multiple angles supported</small>
         </div>
         <div id="modelPreview" class="upload-preview" style="display:none">
           <img id="modelPreviewImg" src="" alt="jewellery" />
-          <button class="preview-remove" onclick="clearModelUpload(event)">✕</button>
+          <button class="preview-remove" onclick="clearModelUpload(event)">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-title"><span class="step">Configure</span>Category & Template</div>
+      <div class="panel-title"><span class="step">Configure</span>Category &amp; Template</div>
       <div class="form-row">
         <label>Category</label>
         <select id="modelCategory" onchange="onCategoryChange()">
@@ -149,7 +238,15 @@
       </div>
       <div id="templateSection" style="display:none">
         <div class="form-row" style="margin-bottom:8px">
-          <label>Template <button class="btn btn-outline btn-sm" style="float:right;margin-top:-4px" onclick="aiSuggestTemplates()">✦ AI Suggest</button></label>
+          <label>
+            Template
+            <button class="ai-suggest-btn" onclick="aiSuggestTemplates()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+              AI Suggest
+            </button>
+          </label>
         </div>
         <div class="template-pills" id="templatePills"></div>
       </div>
@@ -158,37 +255,71 @@
 
   <!-- CENTRE -->
   <div>
-    <div style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
       <div>
-        <div style="font-family:var(--font-mono);font-size:11px;color:var(--gold);letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px">AI Generation</div>
+        <div class="eyebrow" style="margin-bottom:4px">AI Generation</div>
         <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink)">Model Try-On</h1>
       </div>
       <button class="btn btn-gold" id="generateBtn" onclick="generateModelShot()">
-        <span>◈</span> Generate
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+        Generate
       </button>
     </div>
 
     <div class="output-zone" id="outputZone">
       <div class="output-header">
-        <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);letter-spacing:.08em">OUTPUT</span>
-        <div id="outputActions" style="display:none;gap:8px;display:none">
-          <a id="dlBtn" href="#" download="model-shot.png" class="btn btn-outline btn-sm">↓ Download</a>
-          <button class="btn btn-outline btn-sm" onclick="sendToCADFromModel()">→ 3D CAD</button>
-          <button class="btn btn-outline btn-sm" onclick="sendToMarket()">→ Market Research</button>
+        <span class="output-header-label">Output</span>
+        <div id="outputActions" class="output-actions">
+          <a id="dlBtn" href="#" download="model-shot.png" class="btn btn-outline btn-sm">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download
+          </a>
+          <button class="btn btn-outline btn-sm" onclick="sendToCADFromModel()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+            </svg>
+            3D CAD
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="sendToMarket()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            Market Research
+          </button>
         </div>
       </div>
+
       <div class="output-body" id="outputBody">
         <div class="output-placeholder">
-          <div class="op-icon">◎</div>
+          <div class="output-placeholder-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
           <p>Your model shot will appear here</p>
         </div>
       </div>
-      <div id="satisfactionBar" style="display:none;padding:16px 20px;border-top:1px solid var(--paper-2)">
+
+      <div id="satisfactionBar" style="display:none;padding:14px 20px;border-top:1px solid var(--paper-2)">
         <div class="satisfy-bar">
           <div class="satisfy-q">Happy with the result?</div>
           <div class="satisfy-btns">
-            <button class="satisfy-btn yes" onclick="onSatisfied(true)">✓ Looks great</button>
-            <button class="satisfy-btn no"  onclick="onSatisfied(false)">✗ Needs improvement</button>
+            <button class="satisfy-btn yes" onclick="onSatisfied(true)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Looks great
+            </button>
+            <button class="satisfy-btn no" onclick="onSatisfied(false)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+              Needs improvement
+            </button>
           </div>
         </div>
       </div>
@@ -198,39 +329,58 @@
   <!-- RIGHT -->
   <aside class="col-sticky right">
     <div class="panel">
-      <div class="panel-title"><span class="step">Style</span>Model & Options</div>
+      <div class="panel-title"><span class="step">Style</span>Model &amp; Options</div>
+
       <div class="form-row">
         <label>Model Type</label>
         <div class="model-grid" id="modelGrid">
           <label class="model-card selected" onclick="selectModel(this,'diverse female model')">
             <input type="radio" name="modelPref" value="diverse female model" checked />
-            <div class="mc-icon">👩</div>
+            <div class="model-card-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
             <div class="mc-label">Female</div>
           </label>
           <label class="model-card" onclick="selectModel(this,'male model')">
             <input type="radio" name="modelPref" value="male model" />
-            <div class="mc-icon">👨</div>
+            <div class="model-card-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
             <div class="mc-label">Male</div>
           </label>
           <label class="model-card" onclick="selectModel(this,'hand model close-up')">
             <input type="radio" name="modelPref" value="hand model close-up" />
-            <div class="mc-icon">🤚</div>
+            <div class="model-card-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+              </svg>
+            </div>
             <div class="mc-label">Hand</div>
           </label>
           <label class="model-card" onclick="selectModel(this,'editorial fashion model')">
             <input type="radio" name="modelPref" value="editorial fashion model" />
-            <div class="mc-icon">✦</div>
+            <div class="model-card-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+            </div>
             <div class="mc-label">Editorial</div>
           </label>
         </div>
       </div>
+
       <div class="form-row">
         <label>Additional Instructions</label>
-        <textarea id="customPrompt" rows="3" placeholder="e.g. white studio, warm golden lighting..."></textarea>
+        <textarea id="customPrompt" rows="3" placeholder="e.g. white studio, warm golden lighting…"></textarea>
       </div>
+
       <div class="form-row">
         <label>Negative Prompt</label>
-        <textarea id="negativePrompt" rows="2" placeholder="e.g. blurry, distorted..."></textarea>
+        <textarea id="negativePrompt" rows="2" placeholder="e.g. blurry, distorted…"></textarea>
       </div>
     </div>
   </aside>
@@ -240,13 +390,11 @@
 {% block scripts %}
 <script>
 const SS_KEY = 'modelStudioState';
-
-let modelFiles = [];
+let modelFiles       = [];
 let selectedTemplate = null;
 let currentOutputUrl = null;
-let currentPrompt = '';
+let currentPrompt    = '';
 
-// ── Persist state ──
 function saveState() {
   try {
     sessionStorage.setItem(SS_KEY, JSON.stringify({
@@ -257,12 +405,10 @@ function saveState() {
       negativePrompt: document.getElementById('negativePrompt').value,
       currentOutputUrl,
     }));
-  } catch(e) { /* fail silently */ }
+  } catch(e) {}
 }
 
-// ── Restore from sessionStorage (tab-switch persistence) and cross-module handoffs ──
 window.addEventListener('DOMContentLoaded', () => {
-  // Cross-module pending image takes priority
   const pending    = sessionStorage.getItem('pendingModelImage');
   const pendingCat = sessionStorage.getItem('pendingModelCategory');
   if (pending) {
@@ -275,10 +421,8 @@ window.addEventListener('DOMContentLoaded', () => {
       onCategoryChange();
       sessionStorage.removeItem('pendingModelCategory');
     }
-    // Save the cross-module state immediately so it persists on next tab switch
     saveState();
   } else {
-    // Restore own saved state
     let saved;
     try { saved = JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch(e) {}
     if (saved) {
@@ -287,29 +431,22 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modelPlaceholder').style.display = 'none';
         document.getElementById('modelPreview').style.display = 'block';
       }
-      if (saved.category) {
-        document.getElementById('modelCategory').value = saved.category;
-        onCategoryChange();
-      }
+      if (saved.category) { document.getElementById('modelCategory').value = saved.category; onCategoryChange(); }
       if (saved.customPrompt)   document.getElementById('customPrompt').value   = saved.customPrompt;
       if (saved.negativePrompt) document.getElementById('negativePrompt').value = saved.negativePrompt;
       if (saved.modelPref) {
         document.querySelectorAll('.model-card').forEach(card => {
           const input = card.querySelector('input');
-          if (input && input.value === saved.modelPref) {
-            card.classList.add('selected');
-            input.checked = true;
-          } else {
-            card.classList.remove('selected');
-          }
+          const matched = input && input.value === saved.modelPref;
+          card.classList.toggle('selected', matched);
+          if (matched) input.checked = true;
+          const svg = card.querySelector('.model-card-icon svg');
+          if (svg) svg.setAttribute('stroke', matched ? 'var(--gold)' : 'var(--ink-3)');
         });
       }
       if (saved.currentOutputUrl) {
         currentOutputUrl = saved.currentOutputUrl;
-        document.getElementById('outputBody').innerHTML = `
-          <div class="result-img-wrap">
-            <img src="${currentOutputUrl}" alt="Model shot" />
-          </div>`;
+        document.getElementById('outputBody').innerHTML = `<div class="result-img-wrap"><img src="${currentOutputUrl}" alt="Model shot" /></div>`;
         document.getElementById('dlBtn').href = currentOutputUrl;
         document.getElementById('outputActions').style.display = 'flex';
         document.getElementById('satisfactionBar').style.display = 'block';
@@ -336,22 +473,27 @@ modelFile.addEventListener('change', e => {
 
 function clearModelUpload(e) {
   e.stopPropagation();
-  modelFiles = [];
-  modelFile.value = '';
+  modelFiles = []; modelFile.value = '';
   document.getElementById('modelPlaceholder').style.display = 'flex';
   document.getElementById('modelPreview').style.display = 'none';
   saveState();
 }
 
 function selectModel(el, val) {
-  document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.model-card').forEach(c => {
+    c.classList.remove('selected');
+    const svg = c.querySelector('.model-card-icon svg');
+    if (svg) svg.setAttribute('stroke', 'var(--ink-3)');
+  });
   el.classList.add('selected');
   el.querySelector('input').checked = true;
+  const svg = el.querySelector('.model-card-icon svg');
+  if (svg) svg.setAttribute('stroke', 'var(--gold)');
   saveState();
 }
 
 async function loadCategories() {
-  const res = await fetch('/api/categories');
+  const res  = await fetch('/api/categories');
   const data = await res.json();
   window.categoriesData = data;
 }
@@ -365,12 +507,11 @@ function onCategoryChange() {
 }
 
 function renderTemplatePills(cat) {
-  const cats = window.categoriesData || {};
+  const cats      = window.categoriesData || {};
   const templates = (cats[cat] || {}).templates || [];
   const container = document.getElementById('templatePills');
   if (!templates.length) {
-    container.innerHTML = '<p style="font-size:13px;color:var(--ink-3)">No templates yet. Click AI Suggest.</p>';
-    return;
+    container.innerHTML = '<p style="font-size:12px;color:var(--ink-3)">No templates yet. Click AI Suggest.</p>'; return;
   }
   container.innerHTML = templates.map((t, i) => `
     <div class="tpl-pill ${i === 0 ? 'active' : ''}" onclick="selectTemplate(this, ${i})" data-idx="${i}">
@@ -383,7 +524,7 @@ function renderTemplatePills(cat) {
 function selectTemplate(el, idx) {
   document.querySelectorAll('.tpl-pill').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
-  const cat = document.getElementById('modelCategory').value;
+  const cat  = document.getElementById('modelCategory').value;
   const cats = window.categoriesData || {};
   selectedTemplate = ((cats[cat] || {}).templates || [])[idx] || null;
 }
@@ -392,9 +533,8 @@ async function aiSuggestTemplates() {
   const cat = document.getElementById('modelCategory').value;
   if (!cat) { showToast('Select a category first.', 'error'); return; }
   showToast('AI generating templates…');
-  const res = await fetch('/api/suggest-templates', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res  = await fetch('/api/suggest-templates', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ category: cat, description: '' })
   });
   const data = await res.json();
@@ -408,10 +548,10 @@ async function aiSuggestTemplates() {
 }
 
 async function generateModelShot() {
-  const cat = document.getElementById('modelCategory').value;
-  const modelPref = document.querySelector('input[name=modelPref]:checked')?.value || 'diverse female model';
+  const cat          = document.getElementById('modelCategory').value;
+  const modelPref    = document.querySelector('input[name=modelPref]:checked')?.value || 'diverse female model';
   const customPrompt = document.getElementById('customPrompt').value;
-  const negativePrompt = document.getElementById('negativePrompt').value;
+  const negPrompt    = document.getElementById('negativePrompt').value;
 
   if (!modelFiles.length && !document.getElementById('modelPreviewImg').src.includes('/static')) {
     showToast('Please upload a jewellery image.', 'error'); return;
@@ -420,10 +560,10 @@ async function generateModelShot() {
 
   const btn = document.getElementById('generateBtn');
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Generating...';
+  btn.innerHTML = '<div class="spinner"></div> Generating…';
 
   document.getElementById('outputBody').innerHTML = `
-    <div class="progress-wrap" style="width:100%;max-width:340px">
+    <div class="progress-wrap">
       <div class="progress-bar"><div class="progress-fill"></div></div>
       <div class="progress-label">Placing jewellery on model…</div>
     </div>`;
@@ -435,7 +575,6 @@ async function generateModelShot() {
     if (modelFiles.length) {
       modelFiles.forEach(f => fd.append('jewellery_image', f));
     } else {
-      // fetch from URL and convert to file
       const resp = await fetch(document.getElementById('modelPreviewImg').src);
       const blob = await resp.blob();
       fd.append('jewellery_image', blob, 'concept.png');
@@ -443,64 +582,67 @@ async function generateModelShot() {
     fd.append('category', cat);
     fd.append('template', JSON.stringify(selectedTemplate || {}));
     fd.append('custom_prompt', customPrompt);
-    fd.append('negative_prompt', negativePrompt);
+    fd.append('negative_prompt', negPrompt);
     fd.append('model_preference', modelPref);
 
-    const res = await fetch('/api/generate-image', { method: 'POST', body: fd });
+    const res  = await fetch('/api/generate-image', { method: 'POST', body: fd });
     const data = await res.json();
 
     if (data.error) {
       document.getElementById('outputBody').innerHTML = `
         <div class="output-placeholder">
-          <div class="op-icon">⚠</div>
+          <div class="output-placeholder-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
           <p style="color:var(--error)">${data.error}</p>
-          ${data.details ? `<p style="font-size:12px;margin-top:8px;color:var(--ink-3)">${data.details}</p>` : ''}
+          ${data.details ? `<p style="font-size:11px;margin-top:6px;color:var(--ink-3)">${data.details}</p>` : ''}
         </div>`;
       showToast(data.error, 'error');
     } else {
       currentOutputUrl = data.image_url;
-      currentPrompt = data.prompt_used || '';
-      document.getElementById('outputBody').innerHTML = `
-        <div class="result-img-wrap">
-          <img src="${data.image_url}?t=${Date.now()}" alt="Model shot" />
-        </div>`;
+      document.getElementById('outputBody').innerHTML = `<div class="result-img-wrap"><img src="${data.image_url}?t=${Date.now()}" alt="Model shot" /></div>`;
       document.getElementById('dlBtn').href = data.image_url;
       document.getElementById('outputActions').style.display = 'flex';
       document.getElementById('satisfactionBar').style.display = 'block';
-
-      // Save to gallery
       const gallery = JSON.parse(localStorage.getItem('glymrGallery') || '[]');
       gallery.unshift({ url: data.image_url, category: cat, ts: Date.now(), type: 'model' });
       localStorage.setItem('glymrGallery', JSON.stringify(gallery.slice(0, 48)));
-
       saveState();
     }
   } catch(err) {
-    document.getElementById('outputBody').innerHTML = `<div class="output-placeholder"><div class="op-icon">⚠</div><p style="color:var(--error)">Network error</p></div>`;
+    document.getElementById('outputBody').innerHTML = `
+      <div class="output-placeholder">
+        <div class="output-placeholder-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <p style="color:var(--error)">Network error</p>
+      </div>`;
     showToast('Error: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<span>◈</span> Generate';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Generate';
   }
 }
 
 function onSatisfied(yes) {
-  if (yes) { showToast('Great! Saved to gallery.', 'success'); document.getElementById('satisfactionBar').style.display = 'none'; }
-  else { showToast('Opening refinement tools…'); /* could open analysis panel */ }
+  if (yes) { showToast('Saved to gallery.', 'success'); document.getElementById('satisfactionBar').style.display = 'none'; }
+  else { showToast('Opening refinement tools…'); }
 }
+
 function sendToCADFromModel() {
-  if (currentOutputUrl) {
-    sessionStorage.setItem('pendingCADImage', currentOutputUrl);
-    window.location.href = '/studio/cad';
-  }
+  if (currentOutputUrl) { sessionStorage.setItem('pendingCADImage', currentOutputUrl); window.location.href = '/studio/cad'; }
 }
+
 function sendToMarket() {
   sessionStorage.setItem('pendingMarketImage', currentOutputUrl || document.getElementById('modelPreviewImg').src);
   sessionStorage.setItem('pendingMarketCategory', document.getElementById('modelCategory').value);
   window.location.href = '/studio/market';
 }
 
-// ── Auto-save on form changes ──
 document.getElementById('modelCategory').addEventListener('change', saveState);
 document.getElementById('customPrompt').addEventListener('input', saveState);
 document.getElementById('negativePrompt').addEventListener('input', saveState);

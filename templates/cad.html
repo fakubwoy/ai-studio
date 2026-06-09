@@ -3,99 +3,181 @@
 
 {% block head %}
 <style>
+
   .cad-layout {
     display: grid;
     grid-template-columns: 360px 1fr;
     gap: 24px;
-    padding: 32px 40px;
+    padding: 32px 36px;
     min-height: calc(100vh - var(--nav-h));
     align-items: start;
   }
-  .cad-sidebar { display: flex; flex-direction: column; gap: 20px; position: sticky; top: calc(var(--nav-h) + 24px); }
 
+  .cad-sidebar {
+    display: flex; flex-direction: column; gap: 18px;
+    position: sticky; top: calc(var(--nav-h) + 24px);
+  }
+
+  /* Upload */
   .upload-zone {
-    border: 2px dashed var(--paper-3); border-radius: var(--radius-lg);
+    border: 1.5px dashed var(--paper-3); border-radius: var(--radius-lg);
     padding: 24px 16px; text-align: center; cursor: pointer;
-    transition: border-color var(--transition), background var(--transition);
+    transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
     background: var(--paper); position: relative; min-height: 140px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   }
-  .upload-zone:hover { border-color: var(--gold); background: rgba(184,146,74,.04); }
+
+  .upload-zone:hover { border-color: var(--gold); background: var(--gold-bg); }
   .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-zone p  { font-size: 13px; color: var(--ink-3); margin: 0; }
+  .upload-zone small { font-size: 11px; color: var(--ink-4); font-family: var(--font-mono); }
+
   .upload-preview { border-radius: var(--radius); overflow: hidden; background: var(--paper-2); position: relative; }
-  .upload-preview img { width: 100%; height: 200px; object-fit: cover; }
+  .upload-preview img { width: 100%; height: 200px; object-fit: cover; display: block; }
+
   .preview-remove {
-    position: absolute; top: 8px; right: 8px; width: 26px; height: 26px;
-    background: rgba(14,12,11,.7); color: #fff; border-radius: 50%; font-size: 13px;
+    position: absolute; top: 8px; right: 8px;
+    width: 26px; height: 26px;
+    background: rgba(26,22,20,.75); color: #fff; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
+    border: none; cursor: pointer;
+    transition: background var(--t) var(--ease);
   }
+
+  .preview-remove:hover { background: var(--error); }
 
   /* Format chips */
-  .format-chips { display: flex; gap: 8px; flex-wrap: wrap; }
-  .format-chip {
-    padding: 6px 14px; border-radius: 20px;
-    border: 1.5px solid var(--paper-3);
-    font-size: 12px; font-weight: 600; font-family: var(--font-mono);
-    letter-spacing: .06em; cursor: pointer;
-    transition: all var(--transition); color: var(--ink-3);
-  }
-  .format-chip.active { border-color: var(--gold); color: var(--gold); background: rgba(184,146,74,.08); }
+  .format-chips { display: flex; gap: 7px; flex-wrap: wrap; }
 
-  /* 3D viewer area */
+  .format-chip {
+    padding: 5px 13px; border-radius: 20px;
+    border: 1.5px solid var(--paper-3);
+    font-size: 11px; font-weight: 600;
+    font-family: var(--font-mono);
+    letter-spacing: .06em; cursor: pointer;
+    transition: all var(--t) var(--ease); color: var(--ink-3);
+  }
+
+  .format-chip.active {
+    border-color: var(--gold); color: var(--gold-dk); background: var(--gold-bg);
+  }
+
+  .format-chip:hover:not(.active) { border-color: var(--paper-4); color: var(--ink); }
+
+  /* CAD output area */
   .cad-output {
-    background: #fff; border: 1px solid var(--paper-3);
+    background: var(--surface); border: 1px solid var(--paper-3);
     border-radius: var(--radius-lg); overflow: hidden;
     min-height: 600px; display: flex; flex-direction: column;
   }
+
   .cad-output-header {
-    padding: 16px 24px; border-bottom: 1px solid var(--paper-2);
+    padding: 14px 24px; border-bottom: 1px solid var(--paper-2);
     display: flex; align-items: center; justify-content: space-between;
   }
-  .cad-output-title { font-family: var(--font-serif); font-size: 18px; font-weight: 600; }
-  .cad-output-body { flex: 1; position: relative; min-height: 500px; }
+
+  .cad-output-title {
+    font-family: var(--font-serif);
+    font-size: 17px; font-weight: 600; color: var(--ink);
+  }
+
+  .cad-output-body {
+    flex: 1; position: relative; min-height: 500px;
+  }
 
   .viewer-frame {
-    width: 100%; height: 100%; min-height: 500px;
-    border: none;
+    width: 100%; height: 100%; min-height: 500px; border: none;
   }
 
+  /* Placeholder */
   .cad-placeholder {
     position: absolute; inset: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
     color: var(--ink-3);
+    gap: 16px;
   }
-  .cad-placeholder .cp-icon { font-size: 64px; opacity: .15; margin-bottom: 20px; }
-  .cad-placeholder h3 { font-family: var(--font-serif); font-size: 22px; color: var(--ink); margin-bottom: 8px; }
-  .cad-placeholder p { font-size: 14px; }
+
+  .cad-placeholder-icon {
+    width: 80px; height: 80px;
+    border-radius: var(--radius-lg);
+    background: var(--paper-2);
+    display: flex; align-items: center; justify-content: center;
+    opacity: .7;
+  }
+
+  .cad-placeholder h3 {
+    font-family: var(--font-serif);
+    font-size: 22px; color: var(--ink); margin-bottom: 6px;
+    text-align: center;
+  }
+
+  .cad-placeholder p { font-size: 13px; text-align: center; }
 
   /* Status steps */
-  .status-steps { display: flex; flex-direction: column; gap: 12px; padding: 24px; }
+  .status-steps { display: flex; flex-direction: column; gap: 10px; padding: 28px; }
+
   .status-step {
     display: flex; align-items: center; gap: 12px;
     padding: 12px 16px; border-radius: var(--radius);
-    background: var(--paper-2); font-size: 13px;
+    background: var(--paper); font-size: 13px;
+    border: 1px solid transparent;
+    transition: all var(--t) var(--ease);
   }
-  .status-step .ss-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
-  .ss-pending   { background: var(--paper-3); color: var(--ink-3); }
-  .ss-active    { background: rgba(184,146,74,.2); color: var(--gold); }
-  .ss-done      { background: rgba(45,106,79,.2); color: #2d6a4f; }
-  .ss-error     { background: rgba(192,64,64,.15); color: var(--error); }
+
+  .status-step.active {
+    background: var(--gold-bg); border-color: rgba(184,146,74,.2);
+  }
+
+  .status-step.done {
+    background: rgba(45,106,79,.05); border-color: rgba(45,106,79,.15);
+  }
+
+  .ss-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; flex-shrink: 0;
+    font-family: var(--font-mono); font-weight: 600;
+    transition: all var(--t-slow) var(--ease);
+  }
+
+  .ss-pending { background: var(--paper-3); color: var(--ink-3); }
+  .ss-active  { background: var(--gold-bg-2); color: var(--gold-dk); }
+  .ss-done    { background: rgba(45,106,79,.15); color: var(--success); }
+  .ss-error   { background: rgba(184,48,48,.1);  color: var(--error);   }
+
   .status-step .ss-label { flex: 1; color: var(--ink-3); }
   .status-step.active .ss-label { color: var(--ink); font-weight: 600; }
   .status-step.done   .ss-label { color: var(--ink); }
 
-  /* Model info */
-  .model-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-  .meta-item { background: var(--paper-2); border-radius: var(--radius); padding: 12px 14px; }
-  .meta-item .mi-label { font-size: 11px; color: var(--ink-3); font-family: var(--font-mono); letter-spacing: .06em; margin-bottom: 4px; }
+  /* Model meta */
+  .model-meta-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;
+  }
+
+  .meta-item {
+    background: var(--paper-2); border-radius: var(--radius); padding: 12px 14px;
+  }
+
+  .meta-item .mi-label {
+    font-size: 10px; color: var(--ink-3); font-family: var(--font-mono);
+    letter-spacing: .08em; margin-bottom: 4px; text-transform: uppercase;
+  }
+
   .meta-item .mi-val { font-size: 15px; font-weight: 600; color: var(--ink); }
 
-  .download-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+  .download-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
 
+  /* Progress ring */
   .progress-ring { width: 80px; height: 80px; margin: 0 auto 16px; }
   .progress-ring circle { fill: none; stroke-width: 5; }
-  .pr-bg { stroke: var(--paper-2); }
-  .pr-fill { stroke: var(--gold); stroke-linecap: round; stroke-dasharray: 220; stroke-dashoffset: 220; transition: stroke-dashoffset 1s ease; transform: rotate(-90deg); transform-origin: 50% 50%; }
+  .pr-bg   { stroke: var(--paper-2); }
+  .pr-fill {
+    stroke: var(--gold); stroke-linecap: round;
+    stroke-dasharray: 220; stroke-dashoffset: 220;
+    transition: stroke-dashoffset 1s ease;
+    transform: rotate(-90deg); transform-origin: 50% 50%;
+  }
 
   @media (max-width: 900px) {
     .cad-layout { grid-template-columns: 1fr; padding: 20px; }
@@ -106,6 +188,7 @@
 
 {% block content %}
 <div class="cad-layout">
+
   <!-- SIDEBAR -->
   <aside class="cad-sidebar">
     <div class="panel">
@@ -113,13 +196,19 @@
       <div class="upload-zone" id="cadUploadZone">
         <input type="file" id="cadFile" accept="image/*" />
         <div id="cadPlaceholder">
-          <div style="font-size:28px;margin-bottom:8px;opacity:.4">🔷</div>
-          <p style="font-size:13px;color:var(--ink-3)">Drop jewellery image or concept</p>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+          </svg>
+          <p>Drop jewellery image or concept</p>
           <small>Clear background works best</small>
         </div>
         <div id="cadPreview" class="upload-preview" style="display:none">
           <img id="cadPreviewImg" src="" alt="jewellery" />
-          <button class="preview-remove" onclick="clearCADUpload(event)">✕</button>
+          <button class="preview-remove" onclick="clearCADUpload(event)">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -129,7 +218,7 @@
 
       <div class="form-row">
         <label>Description (optional)</label>
-        <textarea id="cadPrompt" rows="3" placeholder="e.g. Gold Kundan necklace, intricate floral motifs, gemstone drops..."></textarea>
+        <textarea id="cadPrompt" rows="3" placeholder="e.g. Gold Kundan necklace, intricate floral motifs, gemstone drops…"></textarea>
       </div>
 
       <div class="form-row">
@@ -162,34 +251,52 @@
         </div>
       </div>
 
-      <button class="btn btn-gold" style="width:100%;justify-content:center" id="cadBtn" onclick="generateCAD()">
-        <span>🔷</span> Generate 3D Model
+      <button class="btn btn-gold" style="width:100%;margin-top:4px" id="cadBtn" onclick="generateCAD()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+        </svg>
+        Generate 3D Model
       </button>
-      <p style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:8px;font-family:var(--font-mono)">
-        Powered by Meshy AI · ~60–90 seconds
+
+      <p style="font-size:11px;color:var(--ink-4);text-align:center;margin-top:8px;font-family:var(--font-mono)">
+        Powered by Meshy AI &middot; ~60–90 seconds
       </p>
     </div>
   </aside>
 
   <!-- MAIN OUTPUT -->
   <div>
-    <div style="margin-bottom:20px">
-      <div style="font-family:var(--font-mono);font-size:11px;color:var(--gold);letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px">AI 3D Generation</div>
-      <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink)">3D CAD Generator</h1>
+    <div style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div class="eyebrow" style="margin-bottom:4px">AI Generation</div>
+        <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink)">3D CAD Generator</h1>
+      </div>
     </div>
 
-    <div class="cad-output" id="cadOutput">
+    <div class="cad-output">
       <div class="cad-output-header">
-        <div class="cad-output-title">Preview</div>
-        <div id="cadOutputActions" style="display:none;gap:8px">
-          <!-- filled dynamically -->
+        <span class="cad-output-title">3D Output</span>
+        <div id="cadHeaderActions" style="display:none;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cadOutputBody').innerHTML = cadPlaceholderHTML()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.04"/>
+            </svg>
+            Reset
+          </button>
         </div>
       </div>
+
       <div class="cad-output-body" id="cadOutputBody">
         <div class="cad-placeholder" id="cadPlaceholderMsg">
-          <div class="cp-icon">🔷</div>
-          <h3>3D model will appear here</h3>
-          <p>Upload a jewellery image and click Generate.</p>
+          <div class="cad-placeholder-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+            </svg>
+          </div>
+          <div>
+            <h3>3D model will appear here</h3>
+            <p>Upload a jewellery image and click Generate 3D Model.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -200,55 +307,51 @@
 {% block scripts %}
 <script>
 const SS_KEY = 'cadStudioState';
-
-let cadImageDataUrl = null;
 let pollingTimer = null;
-let activeFmts = new Set(['glb', 'obj']);
+let cadImageFile = null;
 
-// ── Persist state ──
+function cadPlaceholderHTML() {
+  return `<div class="cad-placeholder" id="cadPlaceholderMsg">
+    <div class="cad-placeholder-icon">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+      </svg>
+    </div>
+    <div><h3>3D model will appear here</h3><p>Upload a jewellery image and click Generate 3D Model.</p></div>
+  </div>`;
+}
+
 function saveState() {
   try {
     sessionStorage.setItem(SS_KEY, JSON.stringify({
-      cadImageSrc: document.getElementById('cadPreviewImg').src || null,
-      cadPrompt:   document.getElementById('cadPrompt').value,
-      cadStyle:    document.getElementById('cadStyle').value,
-      cadTarget:   document.getElementById('cadTarget').value,
-      activeFmts:  [...activeFmts],
+      prompt:  document.getElementById('cadPrompt').value,
+      style:   document.getElementById('cadStyle').value,
+      target:  document.getElementById('cadTarget').value,
+      formats: [...document.querySelectorAll('.format-chip.active')].map(c => c.dataset.fmt),
     }));
-  } catch(e) { /* fail silently if image is too large */ }
+  } catch(e) {}
 }
 
-// ── Restore from sessionStorage (tab-switch persistence) and cross-module handoffs ──
 window.addEventListener('DOMContentLoaded', () => {
-  // Cross-module pending image takes priority
+  // Cross-module handoff
   const pending = sessionStorage.getItem('pendingCADImage');
   if (pending) {
     document.getElementById('cadPreviewImg').src = pending;
     document.getElementById('cadPlaceholder').style.display = 'none';
     document.getElementById('cadPreview').style.display = 'block';
-    cadImageDataUrl = pending;
     sessionStorage.removeItem('pendingCADImage');
-    saveState();
-  } else {
-    // Restore own saved state
-    let saved;
-    try { saved = JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch(e) {}
-    if (saved) {
-      if (saved.cadImageSrc && saved.cadImageSrc !== window.location.href) {
-        document.getElementById('cadPreviewImg').src = saved.cadImageSrc;
-        document.getElementById('cadPlaceholder').style.display = 'none';
-        document.getElementById('cadPreview').style.display = 'block';
-        cadImageDataUrl = saved.cadImageSrc;
-      }
-      if (saved.cadPrompt) document.getElementById('cadPrompt').value = saved.cadPrompt;
-      if (saved.cadStyle)  document.getElementById('cadStyle').value  = saved.cadStyle;
-      if (saved.cadTarget) document.getElementById('cadTarget').value = saved.cadTarget;
-      if (Array.isArray(saved.activeFmts)) {
-        activeFmts = new Set(saved.activeFmts);
-        document.querySelectorAll('.format-chip').forEach(el => {
-          el.classList.toggle('active', activeFmts.has(el.dataset.fmt));
-        });
-      }
+  }
+  // Restore state
+  let saved;
+  try { saved = JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch(e) {}
+  if (saved) {
+    if (saved.prompt) document.getElementById('cadPrompt').value = saved.prompt;
+    if (saved.style)  document.getElementById('cadStyle').value  = saved.style;
+    if (saved.target) document.getElementById('cadTarget').value = saved.target;
+    if (saved.formats) {
+      document.querySelectorAll('.format-chip').forEach(c => {
+        c.classList.toggle('active', saved.formats.includes(c.dataset.fmt));
+      });
     }
   }
 });
@@ -257,124 +360,124 @@ const cadFile = document.getElementById('cadFile');
 cadFile.addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
+  cadImageFile = file;
   const reader = new FileReader();
   reader.onload = ev => {
-    cadImageDataUrl = ev.target.result;
-    document.getElementById('cadPreviewImg').src = cadImageDataUrl;
+    document.getElementById('cadPreviewImg').src = ev.target.result;
     document.getElementById('cadPlaceholder').style.display = 'none';
     document.getElementById('cadPreview').style.display = 'block';
-    saveState();
   };
   reader.readAsDataURL(file);
 });
 
 function clearCADUpload(e) {
   e.stopPropagation();
-  cadImageDataUrl = null;
-  cadFile.value = '';
+  cadImageFile = null; cadFile.value = '';
   document.getElementById('cadPlaceholder').style.display = 'flex';
   document.getElementById('cadPreview').style.display = 'none';
-  saveState();
 }
 
 function toggleFmt(el) {
-  const f = el.dataset.fmt;
-  if (activeFmts.has(f)) { activeFmts.delete(f); el.classList.remove('active'); }
-  else { activeFmts.add(f); el.classList.add('active'); }
+  const active = document.querySelectorAll('.format-chip.active');
+  if (el.classList.contains('active') && active.length === 1) return;
+  el.classList.toggle('active');
   saveState();
 }
 
 async function generateCAD() {
-  if (!cadImageDataUrl) { showToast('Please upload a jewellery image.', 'error'); return; }
+  const previewSrc = document.getElementById('cadPreviewImg').src;
+  if (!cadImageFile && !previewSrc.startsWith('data:') && !previewSrc.includes('/static')) {
+    showToast('Please upload a jewellery image.', 'error'); return;
+  }
 
   const btn = document.getElementById('cadBtn');
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Submitting...';
+  btn.innerHTML = '<div class="spinner"></div> Processing…';
 
-  showStatusSteps('pending');
+  showStatusSteps();
+  document.getElementById('cadHeaderActions').style.display = 'none';
 
   const fd = new FormData();
-  fd.append('image_data', cadImageDataUrl);
   fd.append('prompt', document.getElementById('cadPrompt').value);
-  fd.append('art_style', document.getElementById('cadStyle').value);
-  fd.append('target_use', document.getElementById('cadTarget').value);
-  fd.append('formats', JSON.stringify([...activeFmts]));
+  fd.append('style', document.getElementById('cadStyle').value);
+  fd.append('target', document.getElementById('cadTarget').value);
+  fd.append('formats', JSON.stringify([...document.querySelectorAll('.format-chip.active')].map(c => c.dataset.fmt)));
+
+  if (cadImageFile) {
+    fd.append('image', cadImageFile);
+  } else {
+    try {
+      const resp = await fetch(previewSrc);
+      const blob = await resp.blob();
+      fd.append('image', blob, 'jewellery.jpg');
+    } catch(e) {
+      showToast('Could not load image.', 'error');
+      resetBtn(); return;
+    }
+  }
 
   try {
-    const res = await fetch('/api/generate-cad', { method: 'POST', body: fd });
+    const res  = await fetch('/api/generate-cad', { method: 'POST', body: fd });
     const data = await res.json();
-
     if (data.error) {
       showCADError(data.error, data.details);
       showToast(data.error, 'error');
-      btn.disabled = false;
-      btn.innerHTML = '<span>🔷</span> Generate 3D Model';
-      return;
+      resetBtn(); return;
     }
-
     if (data.task_id) {
-      btn.innerHTML = '<div class="spinner"></div> Processing...';
+      btn.innerHTML = '<div class="spinner"></div> Processing…';
       pollCADStatus(data.task_id);
     } else if (data.model_urls) {
-      showCADResult(data);
-      btn.disabled = false;
-      btn.innerHTML = '<span>🔷</span> Generate Again';
+      showCADResult(data); resetBtn();
     }
   } catch(err) {
-    showCADError('Network error: ' + err.message);
-    btn.disabled = false;
-    btn.innerHTML = '<span>🔷</span> Generate 3D Model';
+    showCADError('Network error: ' + err.message); resetBtn();
   }
 }
 
 async function pollCADStatus(taskId) {
   if (pollingTimer) clearInterval(pollingTimer);
   let attempts = 0;
-
   pollingTimer = setInterval(async () => {
     attempts++;
-    if (attempts > 90) { // ~3 mins max
+    if (attempts > 90) {
       clearInterval(pollingTimer);
       showCADError('Timed out. Please try again.');
       resetBtn(); return;
     }
     try {
-      const res = await fetch(`/api/cad-status/${taskId}`);
+      const res  = await fetch(`/api/cad-status/${taskId}`);
       const data = await res.json();
-
       updateStatusProgress(data.progress || 0, data.status);
-
       if (data.status === 'SUCCEEDED') {
         clearInterval(pollingTimer);
-        showCADResult(data);
-        resetBtn();
+        showCADResult(data); resetBtn();
       } else if (data.status === 'FAILED') {
         clearInterval(pollingTimer);
         showCADError(data.error || 'Generation failed.');
         showToast('3D generation failed.', 'error');
         resetBtn();
       }
-    } catch(e) { /* ignore polling errors */ }
+    } catch(e) {}
   }, 2000);
 }
 
 function resetBtn() {
   const btn = document.getElementById('cadBtn');
   btn.disabled = false;
-  btn.innerHTML = '<span>🔷</span> Generate 3D Model';
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg> Generate 3D Model';
 }
 
-function showStatusSteps(state) {
-  document.getElementById('cadPlaceholderMsg').style.display = 'none';
+function showStatusSteps() {
   document.getElementById('cadOutputBody').innerHTML = `
     <div class="status-steps" id="statusSteps">
       <div id="ss1" class="status-step active">
-        <div class="ss-icon ss-active"><div class="spinner" style="width:16px;height:16px;border-width:2px"></div></div>
+        <div class="ss-icon ss-active"><div class="spinner" style="width:14px;height:14px;border-width:2px"></div></div>
         <span class="ss-label">Submitting image to Meshy AI…</span>
       </div>
       <div id="ss2" class="status-step">
         <div class="ss-icon ss-pending">2</div>
-        <span class="ss-label">Generating geometry & textures</span>
+        <span class="ss-label">Generating geometry &amp; textures</span>
       </div>
       <div id="ss3" class="status-step">
         <div class="ss-icon ss-pending">3</div>
@@ -384,36 +487,44 @@ function showStatusSteps(state) {
         <div class="ss-icon ss-pending">4</div>
         <span class="ss-label">Preparing download files</span>
       </div>
-      <div style="text-align:center;padding:20px 0">
+      <div style="text-align:center;padding:24px 0 16px">
         <svg class="progress-ring" viewBox="0 0 80 80">
           <circle class="pr-bg" cx="40" cy="40" r="35"/>
           <circle class="pr-fill" id="progressRing" cx="40" cy="40" r="35"/>
         </svg>
-        <div id="progressPct" style="font-family:var(--font-mono);font-size:24px;color:var(--gold);margin-top:-56px;position:relative;z-index:1;margin-bottom:32px">0%</div>
-        <p style="font-size:12px;color:var(--ink-3);font-family:var(--font-mono)">Meshy AI is processing your model…</p>
+        <div id="progressPct" style="font-family:var(--font-mono);font-size:22px;color:var(--gold);margin-top:-52px;position:relative;z-index:1;margin-bottom:28px">0%</div>
+        <p style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono)">Meshy AI is processing your model…</p>
       </div>
     </div>`;
 }
 
 function updateStatusProgress(pct, status) {
-  const ring = document.getElementById('progressRing');
+  const ring  = document.getElementById('progressRing');
   const pctEl = document.getElementById('progressPct');
   if (ring) {
-    const circumference = 2 * Math.PI * 35;
-    ring.style.strokeDashoffset = circumference - (pct / 100) * circumference;
+    const circ = 2 * Math.PI * 35;
+    ring.style.strokeDashoffset = circ - (pct / 100) * circ;
   }
   if (pctEl) pctEl.textContent = pct + '%';
 
-  // Update step states
   const activateStep = (n) => {
     for (let i = 1; i <= 4; i++) {
-      const el = document.getElementById('ss' + i);
+      const el   = document.getElementById('ss' + i);
       if (!el) continue;
       const icon = el.querySelector('.ss-icon');
       el.classList.remove('active', 'done');
-      if (i < n) { el.classList.add('done'); icon.className = 'ss-icon ss-done'; icon.textContent = '✓'; }
-      else if (i === n) { el.classList.add('active'); icon.className = 'ss-icon ss-active'; icon.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px"></div>'; }
-      else { icon.className = 'ss-icon ss-pending'; icon.textContent = i; }
+      if (i < n) {
+        el.classList.add('done');
+        icon.className = 'ss-icon ss-done';
+        icon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      } else if (i === n) {
+        el.classList.add('active');
+        icon.className = 'ss-icon ss-active';
+        icon.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px"></div>';
+      } else {
+        icon.className = 'ss-icon ss-pending';
+        icon.textContent = i;
+      }
     }
   };
   if (pct < 25) activateStep(1);
@@ -423,54 +534,78 @@ function updateStatusProgress(pct, status) {
 }
 
 function showCADResult(data) {
-  const urls = data.model_urls || {};
+  const urls  = data.model_urls || {};
   const thumb = data.thumbnail_url || '';
 
   document.getElementById('cadOutputBody').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:24px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:28px">
       <div>
-        ${thumb ? `<img src="${thumb}" style="width:100%;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);background:var(--ink)" alt="3D model preview" />` : '<div style="height:260px;background:var(--paper-2);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;font-size:48px;opacity:.3">🔷</div>'}
+        ${thumb
+          ? `<img src="${thumb}" style="width:100%;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);background:var(--ink);display:block" alt="3D model preview" />`
+          : `<div style="height:260px;background:var(--paper-2);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;opacity:.4">
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+              </svg>
+            </div>`}
       </div>
-      <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:18px">
         <div>
-          <div style="font-family:var(--font-mono);font-size:11px;color:var(--gold);letter-spacing:.1em;margin-bottom:8px">3D MODEL READY</div>
+          <div class="eyebrow" style="margin-bottom:8px">3D Model Ready</div>
           <h3 style="font-family:var(--font-serif);font-size:22px;font-weight:600;margin-bottom:6px">Your jewellery in 3D</h3>
-          <p style="font-size:13px;color:var(--ink-3)">Model generated successfully. Download in your preferred format below.</p>
+          <p style="font-size:13px;color:var(--ink-3)">Model generated successfully. Download in your preferred format.</p>
         </div>
         <div class="model-meta-grid">
-          ${data.vertex_count ? `<div class="meta-item"><div class="mi-label">VERTICES</div><div class="mi-val">${Number(data.vertex_count).toLocaleString()}</div></div>` : ''}
-          ${data.face_count   ? `<div class="meta-item"><div class="mi-label">FACES</div><div class="mi-val">${Number(data.face_count).toLocaleString()}</div></div>` : ''}
-          ${data.texture_resolution ? `<div class="meta-item"><div class="mi-label">TEXTURE</div><div class="mi-val">${data.texture_resolution}</div></div>` : ''}
-          <div class="meta-item"><div class="mi-label">STATUS</div><div class="mi-val" style="color:#2d6a4f">✓ Ready</div></div>
+          ${data.vertex_count      ? `<div class="meta-item"><div class="mi-label">Vertices</div><div class="mi-val">${Number(data.vertex_count).toLocaleString()}</div></div>` : ''}
+          ${data.face_count        ? `<div class="meta-item"><div class="mi-label">Faces</div><div class="mi-val">${Number(data.face_count).toLocaleString()}</div></div>` : ''}
+          ${data.texture_resolution? `<div class="meta-item"><div class="mi-label">Texture</div><div class="mi-val">${data.texture_resolution}</div></div>` : ''}
+          <div class="meta-item">
+            <div class="mi-label">Status</div>
+            <div class="mi-val" style="color:var(--success);display:flex;align-items:center;gap:5px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Ready
+            </div>
+          </div>
         </div>
         <div>
-          <div style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px">Download</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px">Download</div>
           <div class="download-buttons">
-            ${Object.entries(urls).map(([fmt, url]) => url ? `<a href="${url}" target="_blank" class="btn btn-outline btn-sm">↓ ${fmt.toUpperCase()}</a>` : '').join('')}
+            ${Object.entries(urls).map(([fmt, url]) => url ? `
+              <a href="${url}" target="_blank" class="btn btn-outline btn-sm">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                ${fmt.toUpperCase()}
+              </a>` : '').join('')}
           </div>
         </div>
         ${data.model_viewer_url ? `
         <div>
-          <div style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px">3D Preview</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">3D Preview</div>
           <iframe src="${data.model_viewer_url}" class="viewer-frame" style="height:220px;border-radius:var(--radius);border:1px solid var(--paper-3)"></iframe>
         </div>` : ''}
       </div>
     </div>`;
 
+  document.getElementById('cadHeaderActions').style.display = 'flex';
   showToast('3D model ready!', 'success');
 }
 
 function showCADError(msg, details) {
   document.getElementById('cadOutputBody').innerHTML = `
     <div class="cad-placeholder">
-      <div class="cp-icon" style="font-size:40px;opacity:.5">⚠</div>
-      <h3 style="color:var(--error)">Generation Failed</h3>
-      <p>${msg}</p>
-      ${details ? `<p style="font-size:12px;margin-top:8px;color:var(--ink-3)">${details}</p>` : ''}
+      <div class="cad-placeholder-icon" style="background:rgba(184,48,48,.08)">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <div>
+        <h3 style="color:var(--error)">Generation Failed</h3>
+        <p>${msg}</p>
+        ${details ? `<p style="font-size:11px;margin-top:6px;color:var(--ink-3)">${details}</p>` : ''}
+      </div>
     </div>`;
 }
 
-// ── Auto-save on form changes ──
 document.getElementById('cadPrompt').addEventListener('input', saveState);
 document.getElementById('cadStyle').addEventListener('change', saveState);
 document.getElementById('cadTarget').addEventListener('change', saveState);

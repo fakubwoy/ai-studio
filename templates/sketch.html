@@ -3,133 +3,226 @@
 
 {% block head %}
 <style>
+
   .studio-layout {
     display: grid;
     grid-template-columns: 380px 1fr;
     gap: 24px;
-    padding: 32px 40px;
+    padding: 32px 36px;
     min-height: calc(100vh - var(--nav-h));
     align-items: start;
   }
-  .studio-sidebar { display: flex; flex-direction: column; gap: 20px; position: sticky; top: calc(var(--nav-h) + 24px); }
+
+  .studio-sidebar {
+    display: flex; flex-direction: column; gap: 18px;
+    position: sticky; top: calc(var(--nav-h) + 24px);
+  }
 
   /* Upload zone */
   .upload-zone {
-    border: 2px dashed var(--paper-3);
+    border: 1.5px dashed var(--paper-3);
     border-radius: var(--radius-lg);
-    padding: 32px 20px;
+    padding: 28px 20px;
     text-align: center;
     cursor: pointer;
-    transition: border-color var(--transition), background var(--transition);
+    transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
     background: var(--paper);
     position: relative;
+    min-height: 140px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
   }
-  .upload-zone:hover, .upload-zone.drag { border-color: var(--gold); background: rgba(184,146,74,.04); }
-  .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .upload-icon { font-size: 32px; margin-bottom: 12px; opacity: .5; }
-  .upload-zone p { font-size: 14px; color: var(--ink-3); margin-bottom: 4px; }
-  .upload-zone small { font-size: 12px; color: var(--ink-3); opacity: .6; font-family: var(--font-mono); }
-  .upload-preview {
-    position: relative;
-    border-radius: var(--radius);
-    overflow: hidden;
+
+  .upload-zone:hover, .upload-zone.drag {
+    border-color: var(--gold);
+    background: var(--gold-bg);
+  }
+
+  .upload-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+
+  .upload-zone-icon {
+    width: 40px; height: 40px; border-radius: var(--radius);
     background: var(--paper-2);
+    display: flex; align-items: center; justify-content: center;
+    transition: background var(--t) var(--ease);
   }
-  .upload-preview img { width: 100%; height: 200px; object-fit: cover; }
+
+  .upload-zone:hover .upload-zone-icon { background: var(--gold-bg-2); }
+
+  .upload-zone p { font-size: 13px; color: var(--ink-3); margin: 0; }
+  .upload-zone small { font-size: 11px; color: var(--ink-4); font-family: var(--font-mono); }
+
+  .upload-preview {
+    position: relative; border-radius: var(--radius);
+    overflow: hidden; background: var(--paper-2);
+  }
+
+  .upload-preview img { width: 100%; height: 200px; object-fit: cover; display: block; }
+
   .preview-remove {
     position: absolute; top: 8px; right: 8px;
-    width: 28px; height: 28px;
-    background: rgba(14,12,11,.7); color: #fff;
-    border-radius: 50%; font-size: 14px;
+    width: 26px; height: 26px;
+    background: rgba(26,22,20,.75); color: #fff;
+    border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
+    transition: background var(--t) var(--ease);
+    border: none; cursor: pointer;
   }
+
   .preview-remove:hover { background: var(--error); }
 
-  /* Mode selector */
-  .mode-tabs { display: flex; background: var(--paper-2); border-radius: var(--radius); padding: 3px; gap: 2px; }
-  .mode-tab {
-    flex: 1; padding: 8px; text-align: center;
-    border-radius: var(--radius); font-size: 12px; font-weight: 600;
-    letter-spacing: .05em; text-transform: uppercase;
-    color: var(--ink-3); transition: all var(--transition);
+  /* Mode tabs */
+  .mode-tabs {
+    display: flex;
+    background: var(--paper-2);
+    border-radius: var(--radius);
+    padding: 3px; gap: 2px;
   }
-  .mode-tab.active { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+
+  .mode-tab {
+    flex: 1; padding: 7px;
+    text-align: center;
+    border-radius: calc(var(--radius) - 1px);
+    font-size: 11px; font-weight: 600;
+    letter-spacing: .05em; text-transform: uppercase;
+    color: var(--ink-3);
+    transition: all var(--t) var(--ease);
+    cursor: pointer;
+  }
+
+  .mode-tab.active {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  }
+
   .mode-tab:hover:not(.active) { color: var(--ink); }
+
+  /* Variation chips */
+  .var-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+
+  .var-chip {
+    padding: 8px 10px; border-radius: var(--radius);
+    border: 1.5px solid var(--paper-3);
+    font-size: 11px; text-align: center;
+    cursor: pointer; transition: all var(--t) var(--ease);
+    color: var(--ink-3); font-weight: 500;
+  }
+
+  .var-chip.active {
+    border-color: var(--gold);
+    color: var(--gold-dk);
+    background: var(--gold-bg);
+  }
+
+  .var-chip:hover:not(.active) { border-color: var(--paper-4); color: var(--ink); }
 
   /* Concept output */
   .concepts-area {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
+    gap: 18px;
   }
+
   .concept-card {
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--paper-3);
     border-radius: var(--radius-lg);
     overflow: hidden;
-    transition: transform var(--transition), box-shadow var(--transition);
+    transition: transform var(--t-slow) var(--ease), box-shadow var(--t-slow) var(--ease), border-color var(--t-slow) var(--ease);
   }
-  .concept-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+
+  .concept-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--paper-4);
+  }
+
   .concept-img {
     width: 100%; height: 260px;
-    object-fit: cover;
+    object-fit: cover; display: block;
     background: var(--paper-2);
   }
+
   .concept-img-placeholder {
     width: 100%; height: 260px;
     background: linear-gradient(135deg, var(--paper-2), var(--paper-3));
     display: flex; align-items: center; justify-content: center;
-    font-size: 36px; opacity: .3;
   }
+
   .concept-body { padding: 18px 20px; }
+
   .concept-variant {
-    font-family: var(--font-mono); font-size: 11px;
-    color: var(--gold); letter-spacing: .1em; text-transform: uppercase;
+    font-family: var(--font-mono);
+    font-size: 10px; color: var(--gold);
+    letter-spacing: .1em; text-transform: uppercase;
     margin-bottom: 6px;
   }
+
   .concept-title {
-    font-family: var(--font-serif); font-size: 18px; font-weight: 600;
+    font-family: var(--font-serif);
+    font-size: 18px; font-weight: 600;
     color: var(--ink); margin-bottom: 8px;
   }
-  .concept-desc { font-size: 13px; color: var(--ink-3); line-height: 1.6; margin-bottom: 14px; }
-  .concept-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
-  .concept-actions { display: flex; gap: 8px; }
+
+  .concept-desc {
+    font-size: 12px; color: var(--ink-3);
+    line-height: 1.65; margin-bottom: 14px;
+  }
+
+  .concept-tags {
+    display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+
+  .concept-actions { display: flex; gap: 7px; }
   .concept-actions .btn { flex: 1; justify-content: center; }
 
-  /* Text prompt area */
-  .prompt-area {
-    display: flex; flex-direction: column; gap: 12px;
-  }
-
-  /* Variations selector */
-  .var-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .var-chip {
-    padding: 8px 12px; border-radius: var(--radius);
-    border: 1.5px solid var(--paper-3);
-    font-size: 12px; text-align: center;
-    cursor: pointer; transition: all var(--transition);
-    color: var(--ink-3);
-  }
-  .var-chip.active { border-color: var(--gold); color: var(--gold); background: rgba(184,146,74,.08); }
-
+  /* Empty & loading states */
   .empty-state {
     grid-column: 1 / -1;
     text-align: center; padding: 80px 40px;
     color: var(--ink-3);
   }
-  .empty-state .empty-icon { font-size: 56px; opacity: .2; margin-bottom: 20px; }
-  .empty-state h3 { font-family: var(--font-serif); font-size: 24px; color: var(--ink); margin-bottom: 8px; }
-  .empty-state p { font-size: 14px; }
+
+  .empty-state-icon {
+    width: 64px; height: 64px;
+    border-radius: var(--radius-lg);
+    background: var(--paper-2);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px;
+    opacity: .6;
+  }
+
+  .empty-state h3 {
+    font-family: var(--font-serif);
+    font-size: 22px; color: var(--ink); margin-bottom: 8px;
+  }
+
+  .empty-state p { font-size: 13px; }
 
   .gen-loading {
     grid-column: 1 / -1;
-    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
     padding: 80px 40px;
   }
-  .gen-loading p { font-size: 14px; color: var(--ink-3); font-family: var(--font-mono); }
+
+  .gen-loading p {
+    font-size: 13px; color: var(--ink-3);
+    font-family: var(--font-mono);
+  }
+
+  /* Studio header */
+  .studio-header {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap; gap: 12px;
+  }
 
   @media (max-width: 900px) {
-    .studio-layout { grid-template-columns: 1fr; padding: 24px 20px; }
+    .studio-layout { grid-template-columns: 1fr; padding: 20px; }
     .studio-sidebar { position: static; }
   }
 </style>
@@ -137,6 +230,7 @@
 
 {% block content %}
 <div class="studio-layout">
+
   <!-- SIDEBAR -->
   <aside class="studio-sidebar">
     <div class="panel">
@@ -147,13 +241,22 @@
       <div class="upload-zone" id="sketchUploadZone">
         <input type="file" id="sketchFile" accept="image/*" />
         <div id="sketchPlaceholder">
-          <div class="upload-icon">✏️</div>
+          <div class="upload-zone-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </div>
           <p>Drop your sketch here</p>
-          <small>PNG, JPG, WEBP · up to 16MB</small>
+          <small>PNG, JPG, WEBP &middot; up to 16 MB</small>
         </div>
         <div id="sketchPreview" class="upload-preview" style="display:none">
           <img id="sketchPreviewImg" src="" alt="sketch" />
-          <button class="preview-remove" onclick="clearSketch(event)">✕</button>
+          <button class="preview-remove" onclick="clearSketch(event)">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -161,19 +264,19 @@
     <div class="panel">
       <div class="panel-title">
         <span class="step">Step 02</span>
-        Describe & Configure
+        Describe &amp; Configure
       </div>
 
       <div class="form-row">
         <label>Mode</label>
         <div class="mode-tabs" id="modeTabs">
-          <div class="mode-tab active" data-mode="sketch" onclick="setMode('sketch')">Sketch → AI</div>
+          <div class="mode-tab active" data-mode="sketch" onclick="setMode('sketch')">Sketch + AI</div>
           <div class="mode-tab" data-mode="text" onclick="setMode('text')">Text Only</div>
         </div>
       </div>
 
       <div class="form-row">
-        <label>Jewellery Category</label>
+        <label>Category</label>
         <select id="sketchCategory">
           <option value="">— Select —</option>
           {% for cat in categories %}
@@ -182,13 +285,13 @@
         </select>
       </div>
 
-      <div class="form-row prompt-area">
-        <label>Description / Prompt</label>
-        <textarea id="sketchPrompt" rows="4" placeholder="e.g. Traditional Kundan necklace, 22K gold, emerald drops, bridal, Rajasthani style..."></textarea>
+      <div class="form-row">
+        <label>Description &amp; Prompt</label>
+        <textarea id="sketchPrompt" rows="4" placeholder="e.g. Traditional Kundan necklace, 22K gold, emerald drops, bridal, Rajasthani style…"></textarea>
       </div>
 
       <div class="form-row">
-        <label>Generate Variations</label>
+        <label>Variations</label>
         <div class="var-grid" id="varGrid">
           <div class="var-chip active" data-var="Classic" onclick="toggleVar(this)">Classic</div>
           <div class="var-chip" data-var="Modern" onclick="toggleVar(this)">Modern</div>
@@ -209,25 +312,38 @@
         </select>
       </div>
 
-      <button class="btn btn-gold" style="width:100%;justify-content:center" id="conceptualiseBtn" onclick="runConceptualise()">
-        <span>✦</span> Conceptualise
+      <button class="btn btn-gold" style="width:100%;margin-top:4px" id="conceptualiseBtn" onclick="runConceptualise()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+        Conceptualise
       </button>
     </div>
   </aside>
 
-  <!-- OUTPUT AREA -->
+  <!-- MAIN -->
   <div>
-    <div style="margin-bottom:24px;display:flex;align-items:center;justify-content:space-between">
+    <div class="studio-header">
       <div>
-        <div style="font-family:var(--font-mono);font-size:11px;color:var(--gold);letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px">AI Concepts</div>
-        <h1 style="font-family:var(--font-serif);font-size:28px;font-weight:600;color:var(--ink)">Sketch Conceptualiser</h1>
+        <div class="eyebrow" style="margin-bottom:4px">AI Generation</div>
+        <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink)">Sketch Studio</h1>
       </div>
-      <button class="btn btn-outline btn-sm" onclick="clearConcepts()" id="clearConceptsBtn" style="display:none">Clear All</button>
+      <button class="btn btn-ghost btn-sm" id="clearConceptsBtn" onclick="clearConcepts()" style="display:none">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+        Clear
+      </button>
     </div>
 
     <div class="concepts-area" id="conceptsArea">
       <div class="empty-state">
-        <div class="empty-icon">◈</div>
+        <div class="empty-state-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </div>
         <h3>Your concepts will appear here</h3>
         <p>Upload a sketch or describe your idea, then click Conceptualise.</p>
       </div>
@@ -239,72 +355,45 @@
 {% block scripts %}
 <script>
 const SS_KEY = 'sketchStudioState';
-
-let currentMode = 'sketch';
 let sketchDataUrl = null;
-let activeVars = new Set(['Classic']);
-let concepts = [];
+let activeVars    = new Set(['Classic']);
+let currentMode   = 'sketch';
+let concepts      = [];
 
-// ── Persist state to sessionStorage ──
 function saveState() {
   try {
     sessionStorage.setItem(SS_KEY, JSON.stringify({
-      mode:        currentMode,
-      sketchDataUrl,
-      activeVars:  [...activeVars],
+      prompt:       document.getElementById('sketchPrompt').value,
+      category:     document.getElementById('sketchCategory').value,
+      metal:        document.getElementById('metalFinish').value,
+      mode:         currentMode,
+      activeVars:   [...activeVars],
+      sketchDataUrl: sketchDataUrl,
       concepts,
-      prompt:      document.getElementById('sketchPrompt').value,
-      category:    document.getElementById('sketchCategory').value,
-      metal:       document.getElementById('metalFinish').value,
     }));
-  } catch(e) {
-    // sessionStorage can fail if the sketch data URL is very large; fail silently
-    try {
-      // retry without the sketch image (concepts are the most important thing to keep)
-      sessionStorage.setItem(SS_KEY, JSON.stringify({
-        mode:        currentMode,
-        sketchDataUrl: null,
-        activeVars:  [...activeVars],
-        concepts,
-        prompt:      document.getElementById('sketchPrompt').value,
-        category:    document.getElementById('sketchCategory').value,
-        metal:       document.getElementById('metalFinish').value,
-      }));
-    } catch(e2) { /* give up silently */ }
-  }
+  } catch(e) {}
 }
 
-// ── Restore state from sessionStorage ──
 function restoreState() {
   let saved;
   try { saved = JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch(e) { return; }
   if (!saved) return;
-
-  // Form fields
   if (saved.prompt)   document.getElementById('sketchPrompt').value   = saved.prompt;
   if (saved.category) document.getElementById('sketchCategory').value = saved.category;
   if (saved.metal)    document.getElementById('metalFinish').value    = saved.metal;
-
-  // Mode
-  if (saved.mode) setMode(saved.mode);
-
-  // Variations
+  if (saved.mode)     setMode(saved.mode);
   if (Array.isArray(saved.activeVars) && saved.activeVars.length) {
     activeVars = new Set(saved.activeVars);
     document.querySelectorAll('.var-chip').forEach(el => {
       el.classList.toggle('active', activeVars.has(el.dataset.var));
     });
   }
-
-  // Sketch preview
   if (saved.sketchDataUrl) {
     sketchDataUrl = saved.sketchDataUrl;
     document.getElementById('sketchPreviewImg').src = sketchDataUrl;
     document.getElementById('sketchPlaceholder').style.display = 'none';
     document.getElementById('sketchPreview').style.display = 'block';
   }
-
-  // Concepts
   if (Array.isArray(saved.concepts) && saved.concepts.length) {
     concepts = saved.concepts;
     renderConcepts(concepts);
@@ -312,7 +401,6 @@ function restoreState() {
   }
 }
 
-// ── Upload ──
 const sketchFile = document.getElementById('sketchFile');
 const sketchZone = document.getElementById('sketchUploadZone');
 
@@ -340,20 +428,17 @@ sketchZone.addEventListener('drop', e => {
 
 function clearSketch(e) {
   e.stopPropagation();
-  sketchDataUrl = null;
-  sketchFile.value = '';
-  document.getElementById('sketchPlaceholder').style.display = 'block';
+  sketchDataUrl = null; sketchFile.value = '';
+  document.getElementById('sketchPlaceholder').style.display = 'flex';
   document.getElementById('sketchPreview').style.display = 'none';
   saveState();
 }
 
-// ── Mode ──
 function setMode(mode) {
   currentMode = mode;
   document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
 }
 
-// ── Variations ──
 function toggleVar(el) {
   const v = el.dataset.var;
   if (activeVars.has(v) && activeVars.size === 1) return;
@@ -362,22 +447,17 @@ function toggleVar(el) {
   saveState();
 }
 
-// ── Conceptualise ──
 async function runConceptualise() {
-  const prompt = document.getElementById('sketchPrompt').value.trim();
+  const prompt   = document.getElementById('sketchPrompt').value.trim();
   const category = document.getElementById('sketchCategory').value;
-  const metal = document.getElementById('metalFinish').value;
-
+  const metal    = document.getElementById('metalFinish').value;
   if (!prompt && !sketchDataUrl) {
     showToast('Please upload a sketch or enter a description.', 'error'); return;
   }
-
   const btn = document.getElementById('conceptualiseBtn');
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Generating...';
-
+  btn.innerHTML = '<div class="spinner"></div> Generating…';
   showLoading();
-
   try {
     const fd = new FormData();
     fd.append('prompt', prompt);
@@ -385,66 +465,77 @@ async function runConceptualise() {
     fd.append('metal', metal);
     fd.append('variations', JSON.stringify([...activeVars]));
     if (sketchDataUrl) fd.append('sketch_data', sketchDataUrl);
-
-    const res = await fetch('/api/conceptualise', { method: 'POST', body: fd });
+    const res  = await fetch('/api/conceptualise', { method: 'POST', body: fd });
     const data = await res.json();
-
     if (data.error) { showToast(data.error, 'error'); showEmpty(); return; }
-
     concepts = data.concepts || [];
     renderConcepts(concepts);
     document.getElementById('clearConceptsBtn').style.display = 'inline-flex';
     saveState();
   } catch(err) {
-    showToast('Network error: ' + err.message, 'error');
-    showEmpty();
+    showToast('Network error: ' + err.message, 'error'); showEmpty();
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<span>✦</span> Conceptualise';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Conceptualise';
   }
 }
 
 function showLoading() {
   document.getElementById('conceptsArea').innerHTML = `
     <div class="gen-loading">
-      <div class="spinner" style="width:40px;height:40px;border-width:3px"></div>
-      <p>Analysing sketch and generating concepts...</p>
+      <div class="spinner" style="width:36px;height:36px;border-width:3px"></div>
+      <p>Analysing sketch and generating concepts…</p>
     </div>`;
 }
+
 function showEmpty() {
   document.getElementById('conceptsArea').innerHTML = `
     <div class="empty-state">
-      <div class="empty-icon">◈</div>
+      <div class="empty-state-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+      </div>
       <h3>Your concepts will appear here</h3>
       <p>Upload a sketch or describe your idea, then click Conceptualise.</p>
     </div>`;
 }
+
 function clearConcepts() {
-  concepts = [];
-  showEmpty();
+  concepts = []; showEmpty();
   document.getElementById('clearConceptsBtn').style.display = 'none';
   saveState();
 }
 
 function renderConcepts(list) {
   if (!list.length) { showEmpty(); return; }
-  const area = document.getElementById('conceptsArea');
-  area.innerHTML = list.map((c, i) => `
+  document.getElementById('conceptsArea').innerHTML = list.map((c, i) => `
     <div class="concept-card" id="concept-${i}">
       ${c.image_url
         ? `<img class="concept-img" src="${c.image_url}" alt="${c.title}" />`
-        : `<div class="concept-img-placeholder">◈</div>`}
+        : `<div class="concept-img-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--paper-4)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+          </div>`}
       <div class="concept-body">
         <div class="concept-variant">${c.variation || 'Concept ' + (i+1)}</div>
         <div class="concept-title">${c.title}</div>
         <p class="concept-desc">${c.description}</p>
-        <div class="concept-tags">
-          ${(c.tags || []).map(t => `<span class="tag tag-gold">${t}</span>`).join('')}
-        </div>
+        <div class="concept-tags">${(c.tags || []).map(t => `<span class="tag tag-gold">${t}</span>`).join('')}</div>
         <div class="concept-actions">
-          <button class="btn btn-outline btn-sm" onclick="sendToModel(${i})">→ Try on Model</button>
-          <button class="btn btn-outline btn-sm" onclick="sendToCAD(${i})">→ 3D CAD</button>
-          ${c.image_url ? `<a href="${c.image_url}" download="concept-${i+1}.png" class="btn btn-outline btn-sm">↓</a>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="sendToModel(${i})">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Try on Model
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="sendToCAD(${i})">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+            3D CAD
+          </button>
+          ${c.image_url ? `<a href="${c.image_url}" download="concept-${i+1}.png" class="btn btn-outline btn-sm">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </a>` : ''}
         </div>
       </div>
     </div>`).join('');
@@ -460,6 +551,7 @@ function sendToModel(i) {
     showToast('Generate a concept image first.', 'error');
   }
 }
+
 function sendToCAD(i) {
   const c = concepts[i];
   if (c && c.image_url) {
@@ -470,13 +562,11 @@ function sendToCAD(i) {
   }
 }
 
-// ── Auto-save form fields on input ──
 document.getElementById('sketchPrompt').addEventListener('input', saveState);
 document.getElementById('sketchCategory').addEventListener('change', saveState);
 document.getElementById('metalFinish').addEventListener('change', saveState);
 document.querySelectorAll('.mode-tab').forEach(t => t.addEventListener('click', () => saveState()));
 
-// ── Restore on load ──
 restoreState();
 </script>
 {% endblock %}

@@ -3,7 +3,9 @@
 
 {% block head %}
 <style>
-  /* ── HERO ── */
+
+  /* ══ HERO ═══════════════════════════════════════════════════════════════ */
+
   .hero {
     min-height: 100vh;
     display: grid;
@@ -11,409 +13,552 @@
     position: relative;
     overflow: hidden;
   }
+
   .hero-left {
     display: flex; flex-direction: column; justify-content: center;
     padding: 100px 64px 80px;
     position: relative; z-index: 2;
+    animation: fade-up .6s var(--ease-out) .1s both;
   }
+
   .hero-eyebrow {
-    font-family: var(--font-mono);
-    font-size: 11px; color: var(--gold);
-    letter-spacing: .18em; text-transform: uppercase;
-    margin-bottom: 24px;
-    display: flex; align-items: center; gap: 10px;
-  }
-  .hero-eyebrow::before {
-    content: ''; display: inline-block;
-    width: 32px; height: 1px; background: var(--gold);
-  }
-  .hero-h1 {
-    font-family: var(--font-serif);
-    font-size: clamp(52px, 6vw, 84px);
-    font-weight: 300;
-    line-height: 1.08;
-    color: var(--ink);
+    display: flex; align-items: center; gap: 12px;
     margin-bottom: 28px;
   }
+
+  .hero-eyebrow-line {
+    width: 28px; height: 1px; background: var(--gold);
+  }
+
+  .hero-eyebrow-text {
+    font-family: var(--font-mono);
+    font-size: 10px; color: var(--gold);
+    letter-spacing: .18em; text-transform: uppercase;
+  }
+
+  .hero-h1 {
+    font-family: var(--font-serif);
+    font-size: clamp(48px, 5.5vw, 80px);
+    font-weight: 300;
+    line-height: 1.06;
+    color: var(--ink);
+    margin-bottom: 26px;
+    letter-spacing: -.01em;
+  }
+
   .hero-h1 em {
     font-style: italic; color: var(--gold);
   }
+
   .hero-sub {
-    font-size: 16px; color: var(--ink-3); line-height: 1.7;
-    max-width: 420px; margin-bottom: 48px;
-  }
-  .hero-ctas { display: flex; gap: 14px; flex-wrap: wrap; }
-  .hero-stats {
-    display: flex; gap: 40px; margin-top: 64px;
-    padding-top: 32px; border-top: 1px solid var(--paper-3);
-  }
-  .hero-stat-num {
-    font-family: var(--font-serif);
-    font-size: 32px; font-weight: 600; color: var(--gold);
-  }
-  .hero-stat-label {
-    font-size: 12px; color: var(--ink-3);
-    letter-spacing: .04em; margin-top: 2px;
+    font-size: 15px; color: var(--ink-3); line-height: 1.75;
+    max-width: 400px; margin-bottom: 44px;
   }
 
+  .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+
+  .hero-stats {
+    display: flex; gap: 40px;
+    margin-top: 60px; padding-top: 28px;
+    border-top: 1px solid var(--paper-3);
+  }
+
+  .hero-stat {}
+
+  .hero-stat-num {
+    font-family: var(--font-serif);
+    font-size: 30px; font-weight: 600; color: var(--gold-dk);
+    line-height: 1.1;
+  }
+
+  .hero-stat-label {
+    font-size: 11px; color: var(--ink-3);
+    margin-top: 3px; letter-spacing: .03em;
+  }
+
+  /* Right panel */
   .hero-right {
     background: var(--ink);
     position: relative; overflow: hidden;
   }
+
   .hero-canvas {
     position: absolute; inset: 0;
     background:
-      radial-gradient(ellipse 60% 60% at 60% 40%, rgba(184,146,74,.18) 0%, transparent 70%),
-      radial-gradient(ellipse 40% 50% at 30% 70%, rgba(201,120,106,.1) 0%, transparent 60%);
+      radial-gradient(ellipse 60% 60% at 60% 35%, rgba(184,146,74,.16) 0%, transparent 70%),
+      radial-gradient(ellipse 45% 50% at 25% 72%, rgba(201,120,106,.09) 0%, transparent 65%);
   }
+
   .hero-grid {
     position: absolute; inset: 0;
     background-image:
-      linear-gradient(rgba(184,146,74,.06) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(184,146,74,.06) 1px, transparent 1px);
+      linear-gradient(rgba(184,146,74,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(184,146,74,.05) 1px, transparent 1px);
     background-size: 40px 40px;
   }
-  .hero-orbs {
-    position: absolute; inset: 0;
-    pointer-events: none;
-  }
+
+  .hero-orbs { position: absolute; inset: 0; pointer-events: none; }
+
   .orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(40px);
-    opacity: .5;
-    animation: float 8s ease-in-out infinite;
+    position: absolute; border-radius: 50%;
+    filter: blur(48px); opacity: .5;
+    animation: float 9s ease-in-out infinite;
   }
-  .orb-1 { width: 280px; height: 280px; background: rgba(184,146,74,.2); top: 15%; left: 20%; animation-delay: 0s; }
-  .orb-2 { width: 180px; height: 180px; background: rgba(201,120,106,.15); top: 55%; left: 55%; animation-delay: -3s; }
-  .orb-3 { width: 120px; height: 120px; background: rgba(122,158,142,.1); top: 30%; left: 65%; animation-delay: -5s; }
+
+  .orb-1 { width: 260px; height: 260px; background: rgba(184,146,74,.18); top: 12%; left: 18%; animation-delay: 0s; }
+  .orb-2 { width: 160px; height: 160px; background: rgba(201,120,106,.13); top: 58%; left: 58%; animation-delay: -3.5s; }
+  .orb-3 { width: 110px; height: 110px; background: rgba(122,158,142,.09); top: 32%; left: 68%; animation-delay: -5.5s; }
+
   @keyframes float {
     0%, 100% { transform: translateY(0) scale(1); }
-    50%       { transform: translateY(-20px) scale(1.05); }
+    50%       { transform: translateY(-18px) scale(1.04); }
   }
+
+  /* Mock card */
   .hero-mockup {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
     padding: 60px;
   }
+
   .mock-card {
     background: rgba(250,247,242,.04);
-    border: 1px solid rgba(184,146,74,.2);
-    border-radius: 14px;
-    padding: 28px;
-    width: 100%; max-width: 360px;
-    backdrop-filter: blur(8px);
+    border: 1px solid rgba(184,146,74,.18);
+    border-radius: 16px;
+    padding: 24px;
+    width: 100%; max-width: 340px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
   }
+
   .mock-label {
     font-family: var(--font-mono);
     font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
-    color: rgba(184,146,74,.7); margin-bottom: 16px;
-  }
-  @keyframes pulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
-  .mock-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
-  .mock-chip {
-    padding: 4px 10px; border-radius: 20px;
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em;
-    border: 1px solid rgba(184,146,74,.25);
-    color: rgba(184,146,74,.8);
-  }
-  /* ── ANIMATIC CAROUSEL ── */
-  .mock-bar {
-    height: 4px; border-radius: 2px;
-    background: rgba(250,247,242,.08);
-    margin-top: 14px; overflow: hidden;
-  }
-  .mock-bar-fill {
-    height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-lt));
-    border-radius: 2px; width: 0%;
-    transition: width .12s linear;
+    color: rgba(184,146,74,.75); margin-bottom: 14px;
+    min-height: 14px;
   }
 
-  /* module screens */
-  .mock-screens { position: relative; min-height: 230px; }
+  .mock-chips {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+
+  .mock-chip {
+    padding: 3px 9px; border-radius: 20px;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em;
+    border: 1px solid rgba(184,146,74,.22);
+    color: rgba(184,146,74,.75);
+  }
+
+  .mock-bar {
+    height: 3px; border-radius: 2px;
+    background: rgba(250,247,242,.07);
+    margin-top: 12px; overflow: hidden;
+  }
+
+  .mock-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold-dk), var(--gold-lt));
+    border-radius: 2px; width: 0%;
+    transition: width .1s linear;
+  }
+
+  .mock-screens { position: relative; min-height: 200px; }
+
   .mock-screen {
     position: absolute; inset: 0;
-    opacity: 0; transform: translateY(8px);
-    transition: opacity .4s ease, transform .4s ease;
+    opacity: 0; transform: translateY(6px);
+    transition: opacity .35s var(--ease), transform .35s var(--ease);
     pointer-events: none;
   }
+
   .mock-screen.active {
     opacity: 1; transform: translateY(0);
     position: relative; pointer-events: auto;
   }
 
-  /* module nav dots */
   .mock-dots {
-    display: flex; gap: 6px; justify-content: center;
-    margin-top: 16px;
+    display: flex; gap: 6px; justify-content: center; margin-top: 14px;
   }
+
   .mock-dot {
     width: 5px; height: 5px; border-radius: 50%;
-    background: rgba(184,146,74,.25);
-    transition: background .3s, transform .3s;
+    background: rgba(184,146,74,.2);
+    transition: background .25s, transform .25s;
     cursor: pointer;
   }
-  .mock-dot.active { background: var(--gold); transform: scale(1.4); }
 
-  /* shared inner styles */
+  .mock-dot.active { background: var(--gold); transform: scale(1.5); }
+
   .mock-line {
-    height: 7px; border-radius: 4px;
-    background: rgba(250,247,242,.1);
+    height: 6px; border-radius: 3px;
+    background: rgba(250,247,242,.09);
     margin-bottom: 5px;
   }
-  .mock-line.gold { background: rgba(184,146,74,.3); }
+
+  .mock-line.gold { background: rgba(184,146,74,.28); }
   .mock-line.w80 { width: 80%; }
   .mock-line.w55 { width: 55%; }
   .mock-line.w65 { width: 65%; }
   .mock-line.w40 { width: 40%; }
   .mock-line.w90 { width: 90%; }
 
-  /* sketch concept cards */
   .mock-concept-row { display: flex; gap: 8px; margin-bottom: 10px; }
+
   .mock-concept-thumb {
-    flex: 1; height: 80px; border-radius: 6px;
-    border: 1px solid rgba(184,146,74,.2);
+    flex: 1; height: 72px; border-radius: 7px;
+    border: 1px solid rgba(184,146,74,.18);
     display: flex; align-items: center; justify-content: center;
-    font-size: 22px; background: rgba(184,146,74,.06);
-  }
-  .mock-concept-thumb.generated {
-    background: rgba(184,146,74,.13);
-    border-color: rgba(184,146,74,.4);
-    animation: gentleGlow 2.5s ease-in-out infinite;
-  }
-  @keyframes gentleGlow {
-    0%,100% { box-shadow: 0 0 0 0 rgba(184,146,74,0); }
-    50% { box-shadow: 0 0 12px 2px rgba(184,146,74,.18); }
+    background: rgba(184,146,74,.05);
   }
 
-  /* market listing rows */
+  .mock-concept-thumb svg { opacity: .4; }
+
+  .mock-concept-thumb.generated {
+    background: rgba(184,146,74,.12);
+    border-color: rgba(184,146,74,.38);
+    animation: gentle-glow 2.5s ease-in-out infinite;
+  }
+
+  .mock-concept-thumb.generated svg { opacity: .7; }
+
+  @keyframes gentle-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(184,146,74,0); }
+    50%       { box-shadow: 0 0 14px 2px rgba(184,146,74,.18); }
+  }
+
   .mock-listing {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 6px 9px; border-radius: 6px;
+    padding: 6px 9px; border-radius: 7px;
     background: rgba(250,247,242,.04);
     border: 1px solid rgba(184,146,74,.1);
     margin-bottom: 6px; gap: 8px;
   }
+
   .mock-listing-lines { flex: 1; }
   .mock-listing-lines .mock-line { margin-bottom: 3px; }
+
   .mock-price {
     font-family: var(--font-mono); font-size: 10px;
-    color: rgba(184,146,74,.9); letter-spacing: .04em;
+    color: rgba(184,146,74,.85); letter-spacing: .04em;
     white-space: nowrap;
   }
 
-  /* 3D cad progress steps */
   .mock-step {
     display: flex; align-items: center; gap: 8px;
     padding: 6px 10px; border-radius: 6px;
     background: rgba(250,247,242,.04); margin-bottom: 6px;
-    font-family: var(--font-mono); font-size: 10px; letter-spacing:.04em;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em;
   }
-  .mock-step-dot {
-    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-    transition: background .4s;
-  }
-  .mock-step-dot.done  { background: #2d6a4f; }
-  .mock-step-dot.spin  { background: var(--gold); animation: pulse 1s ease-in-out infinite; }
-  .mock-step-dot.idle  { background: rgba(250,247,242,.15); }
-  .mock-step-label { color: rgba(250,247,242,.55); }
-  .mock-step.cur .mock-step-label { color: rgba(250,247,242,.9); font-weight: 500; }
 
-  /* model try-on */
+  .mock-step-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    transition: background .35s;
+  }
+
+  .mock-step-dot.done  { background: #3cb879; }
+  .mock-step-dot.spin  { background: var(--gold); animation: blink-pulse 1s ease-in-out infinite; }
+  .mock-step-dot.idle  { background: rgba(250,247,242,.14); }
+  .mock-step-label { color: rgba(250,247,242,.45); }
+  .mock-step.cur .mock-step-label { color: rgba(250,247,242,.88); font-weight: 500; }
+
+  @keyframes blink-pulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+
   .mock-model-out {
     background: rgba(250,247,242,.04);
-    border: 1px solid rgba(184,146,74,.15);
-    border-radius: 8px; height: 100px;
+    border: 1px solid rgba(184,146,74,.14);
+    border-radius: 8px; height: 90px;
     display: flex; align-items: center; justify-content: center;
-    margin-bottom: 10px; position: relative; overflow: hidden;
+    margin-bottom: 10px;
   }
-  .mock-model-shimmer {
-    position: absolute; inset: 0;
-    background: linear-gradient(105deg, transparent 35%, rgba(184,146,74,.1) 50%, transparent 65%);
-    background-size: 200% 100%;
-    animation: shimmer 2s ease-in-out infinite;
-  }
-  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-  /* ── FEATURES ── */
-  .features {
-    padding: 120px 64px;
-    background: var(--paper);
+  /* ══ SECTION SHARED ══════════════════════════════════════════════════════ */
+
+  .section-header {
+    text-align: center;
+    max-width: 580px;
+    margin: 0 auto 56px;
   }
-  .section-header { text-align: center; margin-bottom: 72px; }
+
   .section-eyebrow {
     font-family: var(--font-mono);
-    font-size: 11px; color: var(--gold);
+    font-size: 10px; color: var(--gold);
     letter-spacing: .18em; text-transform: uppercase;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
   }
+
   .section-h2 {
     font-family: var(--font-serif);
-    font-size: clamp(36px, 4vw, 54px);
-    font-weight: 300; line-height: 1.15;
+    font-size: clamp(34px, 4vw, 52px);
+    font-weight: 300; line-height: 1.12;
     color: var(--ink);
+    margin-bottom: 16px;
   }
+
   .section-h2 em { font-style: italic; color: var(--gold); }
-  .section-sub { font-size: 16px; color: var(--ink-3); margin-top: 16px; max-width: 500px; margin-left: auto; margin-right: auto; }
+
+  .section-sub {
+    font-size: 15px; color: var(--ink-3); line-height: 1.7;
+  }
+
+  /* ══ FEATURES ════════════════════════════════════════════════════════════ */
+
+  .features {
+    padding: 100px 64px;
+    background: var(--surface);
+    border-top: 1px solid var(--paper-3);
+  }
 
   .features-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 24px;
-  }
-  .feat-card {
-    background: #fff;
+    gap: 1px;
+    background: var(--paper-3);
     border: 1px solid var(--paper-3);
     border-radius: var(--radius-lg);
-    padding: 32px 28px;
-    transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
-    position: relative; overflow: hidden;
+    overflow: hidden;
   }
-  .feat-card::before {
-    content: '';
-    position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, transparent, var(--gold), transparent);
-    opacity: 0; transition: opacity var(--transition);
+
+  .feat-card {
+    background: var(--surface);
+    padding: 36px 28px;
+    transition: background var(--t) var(--ease);
+    display: flex; flex-direction: column;
   }
-  .feat-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: rgba(184,146,74,.3); }
-  .feat-card:hover::before { opacity: 1; }
-  .feat-icon {
-    width: 48px; height: 48px;
-    background: var(--paper-2);
+
+  .feat-card:hover { background: var(--paper); }
+
+  .feat-icon-wrap {
+    width: 44px; height: 44px;
     border-radius: var(--radius);
+    background: var(--gold-bg);
+    border: 1px solid rgba(184,146,74,.18);
     display: flex; align-items: center; justify-content: center;
-    font-size: 22px; margin-bottom: 20px;
+    margin-bottom: 20px;
+    transition: background var(--t) var(--ease), border-color var(--t) var(--ease);
   }
+
+  .feat-card:hover .feat-icon-wrap {
+    background: var(--gold-bg-2);
+    border-color: rgba(184,146,74,.3);
+  }
+
   .feat-title {
     font-family: var(--font-serif);
     font-size: 20px; font-weight: 600;
     color: var(--ink); margin-bottom: 10px;
   }
-  .feat-desc { font-size: 14px; color: var(--ink-3); line-height: 1.65; }
+
+  .feat-desc {
+    font-size: 13px; color: var(--ink-3); line-height: 1.7;
+    flex: 1; margin-bottom: 20px;
+  }
+
   .feat-link {
     display: inline-flex; align-items: center; gap: 6px;
-    margin-top: 20px; font-size: 13px; font-weight: 600;
-    color: var(--gold); letter-spacing: .04em;
-    transition: gap var(--transition);
+    font-size: 12px; font-weight: 600;
+    color: var(--gold-dk); letter-spacing: .04em;
+    transition: gap var(--t) var(--ease), opacity var(--t) var(--ease);
   }
-  .feat-link:hover { gap: 10px; }
 
-  /* ── WORKFLOW ── */
+  .feat-link:hover { gap: 10px; }
+  .feat-link svg { transition: transform var(--t) var(--ease); }
+  .feat-link:hover svg { transform: translateX(2px); }
+
+  /* ══ WORKFLOW ═════════════════════════════════════════════════════════════ */
+
   .workflow {
-    padding: 120px 64px;
-    background: var(--ink);
-    color: var(--paper);
+    padding: 100px 64px;
+    background: var(--paper);
   }
-  .workflow .section-h2 { color: var(--paper); }
-  .workflow .section-sub { color: rgba(250,247,242,.6); }
+
   .workflow-steps {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 0;
-    margin-top: 72px;
     position: relative;
+    max-width: 900px;
+    margin: 0 auto;
   }
+
   .workflow-steps::before {
     content: '';
-    position: absolute; top: 36px; left: 10%; right: 10%; height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(184,146,74,.4), transparent);
+    position: absolute;
+    top: 20px; left: 10%; right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-lt), var(--gold-lt), transparent);
+    opacity: .4;
   }
-  .wf-step { text-align: center; padding: 0 20px; position: relative; }
+
+  .wf-step {
+    padding: 0 24px;
+    text-align: center;
+    position: relative;
+  }
+
   .wf-num {
-    width: 72px; height: 72px;
-    border: 1px solid rgba(184,146,74,.3);
+    width: 40px; height: 40px;
     border-radius: 50%;
+    background: var(--surface);
+    border: 1.5px solid var(--paper-3);
     display: flex; align-items: center; justify-content: center;
-    margin: 0 auto 24px;
-    font-family: var(--font-serif);
-    font-size: 28px; color: var(--gold);
-    background: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 11px; color: var(--gold);
+    letter-spacing: .06em;
+    margin: 0 auto 18px;
     position: relative; z-index: 1;
+    transition: border-color var(--t), background var(--t), box-shadow var(--t);
   }
+
+  .wf-step:hover .wf-num {
+    border-color: var(--gold);
+    background: var(--gold-bg);
+    box-shadow: 0 0 0 4px var(--gold-bg);
+  }
+
   .wf-title {
     font-family: var(--font-serif);
-    font-size: 20px; font-weight: 500; color: var(--paper);
-    margin-bottom: 10px;
+    font-size: 17px; font-weight: 600;
+    color: var(--ink); margin-bottom: 10px;
   }
-  .wf-desc { font-size: 13px; color: rgba(250,247,242,.5); line-height: 1.65; }
 
-  /* ── CTA STRIP ── */
-  .cta-strip {
-    padding: 100px 64px;
-    background: var(--paper-2);
-    text-align: center;
+  .wf-desc {
+    font-size: 13px; color: var(--ink-3); line-height: 1.65;
   }
+
+  /* ══ CTA STRIP ═══════════════════════════════════════════════════════════ */
+
+  .cta-strip {
+    padding: 80px 64px;
+    background: var(--ink);
+    text-align: center;
+    position: relative; overflow: hidden;
+  }
+
+  .cta-strip::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 70% 70% at 50% 50%, rgba(184,146,74,.1) 0%, transparent 70%);
+  }
+
   .cta-strip h2 {
     font-family: var(--font-serif);
-    font-size: clamp(36px, 4vw, 56px);
-    font-weight: 300; line-height: 1.15; color: var(--ink);
-    margin-bottom: 20px;
+    font-size: clamp(32px, 4vw, 50px);
+    font-weight: 300; color: var(--paper);
+    margin-bottom: 14px; position: relative;
   }
-  .cta-strip h2 em { font-style: italic; color: var(--gold); }
-  .cta-strip p { font-size: 16px; color: var(--ink-3); margin-bottom: 40px; }
-  .cta-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
 
-  /* ── FOOTER ── */
+  .cta-strip h2 em { font-style: italic; color: var(--gold-lt); }
+
+  .cta-strip p {
+    font-size: 15px; color: rgba(250,247,242,.55);
+    margin-bottom: 40px; position: relative;
+  }
+
+  .cta-btns {
+    display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+    position: relative;
+  }
+
+  /* ══ FOOTER ══════════════════════════════════════════════════════════════ */
+
   .footer {
-    padding: 40px 64px;
-    border-top: 1px solid var(--paper-3);
+    padding: 28px 64px;
+    background: var(--ink-2);
     display: flex; align-items: center; justify-content: space-between;
-  }
-  .footer-logo {
-    font-family: var(--font-serif);
-    font-size: 18px; color: var(--ink-3);
-  }
-  .footer-note {
-    font-size: 12px; color: var(--ink-3);
-    font-family: var(--font-mono);
+    border-top: 1px solid rgba(255,255,255,.05);
   }
 
-  @media (max-width: 1024px) {
+  .footer-logo {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-serif);
+    font-size: 16px; font-weight: 600;
+    color: rgba(250,247,242,.6);
+  }
+
+  .footer-note {
+    font-family: var(--font-mono);
+    font-size: 10px; color: rgba(250,247,242,.28);
+    letter-spacing: .08em;
+  }
+
+  /* ══ RESPONSIVE ══════════════════════════════════════════════════════════ */
+
+  @media (max-width: 1100px) {
+    .features-grid { grid-template-columns: 1fr 1fr; }
+    .workflow-steps { grid-template-columns: 1fr 1fr; gap: 32px; }
+    .workflow-steps::before { display: none; }
+  }
+
+  @media (max-width: 800px) {
     .hero { grid-template-columns: 1fr; }
     .hero-right { display: none; }
-    .hero-left { padding: 80px 32px 60px; }
-    .features-grid, .workflow-steps { grid-template-columns: 1fr 1fr; }
-    .features, .workflow, .cta-strip { padding: 80px 32px; }
-  }
-  @media (max-width: 640px) {
+    .hero-left { padding: 60px 32px 60px; }
+    .features { padding: 60px 24px; }
     .features-grid { grid-template-columns: 1fr; }
+    .workflow { padding: 60px 24px; }
     .workflow-steps { grid-template-columns: 1fr 1fr; }
-    .nav { padding: 0 20px; }
-    .nav-links a:not(.nav-cta) { display: none; }
+    .cta-strip { padding: 60px 24px; }
+    .footer { flex-direction: column; gap: 8px; text-align: center; padding: 24px; }
   }
+
+  @media (max-width: 480px) {
+    .workflow-steps { grid-template-columns: 1fr; }
+    .hero-stats { gap: 24px; }
+  }
+
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- HERO -->
+
+<!-- ══ HERO ═════════════════════════════════════════════════════════════════ -->
+
 <section class="hero">
   <div class="hero-left">
-    <div class="hero-eyebrow">AI-Powered Jewellery Design</div>
-    <h1 class="hero-h1">
-      From sketch<br>to <em>showroom</em>,<br>in minutes.
-    </h1>
-    <p class="hero-sub">
-      glymr is the end-to-end AI studio for jewellery designers — conceptualise from sketches, visualise on models, generate 3D CAD files, and analyse live market trends.
-    </p>
-    <div class="hero-ctas">
-      <a href="/studio/sketch" class="btn btn-gold btn-lg">Start Designing →</a>
-      <a href="#features" class="btn btn-outline btn-lg">See Features</a>
+    <div class="hero-eyebrow">
+      <span class="hero-eyebrow-line"></span>
+      <span class="hero-eyebrow-text">AI-Powered Jewellery Studio</span>
     </div>
+
+    <h1 class="hero-h1">
+      Design.<br>
+      Visualise.<br>
+      <em>Go to market.</em>
+    </h1>
+
+    <p class="hero-sub">
+      From rough sketch to catalogue-ready image, 3D model, and competitive pricing — all in one workspace built for jewellery designers.
+    </p>
+
+    <div class="hero-ctas">
+      <a href="/studio/sketch" class="btn btn-gold btn-lg">
+        Start designing
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </a>
+      <a href="/studio/market" class="btn btn-outline btn-lg">
+        Explore market trends
+      </a>
+    </div>
+
     <div class="hero-stats">
-      <div>
+      <div class="hero-stat">
         <div class="hero-stat-num">4</div>
-        <div class="hero-stat-label">AI-Powered Modules</div>
+        <div class="hero-stat-label">AI-powered tools</div>
       </div>
-      <div>
-        <div class="hero-stat-num">∞</div>
-        <div class="hero-stat-label">Design Iterations</div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">60s</div>
+        <div class="hero-stat-label">Concept to render</div>
       </div>
-      <div>
-        <div class="hero-stat-num">3D</div>
-        <div class="hero-stat-label">CAD Export Ready</div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">GLB</div>
+        <div class="hero-stat-label">Production-ready 3D</div>
       </div>
     </div>
   </div>
+
   <div class="hero-right">
     <div class="hero-canvas"></div>
     <div class="hero-grid"></div>
@@ -422,66 +567,76 @@
       <div class="orb orb-2"></div>
       <div class="orb orb-3"></div>
     </div>
+
     <div class="hero-mockup">
       <div class="mock-card">
-        <!-- Module label -->
-        <div class="mock-label" id="mockLabel">✦ Sketch Conceptualiser — Active</div>
+        <div class="mock-label" id="mockLabel">Sketch Conceptualiser — Active</div>
 
-        <!-- ── SCREENS ── -->
+        <div class="mock-chips">
+          <span class="mock-chip">Kundan</span>
+          <span class="mock-chip">22K Gold</span>
+          <span class="mock-chip">Bridal</span>
+        </div>
+
         <div class="mock-screens" id="mockScreens">
 
-          <!-- SCREEN 0: Sketch Conceptualiser -->
+          <!-- Screen 0: Sketch Studio -->
           <div class="mock-screen active" id="screen-0">
-            <div class="mock-chips" style="margin-bottom:12px">
-              <span class="mock-chip">Gold 22K</span>
-              <span class="mock-chip">Kundan</span>
-              <span class="mock-chip">Necklace</span>
-              <span class="mock-chip">Bridal</span>
-            </div>
             <div class="mock-concept-row">
-              <div class="mock-concept-thumb generated">💍</div>
-              <div class="mock-concept-thumb generated">📿</div>
-              <div class="mock-concept-thumb" style="opacity:.4">◈</div>
+              <div class="mock-concept-thumb">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(184,146,74,.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </div>
+              <div class="mock-concept-thumb generated">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(184,146,74,.8)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </div>
+              <div class="mock-concept-thumb">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(184,146,74,.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/>
+                </svg>
+              </div>
             </div>
             <div class="mock-line w90 gold"></div>
             <div class="mock-line w65"></div>
-          </div>
-
-          <!-- SCREEN 1: Model Try-On -->
-          <div class="mock-screen" id="screen-1">
-            <div class="mock-model-out">
-              <div class="mock-model-shimmer"></div>
-              <span style="font-size:28px;position:relative;z-index:1">👗</span>
-            </div>
-            <div class="mock-chips" style="margin-bottom:10px">
-              <span class="mock-chip">Female Model</span>
-              <span class="mock-chip">Princess Necklace</span>
-            </div>
             <div class="mock-line w80 gold"></div>
             <div class="mock-line w55"></div>
           </div>
 
-          <!-- SCREEN 2: 3D CAD Generator -->
-          <div class="mock-screen" id="screen-2">
-            <div class="mock-step done">
-              <div class="mock-step-dot done"></div>
-              <span class="mock-step-label">Submitting to Meshy AI</span>
+          <!-- Screen 1: Model Try-On -->
+          <div class="mock-screen" id="screen-1">
+            <div class="mock-model-out">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(184,146,74,.55)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
             </div>
-            <div class="mock-step cur" id="cadStep2">
-              <div class="mock-step-dot spin"></div>
-              <span class="mock-step-label">Generating geometry & textures</span>
-            </div>
-            <div class="mock-step" id="cadStep3">
-              <div class="mock-step-dot idle"></div>
-              <span class="mock-step-label">Refining mesh quality</span>
-            </div>
-            <div class="mock-step" id="cadStep4">
-              <div class="mock-step-dot idle"></div>
-              <span class="mock-step-label">Preparing GLB / OBJ export</span>
-            </div>
+            <div class="mock-line w80 gold"></div>
+            <div class="mock-line w55"></div>
+            <div class="mock-line w65 gold"></div>
           </div>
 
-          <!-- SCREEN 3: Market Trends -->
+          <!-- Screen 2: 3D CAD -->
+          <div class="mock-screen" id="screen-2">
+            <div id="cadStep2" class="mock-step">
+              <div class="mock-step-dot spin"></div>
+              <span class="mock-step-label">Analysing geometry</span>
+            </div>
+            <div id="cadStep3" class="mock-step">
+              <div class="mock-step-dot idle"></div>
+              <span class="mock-step-label">Generating mesh</span>
+            </div>
+            <div id="cadStep4" class="mock-step">
+              <div class="mock-step-dot idle"></div>
+              <span class="mock-step-label">Preparing export files</span>
+            </div>
+            <div class="mock-line w65 gold" style="margin-top:10px"></div>
+            <div class="mock-line w45"></div>
+          </div>
+
+          <!-- Screen 3: Market Trends -->
           <div class="mock-screen" id="screen-3">
             <div class="mock-listing">
               <div class="mock-listing-lines">
@@ -508,10 +663,8 @@
 
         </div><!-- /mock-screens -->
 
-        <!-- Single progress bar -->
         <div class="mock-bar"><div class="mock-bar-fill" id="mockProgress"></div></div>
 
-        <!-- Nav dots -->
         <div class="mock-dots" id="mockDots">
           <div class="mock-dot active" onclick="goScreen(0)"></div>
           <div class="mock-dot" onclick="goScreen(1)"></div>
@@ -523,7 +676,8 @@
   </div>
 </section>
 
-<!-- FEATURES -->
+<!-- ══ FEATURES ═══════════════════════════════════════════════════════════ -->
+
 <section class="features" id="features">
   <div class="section-header">
     <div class="section-eyebrow">Everything you need</div>
@@ -533,43 +687,85 @@
 
   <div class="features-grid">
     <div class="feat-card">
-      <div class="feat-icon">✏️</div>
+      <div class="feat-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+      </div>
       <div class="feat-title">Sketch Studio</div>
-      <p class="feat-desc">Upload rough sketches or descriptions. Gemini Flash transforms them into photorealistic jewellery concepts with material, stone, and finish variations.</p>
-      <a href="/studio/sketch" class="feat-link">Open Studio →</a>
+      <p class="feat-desc">Upload rough sketches or describe your idea. Gemini Flash transforms them into photorealistic jewellery concepts with material, stone, and finish variations.</p>
+      <a href="/studio/sketch" class="feat-link">
+        Open Studio
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </a>
     </div>
+
     <div class="feat-card">
-      <div class="feat-icon">👗</div>
+      <div class="feat-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+      </div>
       <div class="feat-title">Model Try-On</div>
       <p class="feat-desc">Place any jewellery piece on a photorealistic model. Choose model type, pose, and lighting. Get catalogue-quality shots instantly.</p>
-      <a href="/studio/model" class="feat-link">Try It →</a>
+      <a href="/studio/model" class="feat-link">
+        Try it
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </a>
     </div>
+
     <div class="feat-card">
-      <div class="feat-icon">🔷</div>
+      <div class="feat-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+        </svg>
+      </div>
       <div class="feat-title">3D CAD Export</div>
       <p class="feat-desc">Generate production-ready 3D models via Meshy AI. Export GLB, OBJ, or STL files for manufacturing, casting, or 3D printing.</p>
-      <a href="/studio/cad" class="feat-link">Generate 3D →</a>
+      <a href="/studio/cad" class="feat-link">
+        Generate 3D
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </a>
     </div>
+
     <div class="feat-card">
-      <div class="feat-icon">📈</div>
+      <div class="feat-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+      </div>
       <div class="feat-title">Market Trends</div>
       <p class="feat-desc">Live competitive analysis powered by Google Search grounding. See pricing from Amazon, Flipkart, CaratLane, BlueStone and more — in real time.</p>
-      <a href="/studio/market" class="feat-link">Explore Market →</a>
+      <a href="/studio/market" class="feat-link">
+        Explore market
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </a>
     </div>
   </div>
 </section>
 
-<!-- WORKFLOW -->
+<!-- ══ WORKFLOW ════════════════════════════════════════════════════════════ -->
+
 <section class="workflow">
   <div class="section-header">
     <div class="section-eyebrow">The Design Pipeline</div>
     <h2 class="section-h2">From <em>idea</em> to market-ready.</h2>
     <p class="section-sub">A four-step pipeline that takes your design from concept to commercial reality.</p>
   </div>
+
   <div class="workflow-steps">
     <div class="wf-step">
       <div class="wf-num">01</div>
-      <div class="wf-title">Sketch & Conceptualise</div>
+      <div class="wf-title">Sketch &amp; Conceptualise</div>
       <p class="wf-desc">Upload a rough sketch or describe your idea. AI generates multiple polished concept variations.</p>
     </div>
     <div class="wf-step">
@@ -590,33 +786,48 @@
   </div>
 </section>
 
-<!-- CTA STRIP -->
+<!-- ══ CTA ════════════════════════════════════════════════════════════════ -->
+
 <section class="cta-strip">
   <h2>Ready to design your next <em>masterpiece?</em></h2>
   <p>Join jewellery designers using glymr to go from concept to catalogue, faster.</p>
   <div class="cta-btns">
-    <a href="/studio/sketch" class="btn btn-gold btn-lg">Start in Sketch Studio →</a>
-    <a href="/studio/market" class="btn btn-outline btn-lg">Browse Market Trends</a>
+    <a href="/studio/sketch" class="btn btn-gold btn-lg">
+      Start in Sketch Studio
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+      </svg>
+    </a>
+    <a href="/studio/market" class="btn btn-outline btn-lg" style="border-color:rgba(250,247,242,.2);color:rgba(250,247,242,.85)">
+      Browse market trends
+    </a>
   </div>
 </section>
 
-<!-- FOOTER -->
+<!-- ══ FOOTER ═════════════════════════════════════════════════════════════ -->
+
 <footer class="footer">
-  <div class="footer-logo">◈ glymr</div>
-  <div class="footer-note">Powered by Gemini · Meshy AI</div>
+  <div class="footer-logo">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2L9 7H3L7.5 11L5.5 17L12 13.5L18.5 17L16.5 11L21 7H15L12 2Z" fill="rgba(184,146,74,.5)"/>
+    </svg>
+    glymr
+  </div>
+  <div class="footer-note">Powered by Gemini &middot; Meshy AI</div>
 </footer>
+
+{% endblock %}
 
 {% block scripts %}
 <script>
-// ── Animatic carousel ───────────────────────────────────────────────────────
 const MODULES = [
-  { label: '✦ Sketch Conceptualiser — Active',  dur: 4200 },
-  { label: '◎ Model Try-On — Generating',        dur: 4000 },
-  { label: '🔷 3D CAD Generator — Processing',   dur: 5000 },
-  { label: '📈 Market Trends — Researching',     dur: 4000 },
+  { label: 'Sketch Conceptualiser — Active',  dur: 4200 },
+  { label: 'Model Try-On — Generating',        dur: 4000 },
+  { label: '3D CAD Generator — Processing',    dur: 5000 },
+  { label: 'Market Trends — Researching',      dur: 4000 },
 ];
 
-let currentScreen = 0;
+let currentScreen  = 0;
 let progressTimer  = null;
 let cadStepTimer1  = null;
 let cadStepTimer2  = null;
@@ -661,10 +872,10 @@ function runProgress(idx) {
     if (pct >= 98) {
       clearInterval(progressTimer);
       setTimeout(() => {
-        progress.style.transition = 'width .25s ease';
+        progress.style.transition = 'width .2s ease';
         progress.style.width = '100%';
-        autoTimer = setTimeout(() => goScreen((idx + 1) % MODULES.length), 500);
-      }, 100);
+        autoTimer = setTimeout(() => goScreen((idx + 1) % MODULES.length), 450);
+      }, 80);
     }
   }, interval);
 }
@@ -702,5 +913,4 @@ card.addEventListener('mouseleave', () => { paused = false; });
 
 goScreen(0);
 </script>
-{% endblock %}
 {% endblock %}
