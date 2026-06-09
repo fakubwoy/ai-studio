@@ -347,9 +347,9 @@ def get_meshy_key():
 def _otp_code(length=6):
     return ''.join(random.choices(string.digits, k=length))
 
-def _send_otp_gmail(to_email: str, code: str, purpose: str = 'verify') -> bool:
-    """Send OTP via Gmail API using a service-account / OAuth2 access token stored in env."""
-    gmail_token = os.getenv('GMAIL_OAUTH_TOKEN')  # short-lived access token, or use refresh flow
+def _send_otp_gmail(to_email: str, code: str, purpose: str = 'verify', access_token: str | None = None) -> bool:
+    """Send OTP via Gmail API using a fresh OAuth2 access token."""
+    gmail_token = access_token or os.getenv('GMAIL_OAUTH_TOKEN')
     gmail_sender = os.getenv('GMAIL_SENDER_EMAIL')
     if not gmail_token or not gmail_sender:
         log.error('[otp] GMAIL_OAUTH_TOKEN or GMAIL_SENDER_EMAIL not set')
@@ -401,7 +401,11 @@ def _get_gmail_access_token() -> str | None:
             'client_id':     client_id,
             'client_secret': client_secret,
         }, timeout=8)
-        return r.json().get('access_token')
+        body = r.json()
+        if 'access_token' not in body:
+            log.error(f'[gmail-token] refresh returned no access_token: {body.get("error")}: {body.get("error_description")}')
+            return None
+        return body['access_token']
     except Exception as e:
         log.error(f'[gmail-token] refresh failed: {e}')
         return None
@@ -431,10 +435,10 @@ def send_otp(to_email: str, purpose: str = 'verify') -> bool:
         log.error(f'[otp] db error: {e}')
         return False
     token = _get_gmail_access_token()
-    if token:
-        import os as _os
-        _os.environ['GMAIL_OAUTH_TOKEN'] = token
-    return _send_otp_gmail(to_email, code, purpose)
+    if not token:
+        log.error('[otp] Could not obtain a Gmail access token — check GMAIL_REFRESH_TOKEN, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET (or GMAIL_OAUTH_TOKEN as fallback)')
+        return False
+    return _send_otp_gmail(to_email, code, purpose, access_token=token)
 
 
 def verify_otp(email: str, code: str, purpose: str = 'verify') -> bool:
