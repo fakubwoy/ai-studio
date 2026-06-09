@@ -390,8 +390,8 @@ def _send_otp_gmail(to_email: str, code: str, purpose: str = 'verify') -> bool:
 def _get_gmail_access_token() -> str | None:
     """Exchange refresh token for a fresh access token (called lazily per request)."""
     refresh_token = os.getenv('GMAIL_REFRESH_TOKEN')
-    client_id     = os.getenv('GOOGLE_CLIENT_ID')
-    client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+    client_id     = os.getenv('GMAIL_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID')
+    client_secret = os.getenv('GMAIL_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
     if not all([refresh_token, client_id, client_secret]):
         return os.getenv('GMAIL_OAUTH_TOKEN')  # fallback: static token in env
     try:
