@@ -605,6 +605,70 @@ def login_required(f):
     return decorated
 
 
+# ── Per-user rate limiting helpers ────────────────────────────────────────────
+
+_RATE_LIMITS = {
+    '/api/generate-cad':        (10, 3600),   # 10 per hour
+    '/api/generate-cad-multi':  (10, 3600),
+    '/api/conceptualise':       (20, 3600),
+    '/api/generate-image':      (20, 3600),
+    '/api/market-research':     (15, 3600),
+    '/api/validate-cad':        (30, 3600),
+    '/api/enhance-sketch':      (20, 3600),
+}
+
+def _rate_limit_check(endpoint: str, user_id: str) -> tuple[bool, int]:
+    """Returns (allowed, seconds_until_reset). Uses Redis sliding window."""
+    if endpoint not in _RATE_LIMITS:
+        return True, 0
+    limit, window = _RATE_LIMITS[endpoint]
+    r = get_redis()
+    if r is None:
+        return True, 0  # no Redis → skip limiting
+    key = f'glymr:rl:{user_id}:{endpoint}'
+    try:
+        pipe = r.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, window)
+        count, _ = pipe.execute()
+        if count > limit:
+            ttl = r.ttl(key)
+            return False, max(ttl, 1)
+        return True, 0
+    except Exception:
+        return True, 0
+
+def track_usage(endpoint: str, provider: str = '', tokens: int = 0, cost_usd: float = 0.0):
+    """Persist API usage record for the current user (best-effort, non-blocking)."""
+    user_id = session.get('user_id')
+    if not _DB_URL or not user_id:
+        return
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO api_usage (user_id, endpoint, provider, tokens_used, cost_usd)
+                       VALUES (%s, %s, %s, %s, %s)""",
+                    (user_id, endpoint, provider, tokens, cost_usd)
+                )
+    except Exception as e:
+        log.warning(f'[usage] track failed: {e}')
+
+def rate_limited(f):
+    """Decorator that enforces per-user rate limits defined in _RATE_LIMITS."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        uid = session.get('user_id', 'anon')
+        allowed, reset_in = _rate_limit_check(request.path, uid)
+        if not allowed:
+            return jsonify({
+                'error': f'Rate limit exceeded. Try again in {reset_in}s.',
+                'retry_after': reset_in,
+            }), 429
+        return f(*args, **kwargs)
+    return decorated
+
+
 # ── Auth Routes ────────────────────────────────────────────────────────────────
 
 @app.route('/auth')
@@ -2567,70 +2631,6 @@ def api_proxy_glb():
     except Exception as e:
         log.error(f'[proxy-glb] failed: {e}')
         return jsonify({'error': str(e)}), 502
-
-
-# ── Per-user rate limiting helpers ────────────────────────────────────────────
-
-_RATE_LIMITS = {
-    '/api/generate-cad':        (10, 3600),   # 10 per hour
-    '/api/generate-cad-multi':  (10, 3600),
-    '/api/conceptualise':       (20, 3600),
-    '/api/generate-image':      (20, 3600),
-    '/api/market-research':     (15, 3600),
-    '/api/validate-cad':        (30, 3600),
-    '/api/enhance-sketch':      (20, 3600),
-}
-
-def _rate_limit_check(endpoint: str, user_id: str) -> tuple[bool, int]:
-    """Returns (allowed, seconds_until_reset). Uses Redis sliding window."""
-    if endpoint not in _RATE_LIMITS:
-        return True, 0
-    limit, window = _RATE_LIMITS[endpoint]
-    r = get_redis()
-    if r is None:
-        return True, 0  # no Redis → skip limiting
-    key = f'glymr:rl:{user_id}:{endpoint}'
-    try:
-        pipe = r.pipeline()
-        pipe.incr(key)
-        pipe.expire(key, window)
-        count, _ = pipe.execute()
-        if count > limit:
-            ttl = r.ttl(key)
-            return False, max(ttl, 1)
-        return True, 0
-    except Exception:
-        return True, 0
-
-def track_usage(endpoint: str, provider: str = '', tokens: int = 0, cost_usd: float = 0.0):
-    """Persist API usage record for the current user (best-effort, non-blocking)."""
-    user_id = session.get('user_id')
-    if not _DB_URL or not user_id:
-        return
-    try:
-        with db_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """INSERT INTO api_usage (user_id, endpoint, provider, tokens_used, cost_usd)
-                       VALUES (%s, %s, %s, %s, %s)""",
-                    (user_id, endpoint, provider, tokens, cost_usd)
-                )
-    except Exception as e:
-        log.warning(f'[usage] track failed: {e}')
-
-def rate_limited(f):
-    """Decorator that enforces per-user rate limits defined in _RATE_LIMITS."""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        uid = session.get('user_id', 'anon')
-        allowed, reset_in = _rate_limit_check(request.path, uid)
-        if not allowed:
-            return jsonify({
-                'error': f'Rate limit exceeded. Try again in {reset_in}s.',
-                'retry_after': reset_in,
-            }), 429
-        return f(*args, **kwargs)
-    return decorated
 
 # ── Projects API ───────────────────────────────────────────────────────────────
 
