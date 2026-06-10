@@ -193,7 +193,7 @@
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <div class="gallery-filter-tabs">
         <div class="filter-tab active" data-filter="all"     onclick="filterGallery('all',this)">All</div>
-        <div class="filter-tab"        data-filter="model"   onclick="filterGallery('model',this)">Model Shots</div>
+        <div class="filter-tab"        data-filter="modelshot" onclick="filterGallery('modelshot',this)">Model Shots</div>
         <div class="filter-tab"        data-filter="concept" onclick="filterGallery('concept',this)">Concepts</div>
         <div class="filter-tab"        data-filter="product" onclick="filterGallery('product',this)">Product</div>
         <div class="filter-tab"        data-filter="3d"      onclick="filterGallery('3d',this)">3D Models</div>
@@ -292,7 +292,9 @@ function filterGallery(filter, el) {
     ? allItems
     : filter === '3d'
       ? allItems.filter(i => i.type === 'model')
-      : allItems.filter(i => i.type === filter);
+      : filter === 'modelshot'
+        ? allItems.filter(i => i.type === 'modelshot' || i.type === 'model_shot')
+        : allItems.filter(i => i.type === filter);
   renderGallery(filtered);
 }
 

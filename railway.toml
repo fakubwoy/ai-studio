@@ -6,3 +6,7 @@ startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT --worker-class gevent --wo
 healthcheckPath = "/"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
+
+[[volumes]]
+mountPath = "/data"
+name = "glymr-storage"

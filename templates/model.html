@@ -638,8 +638,8 @@ async function generateModelShot() {
       fetch('/api/gallery', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: data.image_url, type: 'model', category: cat, title: '', tags: [] }),
-      }).catch(() => {}); // non-blocking; failure is silent
+        body: JSON.stringify({ url: data.image_url, type: 'modelshot', category: cat, title: '', tags: [], thumbnail_url: data.image_url }),
+      }).catch((e) => console.warn('[gallery] auto-save failed:', e)); // non-blocking
       saveState();
     }
   } catch(err) {

@@ -248,13 +248,15 @@ def _log_res(response):
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 _IS_RAILWAY = os.getenv('RAILWAY_ENVIRONMENT') is not None
-_TMP = '/tmp' if _IS_RAILWAY else '.'
+# On Railway, /data is a persistent volume that survives redeploys.
+# Locally, use the current directory.
+_DATA_ROOT = '/data' if _IS_RAILWAY else '.'
 
-app.config['UPLOAD_FOLDER'] = os.path.join(_TMP, 'static', 'uploads')
-app.config['OUTPUT_FOLDER'] = os.path.join(_TMP, 'static', 'outputs')
+app.config['UPLOAD_FOLDER'] = os.path.join(_DATA_ROOT, 'uploads')
+app.config['OUTPUT_FOLDER'] = os.path.join(_DATA_ROOT, 'outputs')
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
-CATEGORIES_FILE = os.path.join(_TMP, 'categories.json')  # fallback only
+CATEGORIES_FILE = os.path.join(_DATA_ROOT, 'categories.json')  # fallback only
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
@@ -1875,6 +1877,7 @@ def output_file(filename):
 # Initialise DB tables (no-op if DATABASE_URL is not set)
 with app.app_context():
     init_db()
+
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)

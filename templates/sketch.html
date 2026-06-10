@@ -176,8 +176,20 @@
     display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 14px;
   }
 
-  .concept-actions { display: flex; gap: 7px; }
-  .concept-actions .btn { flex: 1; justify-content: center; }
+  .concept-actions {
+    display: flex; gap: 7px; align-items: center;
+  }
+  /* The two labeled action buttons share available space */
+  .concept-actions .btn-action {
+    flex: 1; justify-content: center; min-width: 0;
+    white-space: nowrap; overflow: hidden;
+  }
+  /* Icon-only buttons are fixed-size squares — no stretching */
+  .concept-actions .btn-icon {
+    flex: 0 0 32px; width: 32px; height: 32px;
+    padding: 0; justify-content: center; align-items: center;
+    display: flex;
+  }
 
   /* Empty & loading states */
   .empty-state {
@@ -573,20 +585,20 @@ function renderConcepts(list) {
         <p class="concept-desc">${c.description}</p>
         <div class="concept-tags">${(c.tags || []).map(t => `<span class="tag tag-gold">${t}</span>`).join('')}</div>
         <div class="concept-actions">
-          <button class="btn btn-outline btn-sm" onclick="sendToModel(${i})">
+          <button class="btn btn-outline btn-sm btn-action" onclick="sendToModel(${i})">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             Try on Model
           </button>
-          <button class="btn btn-outline btn-sm" onclick="sendToCAD(${i})">
+          <button class="btn btn-outline btn-sm btn-action" onclick="sendToCAD(${i})">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
             3D CAD
           </button>
           ${c.image_url ? `
-          <button class="btn btn-outline btn-sm" onclick="saveConceptToGallery(${i}, this)" title="Save to gallery">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          <button class="btn btn-outline btn-sm btn-icon" onclick="saveConceptToGallery(${i}, this)" title="Save to gallery">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </button>
-          <a href="${c.image_url}" download="concept-${i+1}.png" class="btn btn-outline btn-sm">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <a href="${c.image_url}" download="concept-${i+1}.png" class="btn btn-outline btn-sm btn-icon" title="Download">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           </a>` : ''}
         </div>
       </div>
