@@ -1,5 +1,6 @@
 import os, json, base64, uuid, re, time, logging, hashlib, secrets, string, random
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -28,7 +29,22 @@ logging.basicConfig(
 log = logging.getLogger('atelier')
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
+
+# ── Secret key ─────────────────────────────────────────────────────────────────
+# IMPORTANT: set SECRET_KEY in env vars on Railway.
+# Without it, each worker process generates a different random key, causing
+# sessions signed by one worker to be rejected by another → random logouts.
+_secret_key = os.getenv('SECRET_KEY')
+if not _secret_key:
+    _secret_key = secrets.token_hex(32)
+    logging.warning(
+        '[security] SECRET_KEY env var is not set — using an ephemeral random key. '
+        'Sessions will NOT persist across restarts or workers. '
+        'Set SECRET_KEY in your Railway environment variables.'
+    )
+app.secret_key = _secret_key
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=14)
+
 CORS(app, supports_credentials=True)
 
 # ── PostgreSQL ─────────────────────────────────────────────────────────────────
@@ -42,98 +58,116 @@ def get_db():
     conn.autocommit = False
     return conn
 
+@contextmanager
+def db_conn():
+    """Context manager that opens a connection, commits on success, rolls back
+    and re-raises on error, and always closes the connection.
+
+    Usage:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(...)
+    """
+    conn = get_db()
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
 def init_db():
     """Create tables if they don't exist yet."""
     if not _DB_URL:
         log.warning('[db] DATABASE_URL not set — skipping DB init, falling back to JSON file')
         return
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            # ── Auth tables ──────────────────────────────────────────────────
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    email        TEXT UNIQUE NOT NULL,
-                    password_hash TEXT,
-                    google_id    TEXT UNIQUE,
-                    display_name TEXT NOT NULL DEFAULT '',
-                    avatar_url   TEXT NOT NULL DEFAULT '',
-                    verified     BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    last_login   TIMESTAMPTZ
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS otp_codes (
-                    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    email      TEXT NOT NULL,
-                    code       TEXT NOT NULL,
-                    purpose    TEXT NOT NULL DEFAULT 'verify',
-                    expires_at TIMESTAMPTZ NOT NULL,
-                    used       BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-            """)
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_codes(email);
-            """)
-            # ── App tables ───────────────────────────────────────────────────
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS categories (
-                    name        TEXT PRIMARY KEY,
-                    description TEXT NOT NULL DEFAULT '',
-                    is_set      BOOLEAN NOT NULL DEFAULT FALSE,
-                    templates   JSONB NOT NULL DEFAULT '[]'::jsonb,
-                    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS gallery (
-                    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
-                    url         TEXT NOT NULL,
-                    type        TEXT NOT NULL DEFAULT 'image',
-                    category    TEXT NOT NULL DEFAULT '',
-                    title       TEXT NOT NULL DEFAULT '',
-                    tags        JSONB NOT NULL DEFAULT '[]'::jsonb,
-                    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-            """)
-            # Migrate: add user_id column if it was missing (existing deploys)
-            cur.execute("""
-                ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
-                user_id UUID REFERENCES users(id) ON DELETE CASCADE;
-            """)
-            # Migrate: add thumbnail_url for 3D model gallery items
-            cur.execute("""
-                ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
-                thumbnail_url TEXT NOT NULL DEFAULT '';
-            """)
-            # Migrate: add model_urls JSONB for storing all download links
-            cur.execute("""
-                ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
-                model_urls JSONB NOT NULL DEFAULT '{}'::jsonb;
-            """)
-            # Seed categories from DEFAULT_CATEGORIES if table is empty
-            cur.execute('SELECT COUNT(*) AS n FROM categories')
-            row = cur.fetchone()
-            if row['n'] == 0:
-                log.info('[db] seeding categories table from defaults')
-                for name, meta in DEFAULT_CATEGORIES.items():
-                    cur.execute(
-                        """INSERT INTO categories (name, description, is_set, templates)
-                           VALUES (%s, %s, %s, %s)
-                           ON CONFLICT (name) DO NOTHING""",
-                        (
-                            name,
-                            meta.get('description', ''),
-                            meta.get('is_set', False),
-                            json.dumps(meta.get('templates', [])),
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                # ── Auth tables ──────────────────────────────────────────────────
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        email        TEXT UNIQUE NOT NULL,
+                        password_hash TEXT,
+                        google_id    TEXT UNIQUE,
+                        display_name TEXT NOT NULL DEFAULT '',
+                        avatar_url   TEXT NOT NULL DEFAULT '',
+                        verified     BOOLEAN NOT NULL DEFAULT FALSE,
+                        created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        last_login   TIMESTAMPTZ
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS otp_codes (
+                        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        email      TEXT NOT NULL,
+                        code       TEXT NOT NULL,
+                        purpose    TEXT NOT NULL DEFAULT 'verify',
+                        expires_at TIMESTAMPTZ NOT NULL,
+                        used       BOOLEAN NOT NULL DEFAULT FALSE,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    );
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_codes(email);
+                """)
+                # ── App tables ───────────────────────────────────────────────────
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS categories (
+                        name        TEXT PRIMARY KEY,
+                        description TEXT NOT NULL DEFAULT '',
+                        is_set      BOOLEAN NOT NULL DEFAULT FALSE,
+                        templates   JSONB NOT NULL DEFAULT '[]'::jsonb,
+                        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS gallery (
+                        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
+                        url         TEXT NOT NULL,
+                        type        TEXT NOT NULL DEFAULT 'image',
+                        category    TEXT NOT NULL DEFAULT '',
+                        title       TEXT NOT NULL DEFAULT '',
+                        tags        JSONB NOT NULL DEFAULT '[]'::jsonb,
+                        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    );
+                """)
+                # Migrate: add user_id column if it was missing (existing deploys)
+                cur.execute("""
+                    ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+                """)
+                # Migrate: add thumbnail_url for 3D model gallery items
+                cur.execute("""
+                    ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
+                    thumbnail_url TEXT NOT NULL DEFAULT '';
+                """)
+                # Migrate: add model_urls JSONB for storing all download links
+                cur.execute("""
+                    ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
+                    model_urls JSONB NOT NULL DEFAULT '{}'::jsonb;
+                """)
+                # Seed categories from DEFAULT_CATEGORIES if table is empty
+                cur.execute('SELECT COUNT(*) AS n FROM categories')
+                row = cur.fetchone()
+                if row['n'] == 0:
+                    log.info('[db] seeding categories table from defaults')
+                    for name, meta in DEFAULT_CATEGORIES.items():
+                        cur.execute(
+                            """INSERT INTO categories (name, description, is_set, templates)
+                               VALUES (%s, %s, %s, %s)
+                               ON CONFLICT (name) DO NOTHING""",
+                            (
+                                name,
+                                meta.get('description', ''),
+                                meta.get('is_set', False),
+                                json.dumps(meta.get('templates', [])),
+                            )
                         )
-                    )
-        conn.commit()
-        conn.close()
         log.info('[db] tables ready')
     except Exception as e:
         log.error(f'[db] init_db failed: {e}', exc_info=True)
@@ -141,22 +175,29 @@ def init_db():
 # ── Redis ──────────────────────────────────────────────────────────────────────
 _REDIS_URL = os.getenv('REDIS_URL', '')
 _redis: redis_lib.Redis | None = None
+_redis_lock = __import__('threading').Lock()
 
 def get_redis() -> redis_lib.Redis | None:
-    """Return the Redis client, or None if unavailable."""
+    """Return the Redis client, or None if unavailable.
+    Thread-safe: uses a lock to prevent double-initialisation under gevent workers.
+    """
     global _redis
     if _redis is not None:
         return _redis
     if not _REDIS_URL:
         return None
-    try:
-        client = redis_lib.from_url(_REDIS_URL, decode_responses=True, socket_connect_timeout=2)
-        client.ping()
-        _redis = client
-        log.info('[redis] connected')
-    except Exception as e:
-        log.warning(f'[redis] unavailable, caching disabled: {e}')
-        _redis = None
+    with _redis_lock:
+        # Re-check inside the lock (double-checked locking)
+        if _redis is not None:
+            return _redis
+        try:
+            client = redis_lib.from_url(_REDIS_URL, decode_responses=True, socket_connect_timeout=2)
+            client.ping()
+            _redis = client
+            log.info('[redis] connected')
+        except Exception as e:
+            log.warning(f'[redis] unavailable, caching disabled: {e}')
+            _redis = None
     return _redis
 
 def cache_get(key: str):
@@ -186,6 +227,10 @@ def cache_del(key: str):
         r.delete(key)
     except Exception:
         pass
+
+@app.errorhandler(413)
+def request_entity_too_large(e):
+    return jsonify({'error': 'File too large. Maximum upload size is 32 MB.'}), 413
 
 @app.before_request
 def _log_req():
@@ -263,11 +308,10 @@ def load_categories() -> dict:
     # 2. Postgres
     if _DB_URL:
         try:
-            conn = get_db()
-            with conn.cursor() as cur:
-                cur.execute('SELECT name, description, is_set, templates FROM categories ORDER BY name')
-                rows = cur.fetchall()
-            conn.close()
+            with db_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute('SELECT name, description, is_set, templates FROM categories ORDER BY name')
+                    rows = cur.fetchall()
             if rows:
                 cats = {
                     r['name']: {
@@ -277,7 +321,7 @@ def load_categories() -> dict:
                     }
                     for r in rows
                 }
-                cache_set(_CATEGORIES_CACHE_KEY, cats, ttl=300)
+                cache_set(_CATEGORIES_CACHE_KEY, cats, ttl=900)
                 return cats
         except Exception as e:
             log.error(f'[db] load_categories failed: {e}', exc_info=True)
@@ -298,32 +342,30 @@ def save_categories(cats: dict):
     # 1. Postgres
     if _DB_URL:
         try:
-            conn = get_db()
-            with conn.cursor() as cur:
-                # Upsert every category
-                for name, meta in cats.items():
-                    cur.execute(
-                        """INSERT INTO categories (name, description, is_set, templates, updated_at)
-                           VALUES (%s, %s, %s, %s, NOW())
-                           ON CONFLICT (name) DO UPDATE SET
-                               description = EXCLUDED.description,
-                               is_set      = EXCLUDED.is_set,
-                               templates   = EXCLUDED.templates,
-                               updated_at  = NOW()""",
-                        (
-                            name,
-                            meta.get('description', ''),
-                            meta.get('is_set', False),
-                            json.dumps(meta.get('templates', [])),
+            with db_conn() as conn:
+                with conn.cursor() as cur:
+                    # Upsert every category
+                    for name, meta in cats.items():
+                        cur.execute(
+                            """INSERT INTO categories (name, description, is_set, templates, updated_at)
+                               VALUES (%s, %s, %s, %s, NOW())
+                               ON CONFLICT (name) DO UPDATE SET
+                                   description = EXCLUDED.description,
+                                   is_set      = EXCLUDED.is_set,
+                                   templates   = EXCLUDED.templates,
+                                   updated_at  = NOW()""",
+                            (
+                                name,
+                                meta.get('description', ''),
+                                meta.get('is_set', False),
+                                json.dumps(meta.get('templates', [])),
+                            )
                         )
+                    # Remove categories deleted from the dict
+                    cur.execute(
+                        'DELETE FROM categories WHERE name <> ALL(%s)',
+                        (list(cats.keys()),)
                     )
-                # Remove categories deleted from the dict
-                cur.execute(
-                    'DELETE FROM categories WHERE name <> ALL(%s)',
-                    (list(cats.keys()),)
-                )
-            conn.commit()
-            conn.close()
         except Exception as e:
             log.error(f'[db] save_categories failed: {e}', exc_info=True)
 
@@ -435,19 +477,17 @@ def send_otp(to_email: str, purpose: str = 'verify') -> bool:
     code = _otp_code()
     expires = datetime.now(timezone.utc) + timedelta(minutes=10)
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            # Invalidate previous unused codes for this email+purpose
-            cur.execute(
-                "UPDATE otp_codes SET used=TRUE WHERE email=%s AND purpose=%s AND used=FALSE",
-                (to_email, purpose)
-            )
-            cur.execute(
-                "INSERT INTO otp_codes (email, code, purpose, expires_at) VALUES (%s,%s,%s,%s)",
-                (to_email, code, purpose, expires)
-            )
-        conn.commit()
-        conn.close()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                # Invalidate previous unused codes for this email+purpose
+                cur.execute(
+                    "UPDATE otp_codes SET used=TRUE WHERE email=%s AND purpose=%s AND used=FALSE",
+                    (to_email, purpose)
+                )
+                cur.execute(
+                    "INSERT INTO otp_codes (email, code, purpose, expires_at) VALUES (%s,%s,%s,%s)",
+                    (to_email, code, purpose, expires)
+                )
     except Exception as e:
         log.error(f'[otp] db error: {e}')
         return False
@@ -463,21 +503,18 @@ def verify_otp(email: str, code: str, purpose: str = 'verify') -> bool:
     if not _DB_URL:
         return False
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute(
-                """SELECT id FROM otp_codes
-                   WHERE email=%s AND code=%s AND purpose=%s AND used=FALSE AND expires_at > NOW()
-                   ORDER BY created_at DESC LIMIT 1""",
-                (email, code.strip(), purpose)
-            )
-            row = cur.fetchone()
-            if not row:
-                conn.close()
-                return False
-            cur.execute("UPDATE otp_codes SET used=TRUE WHERE id=%s", (row['id'],))
-        conn.commit()
-        conn.close()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT id FROM otp_codes
+                       WHERE email=%s AND code=%s AND purpose=%s AND used=FALSE AND expires_at > NOW()
+                       ORDER BY created_at DESC LIMIT 1""",
+                    (email, code.strip(), purpose)
+                )
+                row = cur.fetchone()
+                if not row:
+                    return False
+                cur.execute("UPDATE otp_codes SET used=TRUE WHERE id=%s", (row['id'],))
         return True
     except Exception as e:
         log.error(f'[otp] verify error: {e}')
@@ -492,14 +529,13 @@ def get_current_user():
     if not _DB_URL:
         return None
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute(
-                'SELECT id, email, display_name, avatar_url, verified FROM users WHERE id=%s',
-                (uid,)
-            )
-            row = cur.fetchone()
-        conn.close()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    'SELECT id, email, display_name, avatar_url, verified FROM users WHERE id=%s',
+                    (uid,)
+                )
+                row = cur.fetchone()
         return dict(row) if row else None
     except Exception:
         return None
@@ -543,11 +579,10 @@ def api_send_otp():
     purpose = 'login'
     if _DB_URL:
         try:
-            conn = get_db()
-            with conn.cursor() as cur:
-                cur.execute('SELECT id, verified FROM users WHERE email=%s', (email,))
-                row = cur.fetchone()
-            conn.close()
+            with db_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute('SELECT id, verified FROM users WHERE email=%s', (email,))
+                    row = cur.fetchone()
             if not row or not row['verified']:
                 purpose = 'verify'
         except Exception:
@@ -577,34 +612,31 @@ def api_verify_otp():
         return jsonify({'error': 'DATABASE_URL not set'}), 500
 
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute('SELECT id, email, display_name, avatar_url, verified FROM users WHERE email=%s', (email,))
-            user = cur.fetchone()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT id, email, display_name, avatar_url, verified FROM users WHERE email=%s', (email,))
+                user = cur.fetchone()
 
-            if user:
-                # Existing user: mark verified, update last_login
-                cur.execute(
-                    'UPDATE users SET verified=TRUE, last_login=NOW() WHERE id=%s',
-                    (user['id'],)
-                )
-                user_id = str(user['id'])
-                display = user['display_name'] or email.split('@')[0]
-                avatar  = user['avatar_url'] or ''
-            else:
-                # New user: create account
-                pw_hash = generate_password_hash(password) if password else None
-                display = name or email.split('@')[0]
-                cur.execute(
-                    """INSERT INTO users (email, password_hash, display_name, verified, last_login)
-                       VALUES (%s,%s,%s,TRUE,NOW()) RETURNING id""",
-                    (email, pw_hash, display)
-                )
-                user_id = str(cur.fetchone()['id'])
-                avatar  = ''
-
-        conn.commit()
-        conn.close()
+                if user:
+                    # Existing user: mark verified, update last_login
+                    cur.execute(
+                        'UPDATE users SET verified=TRUE, last_login=NOW() WHERE id=%s',
+                        (user['id'],)
+                    )
+                    user_id = str(user['id'])
+                    display = user['display_name'] or email.split('@')[0]
+                    avatar  = user['avatar_url'] or ''
+                else:
+                    # New user: create account
+                    pw_hash = generate_password_hash(password) if password else None
+                    display = name or email.split('@')[0]
+                    cur.execute(
+                        """INSERT INTO users (email, password_hash, display_name, verified, last_login)
+                           VALUES (%s,%s,%s,TRUE,NOW()) RETURNING id""",
+                        (email, pw_hash, display)
+                    )
+                    user_id = str(cur.fetchone()['id'])
+                    avatar  = ''
 
         session['user_id']    = user_id
         session['user_email'] = email
@@ -645,25 +677,23 @@ def api_auth_google():
         if not _DB_URL:
             return jsonify({'error': 'DATABASE_URL not set'}), 500
 
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute('SELECT id FROM users WHERE email=%s OR google_id=%s', (email, google_id))
-            row = cur.fetchone()
-            if row:
-                user_id = str(row['id'])
-                cur.execute(
-                    'UPDATE users SET google_id=%s, display_name=%s, avatar_url=%s, verified=TRUE, last_login=NOW() WHERE id=%s',
-                    (google_id, name, avatar, user_id)
-                )
-            else:
-                cur.execute(
-                    """INSERT INTO users (email, google_id, display_name, avatar_url, verified, last_login)
-                       VALUES (%s,%s,%s,%s,TRUE,NOW()) RETURNING id""",
-                    (email, google_id, name, avatar)
-                )
-                user_id = str(cur.fetchone()['id'])
-        conn.commit()
-        conn.close()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT id FROM users WHERE email=%s OR google_id=%s', (email, google_id))
+                row = cur.fetchone()
+                if row:
+                    user_id = str(row['id'])
+                    cur.execute(
+                        'UPDATE users SET google_id=%s, display_name=%s, avatar_url=%s, verified=TRUE, last_login=NOW() WHERE id=%s',
+                        (google_id, name, avatar, user_id)
+                    )
+                else:
+                    cur.execute(
+                        """INSERT INTO users (email, google_id, display_name, avatar_url, verified, last_login)
+                           VALUES (%s,%s,%s,%s,TRUE,NOW()) RETURNING id""",
+                        (email, google_id, name, avatar)
+                    )
+                    user_id = str(cur.fetchone()['id'])
 
         session['user_id']    = user_id
         session['user_email'] = email
@@ -704,14 +734,13 @@ def api_auth_signin():
         return jsonify({'error': 'DATABASE_URL not set'}), 500
 
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute(
-                'SELECT id, email, display_name, avatar_url, password_hash, verified FROM users WHERE email=%s',
-                (email,)
-            )
-            user = cur.fetchone()
-        conn.close()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    'SELECT id, email, display_name, avatar_url, password_hash, verified FROM users WHERE email=%s',
+                    (email,)
+                )
+                user = cur.fetchone()
     except Exception as e:
         log.error(f'[auth] signin db error: {e}', exc_info=True)
         return jsonify({'error': 'Server error'}), 500
@@ -730,11 +759,9 @@ def api_auth_signin():
 
     # Update last_login
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute('UPDATE users SET last_login=NOW() WHERE id=%s', (user['id'],))
-        conn.commit()
-        conn.close()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('UPDATE users SET last_login=NOW() WHERE id=%s', (user['id'],))
     except Exception:
         pass
 
@@ -760,10 +787,9 @@ def healthz():
     status = {'status': 'ok', 'db': False, 'redis': False}
     if _DB_URL:
         try:
-            conn = get_db()
-            with conn.cursor() as cur:
-                cur.execute('SELECT 1')
-            conn.close()
+            with db_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute('SELECT 1')
             status['db'] = True
         except Exception:
             pass
@@ -924,6 +950,9 @@ def api_conceptualise():
     if not prompt_text and not has_sketch:
         return jsonify({'error': 'Provide a description or upload a sketch.'}), 400
 
+    # Cap variations to prevent runaway API usage (#13)
+    variations = variations[:4]
+
     client, err = get_gemini_client()
     if err:
         return jsonify({'error': err}), 500
@@ -932,9 +961,9 @@ def api_conceptualise():
     concepts = []
     errors   = []
 
-    for variation in variations:
-        try:
-            gen_prompt = f"""You are a senior jewellery design artist.
+    def _generate_one_variation(variation: str) -> dict:
+        """Generate a single concept variation. Retries up to 3 times on 503/504."""
+        gen_prompt = f"""You are a senior jewellery design artist.
 {"The user has provided a rough sketch of their jewellery concept." if has_sketch else ""}
 Create a photorealistic, highly detailed jewellery product photograph of this concept:
 
@@ -954,78 +983,106 @@ Requirements:
 Generate an image that would be appropriate for a luxury jewellery brand's catalogue.
 {"Interpret and improve the rough sketch, maintaining its core design intent." if has_sketch else ""}"""
 
-            contents = [gen_prompt]
-            if sketch_img is not None:
-                contents.append(sketch_img)
+        contents = [gen_prompt]
+        if sketch_img is not None:
+            contents.append(sketch_img)
 
-            response = client.models.generate_content(
-                model="gemini-2.5-flash-image",
-                contents=contents,
-                config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
-            )
+        last_exc = None
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash-image",
+                    contents=contents,
+                    config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
+                )
+                break  # success
+            except Exception as e:
+                last_exc = e
+                err_str = str(e)
+                # Retry on transient server errors (503/504); fail fast on others
+                if attempt < 2 and ('503' in err_str or '504' in err_str or
+                                     'UNAVAILABLE' in err_str or 'DEADLINE_EXCEEDED' in err_str):
+                    wait = 2 ** attempt  # 1s, 2s
+                    log.warning(f'[conceptualise] transient error for {variation} (attempt {attempt+1}), retrying in {wait}s: {e}')
+                    time.sleep(wait)
+                    continue
+                raise
+        else:
+            raise last_exc
 
-            image_url = None
-            for part in response.candidates[0].content.parts:
-                if part.inline_data is not None:
-                    out_bytes = part.inline_data.data
-                    out_fn    = f"concept_{uuid.uuid4()}.png"
+        image_url = None
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                out_bytes = part.inline_data.data
+                out_fn    = f"concept_{uuid.uuid4()}.png"
 
-                    # Try to persist to R2 for durable storage
-                    r2_url = _upload_to_r2(out_bytes, f'concepts/{out_fn}')
-                    if r2_url:
-                        image_url = r2_url
-                        log.info(f'[conceptualise] uploaded to R2: {r2_url}')
-                    else:
-                        # Fall back to local filesystem
-                        out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
-                        Image.open(io.BytesIO(out_bytes)).save(out_path)
-                        image_url = f'/static/outputs/{out_fn}'
+                # Try to persist to R2 for durable storage
+                r2_url = _upload_to_r2(out_bytes, f'concepts/{out_fn}')
+                if r2_url:
+                    image_url = r2_url
+                    log.info(f'[conceptualise] uploaded to R2: {r2_url}')
+                else:
+                    # Fall back to local filesystem
+                    out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
+                    Image.open(io.BytesIO(out_bytes)).save(out_path)
+                    image_url = f'/static/outputs/{out_fn}'
 
-                    log.info(f'[conceptualise] concept image: {image_url} | variation={variation}')
-                    break
+                log.info(f'[conceptualise] concept image: {image_url} | variation={variation}')
+                break
 
-            # Generate metadata with a fast text call
-            meta_prompt = f"""For a {variation.lower()} style {metal} {category} jewellery piece{(' described as: ' + prompt_text) if prompt_text else ''}, generate a short JSON object:
+        # Generate metadata with a fast text call
+        meta_prompt = f"""For a {variation.lower()} style {metal} {category} jewellery piece{(' described as: ' + prompt_text) if prompt_text else ''}, generate a short JSON object:
 {{"title":"3-5 word evocative product name","description":"2 sentence description mentioning materials, style, and occasion","tags":["tag1","tag2","tag3","tag4"]}}
 Return ONLY the JSON, no markdown."""
 
-            meta_res = client.models.generate_content(model="gemini-2.5-flash", contents=meta_prompt)
+        meta_res = client.models.generate_content(model="gemini-2.5-flash", contents=meta_prompt)
+        try:
+            meta_text = re.sub(r'^```(?:json)?\s*', '', meta_res.text.strip())
+            meta_text = re.sub(r'\s*```$', '', meta_text)
+            meta = json.loads(meta_text)
+        except Exception:
+            meta = {"title": f"{variation} {category}", "description": f"A beautiful {variation.lower()} style {metal} {category}.", "tags": [metal, category, variation]}
+
+        concept = {
+            'variation':   variation,
+            'image_url':   image_url,
+            'title':       meta.get('title', f'{variation} {category}'),
+            'description': meta.get('description', ''),
+            'tags':        meta.get('tags', []),
+        }
+
+        # ── Auto-save to gallery ──────────────────────────────────────────────
+        if image_url and user_id and _DB_URL:
             try:
-                meta_text = re.sub(r'^```(?:json)?\s*', '', meta_res.text.strip())
-                meta_text = re.sub(r'\s*```$', '', meta_text)
-                meta = json.loads(meta_text)
-            except Exception:
-                meta = {"title": f"{variation} {category}", "description": f"A beautiful {variation.lower()} style {metal} {category}.", "tags": [metal, category, variation]}
-
-            concept = {
-                'variation':   variation,
-                'image_url':   image_url,
-                'title':       meta.get('title', f'{variation} {category}'),
-                'description': meta.get('description', ''),
-                'tags':        meta.get('tags', []),
-            }
-            concepts.append(concept)
-
-            # ── Auto-save to gallery ──────────────────────────────────────────
-            if image_url and user_id and _DB_URL:
-                try:
-                    conn = get_db()
+                with db_conn() as conn:
                     with conn.cursor() as cur:
                         cur.execute(
-                            """INSERT INTO gallery (user_id, url, type, category, title, tags)
-                               VALUES (%s, %s, 'concept', %s, %s, %s)""",
+                            """INSERT INTO gallery (user_id, url, type, category, title, tags, thumbnail_url)
+                               VALUES (%s, %s, 'concept', %s, %s, %s, %s)""",
                             (user_id, image_url, category,
-                             meta.get('title', ''), json.dumps(meta.get('tags', [])))
+                             meta.get('title', ''), json.dumps(meta.get('tags', [])),
+                             image_url)   # concept image doubles as its own thumbnail
                         )
-                    conn.commit()
-                    conn.close()
-                    log.info(f'[conceptualise] auto-saved to gallery: {image_url}')
-                except Exception as db_err:
-                    log.warning(f'[conceptualise] gallery auto-save failed: {db_err}')
+                log.info(f'[conceptualise] auto-saved to gallery: {image_url}')
+            except Exception as db_err:
+                log.warning(f'[conceptualise] gallery auto-save failed: {db_err}')
 
-        except Exception as e:
-            log.error(f'[conceptualise] FAIL for variation={variation}: {e}', exc_info=True)
-            errors.append(f'{variation}: {str(e)}')
+        return concept
+
+    # ── Run all variations in parallel ────────────────────────────────────────
+    with ThreadPoolExecutor(max_workers=len(variations)) as pool:
+        future_to_var = {pool.submit(_generate_one_variation, v): v for v in variations}
+        try:
+            for future in as_completed(future_to_var, timeout=260):
+                var = future_to_var[future]
+                try:
+                    concepts.append(future.result())
+                except Exception as e:
+                    log.error(f'[conceptualise] FAIL for variation={var}: {e}', exc_info=True)
+                    errors.append(f'{var}: {str(e)}')
+        except FuturesTimeoutError:
+            log.error('[conceptualise] overall parallel timeout after 260s')
+            errors.append('Overall timeout — some variations did not complete')
 
     if not concepts:
         return jsonify({'error': 'All variations failed. ' + '; '.join(errors)}), 500
@@ -1161,9 +1218,18 @@ def analyze_result():
         return jsonify({'error': err}), 500
 
     try:
-        gen_filename = generated_url.split('/static/outputs/')[-1].split('?')[0]
-        gen_path = os.path.join(app.config['OUTPUT_FOLDER'], gen_filename)
-        gen_image = Image.open(gen_path)
+        # Generated image may be stored in R2 (full https:// URL) or locally
+        if generated_url.startswith('http://') or generated_url.startswith('https://'):
+            try:
+                r2_resp = requests.get(generated_url, timeout=15)
+                r2_resp.raise_for_status()
+                gen_image = Image.open(io.BytesIO(r2_resp.content))
+            except Exception as fetch_err:
+                return jsonify({'error': f'Could not fetch generated image from remote URL: {fetch_err}'}), 500
+        else:
+            gen_filename = generated_url.split('/static/outputs/')[-1].split('?')[0]
+            gen_path = os.path.join(app.config['OUTPUT_FOLDER'], gen_filename)
+            gen_image = Image.open(gen_path)
 
         if ',' in original_src:
             b64data = original_src.split(',', 1)[1]
@@ -1234,7 +1300,8 @@ def _upload_to_r2(img_bytes: bytes, filename: str) -> str | None:
             aws_secret_access_key=secret_key,
             region_name='auto',
         )
-        key = f'cad-inputs/{filename}'
+        # callers already pass the full subpath: 'concepts/…', 'outputs/…', 'cad-inputs/…'
+        key = filename
         s3.put_object(
             Bucket=bucket,
             Key=key,
@@ -1292,7 +1359,7 @@ def api_generate_cad():
         tmp_fn = f"cad_input_{uuid.uuid4()}.png"
 
         # ── Attempt 1: upload to R2 / S3 for a public URL ────────────────────
-        public_img_url = _upload_to_r2(img_bytes, tmp_fn)
+        public_img_url = _upload_to_r2(img_bytes, f'cad-inputs/{tmp_fn}')
 
         # ── Attempt 2: use host URL (works when deployed publicly) ──────────
         if not public_img_url:
@@ -1654,14 +1721,13 @@ def api_gallery_list():
         return jsonify({'items': [], 'warning': 'DATABASE_URL not set'}), 200
     user_id = session['user_id']
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute(
-                'SELECT id, url, type, category, title, tags, thumbnail_url, model_urls, created_at FROM gallery WHERE user_id=%s ORDER BY created_at DESC',
-                (user_id,)
-            )
-            rows = cur.fetchall()
-        conn.close()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    'SELECT id, url, type, category, title, tags, thumbnail_url, model_urls, created_at FROM gallery WHERE user_id=%s ORDER BY created_at DESC',
+                    (user_id,)
+                )
+                rows = cur.fetchall()
         items = [
             {
                 'id':            str(r['id']),
@@ -1688,26 +1754,25 @@ def api_gallery_add():
     """Save a generated image to the gallery, linked to current user."""
     if not _DB_URL:
         return jsonify({'error': 'DATABASE_URL not set'}), 500
-    user_id  = session['user_id']
-    data     = request.json or {}
-    url      = data.get('url', '').strip()
-    img_type = data.get('type', 'image')
-    category = data.get('category', '')
-    title    = data.get('title', '')
-    tags     = data.get('tags', [])
+    user_id       = session['user_id']
+    data          = request.json or {}
+    url           = data.get('url', '').strip()
+    img_type      = data.get('type', 'image')
+    category      = data.get('category', '')
+    title         = data.get('title', '')
+    tags          = data.get('tags', [])
+    thumbnail_url = data.get('thumbnail_url', '')   # fix #6: persist thumbnail
     if not url:
         return jsonify({'error': 'url required'}), 400
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute(
-                """INSERT INTO gallery (user_id, url, type, category, title, tags)
-                   VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
-                (user_id, url, img_type, category, title, json.dumps(tags))
-            )
-            item_id = cur.fetchone()['id']
-        conn.commit()
-        conn.close()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO gallery (user_id, url, type, category, title, tags, thumbnail_url)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (user_id, url, img_type, category, title, json.dumps(tags), thumbnail_url)
+                )
+                item_id = cur.fetchone()['id']
         return jsonify({'success': True, 'id': str(item_id)})
     except Exception as e:
         log.error(f'[gallery] add failed: {e}', exc_info=True)
@@ -1722,11 +1787,9 @@ def api_gallery_delete(item_id):
         return jsonify({'error': 'DATABASE_URL not set'}), 500
     user_id = session['user_id']
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute('DELETE FROM gallery WHERE id=%s AND user_id=%s', (item_id, user_id))
-        conn.commit()
-        conn.close()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('DELETE FROM gallery WHERE id=%s AND user_id=%s', (item_id, user_id))
         return jsonify({'success': True})
     except Exception as e:
         log.error(f'[gallery] delete failed: {e}', exc_info=True)
@@ -1741,11 +1804,9 @@ def api_gallery_clear():
         return jsonify({'error': 'DATABASE_URL not set'}), 500
     user_id = session['user_id']
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute('DELETE FROM gallery WHERE user_id=%s', (user_id,))
-        conn.commit()
-        conn.close()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('DELETE FROM gallery WHERE user_id=%s', (user_id,))
         return jsonify({'success': True})
     except Exception as e:
         log.error(f'[gallery] clear failed: {e}', exc_info=True)
@@ -1782,18 +1843,16 @@ def api_gallery_save_model():
         return jsonify({'error': 'glb_url required'}), 400
 
     try:
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute(
-                """INSERT INTO gallery
-                       (user_id, url, type, category, title, tags, thumbnail_url, model_urls)
-                   VALUES (%s, %s, 'model', %s, %s, '[]'::jsonb, %s, %s)
-                   RETURNING id""",
-                (user_id, glb_url, category, title, thumbnail_url, json.dumps(model_urls))
-            )
-            item_id = cur.fetchone()['id']
-        conn.commit()
-        conn.close()
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO gallery
+                           (user_id, url, type, category, title, tags, thumbnail_url, model_urls)
+                       VALUES (%s, %s, 'model', %s, %s, '[]'::jsonb, %s, %s)
+                       RETURNING id""",
+                    (user_id, glb_url, category, title, thumbnail_url, json.dumps(model_urls))
+                )
+                item_id = cur.fetchone()['id']
         log.info(f'[gallery] model saved | id={item_id} | user={user_id}')
         return jsonify({'success': True, 'id': str(item_id)})
     except Exception as e:
