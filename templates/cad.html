@@ -494,7 +494,7 @@
       <div class="cad-output-header">
         <span class="cad-output-title">3D Output</span>
         <div id="cadHeaderActions" style="display:none;gap:8px">
-          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cadOutputBody').innerHTML = cadPlaceholderHTML()">
+          <button class="btn btn-ghost btn-sm" onclick="saveState(null); document.getElementById('cadOutputBody').innerHTML = cadPlaceholderHTML(); document.getElementById('adjustPanel').style.display='none'">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.04"/>
             </svg>
@@ -602,14 +602,18 @@ function cadPlaceholderHTML() {
   </div>`;
 }
 
-function saveState() {
+function saveState(modelResult) {
   try {
-    sessionStorage.setItem(SS_KEY, JSON.stringify({
+    const existing = JSON.parse(sessionStorage.getItem(SS_KEY) || '{}');
+    const next = {
       prompt:  document.getElementById('cadPrompt').value,
       style:   document.getElementById('cadStyle').value,
       target:  document.getElementById('cadTarget').value,
       formats: [...document.querySelectorAll('.format-chip.active')].map(c => c.dataset.fmt),
-    }));
+      // Preserve existing model result unless a new one is explicitly provided
+      modelResult: modelResult !== undefined ? modelResult : (existing.modelResult || null),
+    };
+    sessionStorage.setItem(SS_KEY, JSON.stringify(next));
   } catch(e) {}
 }
 
@@ -656,6 +660,10 @@ window.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.format-chip').forEach(c => {
         c.classList.toggle('active', saved.formats.includes(c.dataset.fmt));
       });
+    }
+    // Restore the 3D viewer if a model was previously generated
+    if (saved.modelResult && saved.modelResult.model_urls) {
+      showCADResult(saved.modelResult, true);
     }
   }
 });
@@ -849,7 +857,7 @@ function updateStatusProgress(pct, status) {
   else activateStep(4);
 }
 
-function showCADResult(data) {
+function showCADResult(data, _silent) {
   const urls  = data.model_urls || {};
   const thumb = data.thumbnail_url || '';
   const glbUrl = urls.glb || urls.GLB || '';
@@ -935,7 +943,12 @@ function showCADResult(data) {
     </div>`;
 
   document.getElementById('cadHeaderActions').style.display = 'flex';
-  showToast('3D model ready!', 'success');
+  if (!_silent) showToast('3D model ready!', 'success');
+
+  // Persist the result so it survives tab switches
+  saveState({ model_urls: urls, thumbnail_url: thumb, model_viewer_url: data.model_viewer_url || '',
+              vertex_count: data.vertex_count, face_count: data.face_count,
+              texture_resolution: data.texture_resolution });
 
   // Reveal the adjust panel now that we have a result to iterate on
   document.getElementById('adjustPanel').style.display = 'block';
