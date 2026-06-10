@@ -344,7 +344,14 @@ def get_gemini_client():
     api_key = os.getenv('GEMINI_API_KEY')
     if not api_key:
         return None, "GEMINI_API_KEY not set in .env file"
-    return genai.Client(api_key=api_key), None
+    # Set an explicit 90-second timeout so slow image-generation calls raise a
+    # clean TimeoutError rather than letting Gunicorn's worker-kill (SystemExit)
+    # tear through the response mid-stream.
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=90_000),  # milliseconds
+    )
+    return client, None
 
 def get_meshy_key():
     key = os.getenv('MESHY_API_KEY')
