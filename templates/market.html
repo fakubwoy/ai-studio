@@ -345,11 +345,13 @@
 {% block scripts %}
 <script>
 let marketImageFile = null;
+let marketPreviewSrcOnLoad = null;  // tracks URL set via sessionStorage handoff
 
 window.addEventListener('DOMContentLoaded', () => {
   const pending    = sessionStorage.getItem('pendingMarketImage');
   const pendingCat = sessionStorage.getItem('pendingMarketCategory');
   if (pending) {
+    marketPreviewSrcOnLoad = pending;
     document.getElementById('marketPreviewImg').src = pending;
     document.getElementById('marketPlaceholder').style.display = 'none';
     document.getElementById('marketPreview').style.display = 'block';
@@ -366,6 +368,7 @@ marketFile.addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
   marketImageFile = file;
+  marketPreviewSrcOnLoad = null;  // fresh upload — no longer a URL handoff
   const reader = new FileReader();
   reader.onload = ev => {
     document.getElementById('marketPreviewImg').src = ev.target.result;
@@ -377,14 +380,14 @@ marketFile.addEventListener('change', e => {
 
 function clearMarketUpload(e) {
   e.stopPropagation();
-  marketImageFile = null; marketFile.value = '';
+  marketImageFile = null; marketPreviewSrcOnLoad = null; marketFile.value = '';
   document.getElementById('marketPlaceholder').style.display = 'flex';
   document.getElementById('marketPreview').style.display = 'none';
 }
 
 async function runMarketResearch() {
   const previewSrc = document.getElementById('marketPreviewImg').src;
-  if (!marketImageFile && !previewSrc.startsWith('data:') && !previewSrc.includes('/static')) {
+  if (!marketImageFile && !previewSrc.startsWith('data:') && !previewSrc.includes('/static') && !marketPreviewSrcOnLoad) {
     showToast('Please upload a jewellery image.', 'error'); return;
   }
 
@@ -402,14 +405,24 @@ async function runMarketResearch() {
   fd.append('keyword', keyword);
 
   if (marketImageFile) {
+    // Fresh file upload — send directly
     fd.append('image', marketImageFile);
   } else {
+    // Image came from cross-module handoff (data-URI or /static/... URL)
+    // Fetch and re-send as a blob so the backend always gets a proper file
     try {
-      const resp = await fetch(previewSrc);
+      let fetchUrl = previewSrc;
+      // For relative /static/... paths, make them absolute so fetch works in all contexts
+      if (fetchUrl.startsWith('/static')) {
+        fetchUrl = window.location.origin + fetchUrl;
+      }
+      const resp = await fetch(fetchUrl);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const blob = await resp.blob();
+      if (blob.size === 0) throw new Error('Empty blob');
       fd.append('image', blob, 'jewellery.jpg');
     } catch(e) {
-      showToast('Could not load image.', 'error');
+      showToast('Could not load image — please upload it again.', 'error');
       btn.disabled = false;
       btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Research Market';
       return;

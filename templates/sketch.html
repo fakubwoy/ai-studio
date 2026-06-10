@@ -355,10 +355,11 @@
 {% block scripts %}
 <script>
 const SS_KEY = 'sketchStudioState';
-let sketchDataUrl = null;
-let activeVars    = new Set(['Classic']);
-let currentMode   = 'sketch';
-let concepts      = [];
+let sketchDataUrl  = null;   // data-URI for preview & sessionStorage
+let sketchFileObj  = null;   // raw File — sent as multipart to backend
+let activeVars     = new Set(['Classic']);
+let currentMode    = 'sketch';
+let concepts       = [];
 
 function saveState() {
   try {
@@ -407,6 +408,7 @@ const sketchZone = document.getElementById('sketchUploadZone');
 sketchFile.addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
+  sketchFileObj = file;   // keep the File for multipart upload to backend
   const reader = new FileReader();
   reader.onload = ev => {
     sketchDataUrl = ev.target.result;
@@ -428,7 +430,7 @@ sketchZone.addEventListener('drop', e => {
 
 function clearSketch(e) {
   e.stopPropagation();
-  sketchDataUrl = null; sketchFile.value = '';
+  sketchDataUrl = null; sketchFileObj = null; sketchFile.value = '';
   document.getElementById('sketchPlaceholder').style.display = 'flex';
   document.getElementById('sketchPreview').style.display = 'none';
   saveState();
@@ -451,7 +453,7 @@ async function runConceptualise() {
   const prompt   = document.getElementById('sketchPrompt').value.trim();
   const category = document.getElementById('sketchCategory').value;
   const metal    = document.getElementById('metalFinish').value;
-  if (!prompt && !sketchDataUrl) {
+  if (!prompt && !sketchDataUrl && !sketchFileObj) {
     showToast('Please upload a sketch or enter a description.', 'error'); return;
   }
   const btn = document.getElementById('conceptualiseBtn');
@@ -464,7 +466,24 @@ async function runConceptualise() {
     fd.append('category', category);
     fd.append('metal', metal);
     fd.append('variations', JSON.stringify([...activeVars]));
-    if (sketchDataUrl) fd.append('sketch_data', sketchDataUrl);
+
+    // Send the sketch as a proper file field so the backend gets a real image,
+    // not a potentially-truncated base64 string
+    if (sketchFileObj) {
+      // Fresh file upload — send directly
+      fd.append('sketch_image', sketchFileObj);
+    } else if (sketchDataUrl) {
+      // Restored from session — convert data-URI → Blob → File
+      try {
+        const res  = await fetch(sketchDataUrl);
+        const blob = await res.blob();
+        fd.append('sketch_image', blob, 'sketch.png');
+      } catch(e) {
+        // If conversion fails, fall back to base64 field (backend handles both)
+        fd.append('sketch_data', sketchDataUrl);
+      }
+    }
+
     const res  = await fetch('/api/conceptualise', { method: 'POST', body: fd });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); showEmpty(); return; }
@@ -533,7 +552,11 @@ function renderConcepts(list) {
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
             3D CAD
           </button>
-          ${c.image_url ? `<a href="${c.image_url}" download="concept-${i+1}.png" class="btn btn-outline btn-sm">
+          ${c.image_url ? `
+          <button class="btn btn-outline btn-sm" onclick="saveConceptToGallery(${i}, this)" title="Save to gallery">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          </button>
+          <a href="${c.image_url}" download="concept-${i+1}.png" class="btn btn-outline btn-sm">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           </a>` : ''}
         </div>
@@ -559,6 +582,47 @@ function sendToCAD(i) {
     window.location.href = '/studio/cad';
   } else {
     showToast('Generate a concept image first.', 'error');
+  }
+}
+
+async function saveConceptToGallery(i, btn) {
+  const c = concepts[i];
+  if (!c || !c.image_url) { showToast('No image to save.', 'error'); return; }
+
+  // Visual feedback on the button
+  const origHTML = btn.innerHTML;
+  btn.disabled   = true;
+  btn.innerHTML  = '<div class="spinner" style="width:11px;height:11px;border-width:2px"></div>';
+
+  try {
+    const res  = await fetch('/api/gallery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url:      c.image_url,
+        type:     'concept',
+        category: document.getElementById('sketchCategory').value || '',
+        title:    c.title || '',
+        tags:     c.tags  || [],
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      // Turn button gold to confirm saved
+      btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      btn.style.borderColor  = 'var(--gold)';
+      btn.style.color        = 'var(--gold-dk)';
+      btn.style.background   = 'var(--gold-bg)';
+      showToast('Saved to gallery!', 'success');
+    } else {
+      btn.innerHTML = origHTML;
+      btn.disabled  = false;
+      showToast(data.error || 'Could not save.', 'error');
+    }
+  } catch(err) {
+    btn.innerHTML = origHTML;
+    btn.disabled  = false;
+    showToast('Network error: ' + err.message, 'error');
   }
 }
 

@@ -105,6 +105,16 @@ def init_db():
                 ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
                 user_id UUID REFERENCES users(id) ON DELETE CASCADE;
             """)
+            # Migrate: add thumbnail_url for 3D model gallery items
+            cur.execute("""
+                ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
+                thumbnail_url TEXT NOT NULL DEFAULT '';
+            """)
+            # Migrate: add model_urls JSONB for storing all download links
+            cur.execute("""
+                ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
+                model_urls JSONB NOT NULL DEFAULT '{}'::jsonb;
+            """)
             # Seed categories from DEFAULT_CATEGORIES if table is empty
             cur.execute('SELECT COUNT(*) AS n FROM categories')
             row = cur.fetchone()
@@ -735,6 +745,26 @@ def api_auth_signin():
     return jsonify({'success': True, 'user': {'id': user_id, 'email': email, 'name': display, 'avatar': avatar}})
 
 
+# ── Health check ───────────────────────────────────────────────────────────────
+
+@app.route('/healthz')
+def healthz():
+    """Lightweight liveness check for Railway / load balancers."""
+    status = {'status': 'ok', 'db': False, 'redis': False}
+    if _DB_URL:
+        try:
+            conn = get_db()
+            with conn.cursor() as cur:
+                cur.execute('SELECT 1')
+            conn.close()
+            status['db'] = True
+        except Exception:
+            pass
+    if get_redis() is not None:
+        status['redis'] = True
+    return jsonify(status), 200
+
+
 # ── Pages ──────────────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -850,29 +880,55 @@ def add_template():
 @login_required
 def api_conceptualise():
     """
-    Takes a sketch image (optional) + text description + variations list.
-    Returns multiple concept objects with image_url, title, description, tags.
+    Takes a sketch image (optional, as file upload OR base64) + text description
+    + variations list.  Returns multiple concept objects with image_url, title,
+    description, tags.  Each generated image is auto-saved to the user's gallery.
     """
     prompt_text  = request.form.get('prompt', '').strip()
     category     = request.form.get('category', 'Jewellery')
     metal        = request.form.get('metal', '22K Yellow Gold')
     variations   = json.loads(request.form.get('variations', '["Classic"]'))
-    sketch_data  = request.form.get('sketch_data', '')  # base64 data URL
 
-    if not prompt_text and not sketch_data:
+    # ── Resolve sketch image ──────────────────────────────────────────────────
+    # Priority: multipart file field 'sketch_image' → base64 form field 'sketch_data'
+    sketch_img = None   # PIL Image to pass to Gemini
+    has_sketch = False
+
+    sketch_file = request.files.get('sketch_image')
+    if sketch_file and sketch_file.filename:
+        try:
+            sketch_img = Image.open(io.BytesIO(sketch_file.read())).convert('RGB')
+            has_sketch = True
+            log.info('[conceptualise] using uploaded sketch file')
+        except Exception as e:
+            log.warning(f'[conceptualise] could not read sketch_image file: {e}')
+
+    if not has_sketch:
+        sketch_data = request.form.get('sketch_data', '')
+        if sketch_data:
+            try:
+                b64 = sketch_data.split(',', 1)[1] if ',' in sketch_data else sketch_data
+                sketch_img = Image.open(io.BytesIO(base64.b64decode(b64))).convert('RGB')
+                has_sketch = True
+                log.info('[conceptualise] using base64 sketch_data')
+            except Exception as e:
+                log.warning(f'[conceptualise] could not decode sketch_data: {e}')
+
+    if not prompt_text and not has_sketch:
         return jsonify({'error': 'Provide a description or upload a sketch.'}), 400
 
     client, err = get_gemini_client()
     if err:
         return jsonify({'error': err}), 500
 
+    user_id = session.get('user_id')
     concepts = []
-    errors = []
+    errors   = []
 
     for variation in variations:
         try:
-            gen_prompt = f"""You are a senior jewellery design artist. 
-{"The user has provided a rough sketch of their jewellery concept." if sketch_data else ""}
+            gen_prompt = f"""You are a senior jewellery design artist.
+{"The user has provided a rough sketch of their jewellery concept." if has_sketch else ""}
 Create a photorealistic, highly detailed jewellery product photograph of this concept:
 
 Category: {category}
@@ -889,14 +945,11 @@ Requirements:
 - The piece should look like a real, wearable, high-end Indian jewellery piece
 
 Generate an image that would be appropriate for a luxury jewellery brand's catalogue.
-{"Interpret and improve the rough sketch, maintaining its core design intent." if sketch_data else ""}"""
+{"Interpret and improve the rough sketch, maintaining its core design intent." if has_sketch else ""}"""
 
             contents = [gen_prompt]
-            if sketch_data and ',' in sketch_data:
-                b64 = sketch_data.split(',', 1)[1]
-                img_bytes = base64.b64decode(b64)
-                img = Image.open(io.BytesIO(img_bytes))
-                contents.append(img)
+            if sketch_img is not None:
+                contents.append(sketch_img)
 
             response = client.models.generate_content(
                 model="gemini-2.5-flash-image",
@@ -907,13 +960,24 @@ Generate an image that would be appropriate for a luxury jewellery brand's catal
             image_url = None
             for part in response.candidates[0].content.parts:
                 if part.inline_data is not None:
-                    out_fn = f"concept_{uuid.uuid4()}.png"
-                    out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
-                    Image.open(io.BytesIO(part.inline_data.data)).save(out_path)
-                    image_url = f'/static/outputs/{out_fn}'
+                    out_bytes = part.inline_data.data
+                    out_fn    = f"concept_{uuid.uuid4()}.png"
+
+                    # Try to persist to R2 for durable storage
+                    r2_url = _upload_to_r2(out_bytes, f'concepts/{out_fn}')
+                    if r2_url:
+                        image_url = r2_url
+                        log.info(f'[conceptualise] uploaded to R2: {r2_url}')
+                    else:
+                        # Fall back to local filesystem
+                        out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
+                        Image.open(io.BytesIO(out_bytes)).save(out_path)
+                        image_url = f'/static/outputs/{out_fn}'
+
+                    log.info(f'[conceptualise] concept image: {image_url} | variation={variation}')
                     break
 
-            # Generate metadata with a text call
+            # Generate metadata with a fast text call
             meta_prompt = f"""For a {variation.lower()} style {metal} {category} jewellery piece{(' described as: ' + prompt_text) if prompt_text else ''}, generate a short JSON object:
 {{"title":"3-5 word evocative product name","description":"2 sentence description mentioning materials, style, and occasion","tags":["tag1","tag2","tag3","tag4"]}}
 Return ONLY the JSON, no markdown."""
@@ -926,21 +990,35 @@ Return ONLY the JSON, no markdown."""
             except Exception:
                 meta = {"title": f"{variation} {category}", "description": f"A beautiful {variation.lower()} style {metal} {category}.", "tags": [metal, category, variation]}
 
-            concepts.append({
-                'variation': variation,
-                'image_url': image_url,
-                'title': meta.get('title', f'{variation} {category}'),
+            concept = {
+                'variation':   variation,
+                'image_url':   image_url,
+                'title':       meta.get('title', f'{variation} {category}'),
                 'description': meta.get('description', ''),
-                'tags': meta.get('tags', []),
-            })
+                'tags':        meta.get('tags', []),
+            }
+            concepts.append(concept)
 
-            # Save to output gallery metadata
-            if image_url:
-                log.info(f"[conceptualise] saved concept: {image_url} | variation={variation}")
+            # ── Auto-save to gallery ──────────────────────────────────────────
+            if image_url and user_id and _DB_URL:
+                try:
+                    conn = get_db()
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """INSERT INTO gallery (user_id, url, type, category, title, tags)
+                               VALUES (%s, %s, 'concept', %s, %s, %s)""",
+                            (user_id, image_url, category,
+                             meta.get('title', ''), json.dumps(meta.get('tags', [])))
+                        )
+                    conn.commit()
+                    conn.close()
+                    log.info(f'[conceptualise] auto-saved to gallery: {image_url}')
+                except Exception as db_err:
+                    log.warning(f'[conceptualise] gallery auto-save failed: {db_err}')
 
         except Exception as e:
-            log.error(f"[conceptualise] FAIL for variation={variation}: {e}", exc_info=True)
-            errors.append(f"{variation}: {str(e)}")
+            log.error(f'[conceptualise] FAIL for variation={variation}: {e}', exc_info=True)
+            errors.append(f'{variation}: {str(e)}')
 
     if not concepts:
         return jsonify({'error': 'All variations failed. ' + '; '.join(errors)}), 500
@@ -1032,10 +1110,20 @@ def _generate_with_gemini(image_path, prompt, category, extra_paths=None):
 
         for part in response.candidates[0].content.parts:
             if part.inline_data is not None:
-                out_fn = f"output_{uuid.uuid4()}.png"
-                out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
-                Image.open(io.BytesIO(part.inline_data.data)).save(out_path)
-                return {'success': True, 'image_url': f'/static/outputs/{out_fn}', 'provider': 'Gemini', 'prompt_used': prompt}
+                out_bytes = part.inline_data.data
+                out_fn    = f"output_{uuid.uuid4()}.png"
+
+                # Try durable R2 storage first; fall back to local /tmp
+                r2_url = _upload_to_r2(out_bytes, f'outputs/{out_fn}')
+                if r2_url:
+                    image_url = r2_url
+                    log.info(f'[generate] uploaded to R2: {r2_url}')
+                else:
+                    out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
+                    Image.open(io.BytesIO(out_bytes)).save(out_path)
+                    image_url = f'/static/outputs/{out_fn}'
+
+                return {'success': True, 'image_url': image_url, 'provider': 'Gemini', 'prompt_used': prompt}
 
         text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
         return {'error': 'Gemini returned no image.', 'details': ' '.join(text_parts) if text_parts else 'No details.'}
@@ -1106,11 +1194,61 @@ Return ONLY this JSON:
 
 # ── API: 3D CAD (Meshy AI) ─────────────────────────────────────────────────────
 
+def _upload_to_r2(img_bytes: bytes, filename: str) -> str | None:
+    """
+    Upload image bytes to Cloudflare R2 (or any S3-compatible store) and return
+    a public URL.  Requires env vars:
+        R2_ENDPOINT_URL  – e.g. https://<account>.r2.cloudflarestorage.com
+        R2_ACCESS_KEY_ID
+        R2_SECRET_ACCESS_KEY
+        R2_BUCKET_NAME
+        R2_PUBLIC_URL    – public base URL, e.g. https://assets.yourdomain.com
+    Falls back to None if any variable is missing (caller uses base64 URI instead).
+    """
+    endpoint   = os.getenv('R2_ENDPOINT_URL', '').rstrip('/')
+    access_key = os.getenv('R2_ACCESS_KEY_ID', '')
+    secret_key = os.getenv('R2_SECRET_ACCESS_KEY', '')
+    bucket     = os.getenv('R2_BUCKET_NAME', '')
+    public_url = os.getenv('R2_PUBLIC_URL', '').rstrip('/')
+
+    if not all([endpoint, access_key, secret_key, bucket, public_url]):
+        return None
+
+    try:
+        try:
+            import boto3
+        except ImportError:
+            log.warning('[cad] boto3 not installed — R2 upload unavailable. Run: pip install boto3')
+            return None
+        s3 = boto3.client(
+            's3',
+            endpoint_url=endpoint,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name='auto',
+        )
+        key = f'cad-inputs/{filename}'
+        s3.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=img_bytes,
+            ContentType='image/png',
+        )
+        return f'{public_url}/{key}'
+    except Exception as e:
+        log.warning(f'[cad] R2 upload failed, falling back to base64: {e}')
+        return None
+
+
 @app.route('/api/generate-cad', methods=['POST'])
 @login_required
 def api_generate_cad():
-    """Submit an image to Meshy AI image-to-3D and return a task_id for polling."""
-    image_data = request.form.get('image_data', '')
+    """Submit an image to Meshy AI image-to-3D and return a task_id for polling.
+
+    Accepts the image either as:
+      • a multipart file field  (name='image')  — preferred, sent by cad.html
+      • a base64 data-URI string (name='image_data') — legacy / fallback
+    """
     prompt     = request.form.get('prompt', '').strip()
     art_style  = request.form.get('art_style', 'realistic')
     target_use = request.form.get('target_use', 'visualization')
@@ -1119,37 +1257,68 @@ def api_generate_cad():
     if err:
         return jsonify({'error': err, 'details': 'Add MESHY_API_KEY to your .env file. Get one free at meshy.ai'}), 500
 
-    if not image_data:
+    # ── Resolve image bytes from either source ────────────────────────────────
+    img_bytes = None
+
+    uploaded_file = request.files.get('image')
+    if uploaded_file and uploaded_file.filename:
+        img_bytes = uploaded_file.read()
+    else:
+        image_data = request.form.get('image_data', '')
+        if image_data:
+            try:
+                b64 = image_data.split(',', 1)[1] if ',' in image_data else image_data
+                img_bytes = base64.b64decode(b64)
+            except Exception as e:
+                return jsonify({'error': f'Invalid base64 image data: {e}'}), 400
+
+    if not img_bytes:
         return jsonify({'error': 'No image provided'}), 400
 
-    # Meshy expects a public URL or base64 string.
-    # We'll upload to a temp endpoint on our own server first.
     try:
-        if ',' in image_data:
-            b64 = image_data.split(',', 1)[1]
-        else:
-            b64 = image_data
+        # Normalise to PNG
+        pil_img  = Image.open(io.BytesIO(img_bytes)).convert('RGBA')
+        buf      = io.BytesIO()
+        pil_img.save(buf, format='PNG')
+        img_bytes = buf.getvalue()
 
-        img_bytes = base64.b64decode(b64)
-
-        # Save locally and use our own static URL
         tmp_fn = f"cad_input_{uuid.uuid4()}.png"
-        tmp_path = os.path.join(app.config['UPLOAD_FOLDER'], tmp_fn)
-        Image.open(io.BytesIO(img_bytes)).save(tmp_path)
 
-        # Build the image URL that Meshy can reach (must be public in production)
-        host = request.host_url.rstrip('/')
-        image_url = f"{host}/static/uploads/{tmp_fn}"
+        # ── Attempt 1: upload to R2 / S3 for a public URL ────────────────────
+        public_img_url = _upload_to_r2(img_bytes, tmp_fn)
 
-        # Meshy art style mapping
+        # ── Attempt 2: use host URL (works when deployed publicly) ──────────
+        if not public_img_url:
+            tmp_path = os.path.join(app.config['UPLOAD_FOLDER'], tmp_fn)
+            with open(tmp_path, 'wb') as f:
+                f.write(img_bytes)
+            host = request.host_url.rstrip('/')
+            # On Railway the host is public; locally it resolves to localhost
+            # which Meshy cannot reach — we fall through to base64 below.
+            if 'localhost' not in host and '127.0.0.1' not in host:
+                public_img_url = f"{host}/static/uploads/{tmp_fn}"
+
+        # ── Build Meshy payload ───────────────────────────────────────────────
         style_map = {'realistic': 'realistic', 'jewelry': 'realistic', 'sculpture': 'sculpture', 'game': 'cartoon'}
         meshy_style = style_map.get(art_style, 'realistic')
 
-        payload = {
-            "image_url": image_url,
-            "enable_pbr": True,
-            "should_remesh": True,
-        }
+        if public_img_url:
+            log.info(f"[cad] using public image URL: {public_img_url}")
+            payload = {
+                "image_url": public_img_url,
+                "enable_pbr": True,
+                "should_remesh": True,
+            }
+        else:
+            # ── Attempt 3: send base64 directly — Meshy image-to-3D v1 supports it
+            log.info("[cad] no public URL available, sending base64 data URI to Meshy")
+            b64str = base64.b64encode(img_bytes).decode()
+            payload = {
+                "image_url": f"data:image/png;base64,{b64str}",
+                "enable_pbr": True,
+                "should_remesh": True,
+            }
+
         if prompt:
             payload["object_prompt"] = prompt
 
@@ -1158,7 +1327,7 @@ def api_generate_cad():
             "Content-Type": "application/json",
         }
 
-        log.info(f"[cad] submitting to Meshy | image_url={image_url}")
+        log.info(f"[cad] submitting to Meshy AI (style={meshy_style})")
         res = requests.post(
             "https://api.meshy.ai/openapi/v1/image-to-3d",
             headers=headers,
@@ -1176,10 +1345,9 @@ def api_generate_cad():
             return jsonify({'error': f'Meshy API error: {res.status_code}', 'details': res.text[:300]}), 500
 
     except requests.exceptions.ConnectionError:
-        # If running locally without internet access to Meshy, return a helpful demo error
         return jsonify({
             'error': 'Cannot reach Meshy API.',
-            'details': 'Ensure MESHY_API_KEY is set and this server is accessible from the internet (Meshy needs to reach your image URL). For local testing, deploy to Railway or use ngrok.'
+            'details': 'Check your network connection and MESHY_API_KEY. For local testing without a public URL, configure R2_ENDPOINT_URL/R2_BUCKET_NAME or deploy to Railway.'
         }), 500
     except Exception as e:
         log.error(f"[cad] exception: {e}", exc_info=True)
@@ -1232,6 +1400,116 @@ def api_cad_status(task_id):
     except Exception as e:
         log.error(f"[cad-status] exception: {e}", exc_info=True)
         return jsonify({'error': str(e), 'status': 'ERROR'}), 500
+
+# ── API: CAD Validation & Manufacturability Check ─────────────────────────────
+
+@app.route('/api/validate-cad', methods=['POST'])
+@login_required
+def api_validate_cad():
+    """
+    Analyse a jewellery image (or generated 3D thumbnail) for design integrity
+    and manufacturing feasibility. Returns structured JSON with pass/fail checks,
+    severity ratings, and actionable suggestions.
+    """
+    image_data  = request.form.get('image_data', '')
+    category    = request.form.get('category', 'Jewellery').strip()
+    target_use  = request.form.get('target_use', 'visualization').strip()
+    metal       = request.form.get('metal', '').strip()
+
+    client, err = get_gemini_client()
+    if err:
+        return jsonify({'success': False, 'error': err}), 500
+
+    if not image_data:
+        return jsonify({'success': False, 'error': 'No image provided for validation'}), 400
+
+    # Cache key: SHA1 of image + category + target_use + metal
+    if ',' in image_data:
+        b64 = image_data.split(',', 1)[1]
+    else:
+        b64 = image_data
+    try:
+        img_bytes = base64.b64decode(b64)
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Invalid image data: {e}'}), 400
+
+    cache_key = 'glymr:validate:' + hashlib.sha1(
+        img_bytes + category.encode() + target_use.encode() + metal.encode()
+    ).hexdigest()
+    cached = cache_get(cache_key)
+    if cached:
+        log.info(f'[validate-cad] cache HIT | key={cache_key[:20]}…')
+        return jsonify(cached)
+
+    use_context = {
+        'wax_casting':    'wax casting / lost-wax manufacturing for fine jewellery',
+        '3d_print':       'FDM/SLA 3D printing followed by metal casting',
+        'visualization':  'digital rendering and e-commerce visualisation only',
+        'game':           'real-time game / AR / digital asset',
+    }.get(target_use, target_use)
+
+    metal_note = f'Metal/material: {metal}.' if metal else ''
+
+    prompt = f"""You are a senior jewellery manufacturing engineer and CAD validation expert.
+Analyse this {category} jewellery design image for structural integrity and manufacturing feasibility.
+Target use: {use_context}. {metal_note}
+
+Perform a thorough inspection across ALL of the following dimensions:
+
+1. GEOMETRY — wall thickness, undercuts, fragile protrusions, unsupported spans
+2. SYMMETRY — left/right balance, stone setting regularity, uniform prong spacing
+3. STONE SETTINGS — prong count & height adequacy, bezel completeness, girdle exposure
+4. STRUCTURAL INTEGRITY — weak joints, thin shanks, stress concentration points
+5. MANUFACTURABILITY — tool access, parting line feasibility, casting shrinkage risk
+6. PROPORTIONS — size relationships between elements, wearability ergonomics
+7. SURFACE — tooling marks, texture consistency, polishability of concave areas
+
+Return ONLY this exact JSON — no markdown, no extra keys:
+{{
+  "overall_score": <integer 0-100>,
+  "overall_status": "<PASS|WARN|FAIL>",
+  "summary": "<2-3 sentence plain-English verdict>",
+  "checks": [
+    {{
+      "id": "<snake_case_id>",
+      "label": "<Short label, max 5 words>",
+      "status": "<pass|warn|fail>",
+      "severity": "<low|medium|high>",
+      "description": "<1-2 sentence finding>",
+      "suggestion": "<1 sentence actionable fix, or null if pass>"
+    }}
+  ],
+  "critical_issues": ["<issue 1>", "<issue 2>"],
+  "recommendations": ["<recommendation 1>", "<recommendation 2>", "<recommendation 3>"]
+}}
+
+RULES:
+- Include exactly one check per dimension above (7 checks total).
+- overall_score: 90-100=excellent, 70-89=good with minor issues, 50-69=needs rework, <50=significant problems.
+- overall_status: PASS if score>=75, WARN if 50-74, FAIL if <50.
+- critical_issues: list only severity=high fail/warn items; empty array if none.
+- Be specific — reference actual features visible in the image, not generic boilerplate."""
+
+    try:
+        img_part = types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg')
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[img_part, prompt],
+            config=types.GenerateContentConfig(temperature=0.1),
+        )
+        raw = response.text.strip().replace('```json', '').replace('```', '').strip()
+        match = re.search(r'\{[\s\S]*\}', raw)
+        if not match:
+            return jsonify({'success': False, 'error': 'No JSON in response. Raw: ' + raw[:200]}), 500
+        parsed = json.loads(match.group(0))
+        result = {'success': True, **parsed}
+        cache_set(cache_key, result, ttl=1800)  # 30 min cache
+        log.info(f'[validate-cad] done | category={category} | score={parsed.get("overall_score")}')
+        return jsonify(result)
+    except Exception as e:
+        log.error(f'[validate-cad] exception: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 # ── API: Market Research ───────────────────────────────────────────────────────
 
@@ -1372,20 +1650,22 @@ def api_gallery_list():
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute(
-                'SELECT id, url, type, category, title, tags, created_at FROM gallery WHERE user_id=%s ORDER BY created_at DESC',
+                'SELECT id, url, type, category, title, tags, thumbnail_url, model_urls, created_at FROM gallery WHERE user_id=%s ORDER BY created_at DESC',
                 (user_id,)
             )
             rows = cur.fetchall()
         conn.close()
         items = [
             {
-                'id':        str(r['id']),
-                'url':       r['url'],
-                'type':      r['type'],
-                'category':  r['category'],
-                'title':     r['title'],
-                'tags':      r['tags'],
-                'created_at': r['created_at'].isoformat(),
+                'id':            str(r['id']),
+                'url':           r['url'],
+                'type':          r['type'],
+                'category':      r['category'],
+                'title':         r['title'],
+                'tags':          r['tags'],
+                'thumbnail_url': r.get('thumbnail_url', ''),
+                'model_urls':    r.get('model_urls', {}),
+                'created_at':    r['created_at'].isoformat(),
             }
             for r in rows
         ]
@@ -1462,6 +1742,55 @@ def api_gallery_clear():
         return jsonify({'success': True})
     except Exception as e:
         log.error(f'[gallery] clear failed: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gallery/save-model', methods=['POST'])
+@login_required
+def api_gallery_save_model():
+    """Save a completed 3D CAD model (from Meshy) to the gallery.
+
+    Expected JSON body:
+        {
+            "glb_url":       "https://…/model.glb",   ← primary URL shown in gallery
+            "thumbnail_url": "https://…/thumb.png",   ← preview image
+            "model_urls":    {"glb": "…", "obj": "…", "fbx": "…", "usdz": "…"},
+            "category":      "Necklace",
+            "title":         "Gold Kundan Necklace"   ← optional
+        }
+    """
+    if not _DB_URL:
+        return jsonify({'error': 'DATABASE_URL not set'}), 500
+
+    user_id = session['user_id']
+    body    = request.json or {}
+
+    glb_url       = body.get('glb_url', '').strip()
+    thumbnail_url = body.get('thumbnail_url', '').strip()
+    model_urls    = body.get('model_urls', {})
+    category      = body.get('category', '')
+    title         = body.get('title', '')
+
+    if not glb_url:
+        return jsonify({'error': 'glb_url required'}), 400
+
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO gallery
+                       (user_id, url, type, category, title, tags, thumbnail_url, model_urls)
+                   VALUES (%s, %s, 'model', %s, %s, '[]'::jsonb, %s, %s)
+                   RETURNING id""",
+                (user_id, glb_url, category, title, thumbnail_url, json.dumps(model_urls))
+            )
+            item_id = cur.fetchone()['id']
+        conn.commit()
+        conn.close()
+        log.info(f'[gallery] model saved | id={item_id} | user={user_id}')
+        return jsonify({'success': True, 'id': str(item_id)})
+    except Exception as e:
+        log.error(f'[gallery] save-model failed: {e}', exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 

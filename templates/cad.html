@@ -179,6 +179,216 @@
     transform: rotate(-90deg); transform-origin: 50% 50%;
   }
 
+  /* ── Embedded 3D viewer ─────────────────────────────────────────── */
+  .threejs-viewer {
+    width: 100%; height: 420px;
+    border-radius: var(--radius-lg);
+    background: #0e0c0a;
+    position: relative; overflow: hidden;
+  }
+
+  .threejs-viewer canvas { display: block; width: 100% !important; height: 100% !important; }
+
+  .viewer-controls {
+    position: absolute; bottom: 12px; right: 12px;
+    display: flex; gap: 6px;
+  }
+
+  .viewer-ctrl-btn {
+    width: 30px; height: 30px;
+    background: rgba(250,247,242,.10);
+    border: 1px solid rgba(250,247,242,.15);
+    color: rgba(250,247,242,.8);
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background var(--t) var(--ease);
+    backdrop-filter: blur(8px);
+  }
+
+  .viewer-ctrl-btn:hover { background: rgba(184,146,74,.4); border-color: rgba(184,146,74,.5); }
+
+  .viewer-hint {
+    position: absolute; bottom: 12px; left: 14px;
+    font-family: var(--font-mono); font-size: 10px;
+    color: rgba(250,247,242,.35); pointer-events: none;
+    letter-spacing: .04em;
+  }
+
+  .viewer-loading {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 12px; color: rgba(250,247,242,.5);
+    font-size: 12px; font-family: var(--font-mono);
+  }
+
+  /* ── Adjustment / re-generate panel ────────────────────────────── */
+  .adjust-panel {
+    background: var(--surface);
+    border: 1px solid var(--paper-3);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-top: 16px;
+  }
+
+  .adjust-header {
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--paper-2);
+    display: flex; align-items: center; gap: 9px;
+  }
+
+  .adjust-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+  .adjust-row { display: flex; flex-direction: column; gap: 6px; }
+
+  .adjust-row label {
+    font-size: 11px; font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+
+  .scale-track {
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .scale-track input[type=range] {
+    flex: 1; padding: 0; border: none; background: transparent;
+    accent-color: var(--gold); height: 4px; cursor: pointer;
+  }
+
+  .scale-val {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+    color: var(--gold-dk); min-width: 36px; text-align: right;
+  }
+
+  .detail-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .detail-chip {
+    padding: 4px 12px; border-radius: 20px;
+    border: 1.5px solid var(--paper-3);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    color: var(--ink-3); font-family: var(--font-mono);
+    transition: all var(--t) var(--ease);
+  }
+
+  .detail-chip.active {
+    border-color: var(--gold); color: var(--gold-dk); background: var(--gold-bg);
+  }
+
+  .detail-chip:hover:not(.active) { border-color: var(--paper-4); color: var(--ink); }
+
+  /* ── Validation panel ───────────────────────────────────────────── */
+  .validation-panel {
+    background: var(--surface);
+    border: 1px solid var(--paper-3);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-top: 20px;
+  }
+
+  .val-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--paper-2);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .val-score-ring {
+    width: 56px; height: 56px; flex-shrink: 0;
+  }
+
+  .val-score-ring circle { fill: none; stroke-width: 4.5; }
+  .vsr-bg   { stroke: var(--paper-2); }
+  .vsr-fill { stroke-linecap: round; stroke-dasharray: 138; stroke-dashoffset: 138;
+              transform: rotate(-90deg); transform-origin: 50% 50%;
+              transition: stroke-dashoffset .8s var(--ease), stroke .4s; }
+
+  .val-score-label {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+  }
+
+  .val-status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; letter-spacing: .06em;
+    font-family: var(--font-mono);
+  }
+
+  .vsb-pass { background: rgba(45,106,79,.1);  color: var(--success); border: 1px solid rgba(45,106,79,.2); }
+  .vsb-warn { background: rgba(184,146,74,.1); color: var(--gold-dk); border: 1px solid rgba(184,146,74,.25); }
+  .vsb-fail { background: rgba(184,48,48,.08); color: var(--error);   border: 1px solid rgba(184,48,48,.18); }
+
+  .val-checks { padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; }
+
+  .val-check {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 11px 14px; border-radius: var(--radius);
+    background: var(--paper); border: 1px solid transparent;
+    transition: border-color var(--t) var(--ease);
+  }
+
+  .val-check:hover { border-color: var(--paper-3); }
+
+  .vc-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0; margin-top: 4px;
+  }
+
+  .vc-pass { background: var(--success); }
+  .vc-warn { background: var(--gold); }
+  .vc-fail { background: var(--error); }
+
+  .vc-body { flex: 1; min-width: 0; }
+  .vc-label { font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+  .vc-desc  { font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+  .vc-fix   { font-size: 11px; color: var(--gold-dk); margin-top: 4px;
+              display: flex; align-items: flex-start; gap: 4px; }
+
+  .vc-severity {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+    letter-spacing: .08em; padding: 1px 6px; border-radius: 10px;
+    text-transform: uppercase; flex-shrink: 0; margin-top: 2px;
+  }
+
+  .sev-low    { background: rgba(45,106,79,.08);  color: var(--success); }
+  .sev-medium { background: rgba(184,146,74,.1); color: var(--gold-dk); }
+  .sev-high   { background: rgba(184,48,48,.08); color: var(--error); }
+
+  .val-recommendations {
+    padding: 14px 20px 18px;
+    border-top: 1px solid var(--paper-2);
+  }
+
+  .val-rec-title {
+    font-size: 10px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-3);
+    font-family: var(--font-mono); margin-bottom: 10px;
+  }
+
+  .val-rec-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: 12px; color: var(--ink-2); margin-bottom: 6px;
+    line-height: 1.5;
+  }
+
+  .val-rec-item::before {
+    content: '→'; color: var(--gold); flex-shrink: 0;
+    font-weight: 600; margin-top: 1px;
+  }
+
+  .val-placeholder {
+    padding: 48px 24px; text-align: center;
+    color: var(--ink-3); font-size: 13px;
+  }
+
+  .val-placeholder-icon {
+    width: 52px; height: 52px; border-radius: var(--radius-lg);
+    background: var(--paper-2);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px; opacity: .6;
+  }
+
   @media (max-width: 900px) {
     .cad-layout { grid-template-columns: 1fr; padding: 20px; }
     .cad-sidebar { position: static; }
@@ -258,6 +468,13 @@
         Generate 3D Model
       </button>
 
+      <button class="btn btn-outline" style="width:100%;margin-top:8px" id="validateBtn" onclick="runValidation()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        Validate Design
+      </button>
+
       <p style="font-size:11px;color:var(--ink-4);text-align:center;margin-top:8px;font-family:var(--font-mono)">
         Powered by Meshy AI &middot; ~60–90 seconds
       </p>
@@ -300,6 +517,70 @@
         </div>
       </div>
     </div>
+
+    <!-- VALIDATION PANEL -->
+    <div class="validation-panel" id="validationPanel">
+      <div class="val-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          <span style="font-family:var(--font-serif);font-size:16px;font-weight:600;color:var(--ink)">Design Validation</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px" id="valHeaderMeta" style="display:none"></div>
+      </div>
+      <div id="valBody">
+        <div class="val-placeholder">
+          <div class="val-placeholder-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+          Upload an image and click <strong>Validate Design</strong> to check manufacturability.
+        </div>
+      </div>
+    </div>
+
+    <!-- ADJUSTMENT PANEL -->
+    <div class="adjust-panel" id="adjustPanel" style="display:none">
+      <div class="adjust-header">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+        </svg>
+        <span style="font-family:var(--font-serif);font-size:16px;font-weight:600;color:var(--ink)">Adjust &amp; Regenerate</span>
+      </div>
+      <div class="adjust-body">
+        <div class="adjust-row">
+          <label>Scale Factor</label>
+          <div class="scale-track">
+            <input type="range" id="scaleSlider" min="50" max="200" value="100" step="5"
+              oninput="document.getElementById('scaleVal').textContent=this.value+'%'" />
+            <span class="scale-val" id="scaleVal">100%</span>
+          </div>
+          <span style="font-size:10px;color:var(--ink-4);font-family:var(--font-mono)">100% = original size · 50% = half · 200% = double</span>
+        </div>
+        <div class="adjust-row">
+          <label>Geometry Detail</label>
+          <div class="detail-chips">
+            <div class="detail-chip" data-detail="low"    onclick="selectDetail(this)">Low</div>
+            <div class="detail-chip active" data-detail="medium" onclick="selectDetail(this)">Medium</div>
+            <div class="detail-chip" data-detail="high"   onclick="selectDetail(this)">High</div>
+            <div class="detail-chip" data-detail="ultra"  onclick="selectDetail(this)">Ultra</div>
+          </div>
+        </div>
+        <div class="adjust-row">
+          <label>Refinement Instructions</label>
+          <textarea id="adjustPrompt" rows="3"
+            placeholder="e.g. add more filigree detail to the pendant, thicker shank, smoother stone settings…"></textarea>
+        </div>
+        <button class="btn btn-gold" style="width:100%" onclick="regenerateWithAdjustments()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.04"/>
+          </svg>
+          Regenerate with Adjustments
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -333,13 +614,36 @@ function saveState() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  // Cross-module handoff
+  // ── Cross-module handoff: image from gallery/sketch/model ────────────────
   const pending = sessionStorage.getItem('pendingCADImage');
   if (pending) {
     document.getElementById('cadPreviewImg').src = pending;
     document.getElementById('cadPlaceholder').style.display = 'none';
     document.getElementById('cadPreview').style.display = 'block';
     sessionStorage.removeItem('pendingCADImage');
+  }
+
+  // ── Cross-module handoff: re-open a saved 3D model from gallery ──────────
+  const pendingGlb   = sessionStorage.getItem('pendingCADGlbUrl');
+  const pendingThumb = sessionStorage.getItem('pendingCADThumbUrl');
+  const pendingCat   = sessionStorage.getItem('pendingCADCategory');
+  if (pendingGlb) {
+    sessionStorage.removeItem('pendingCADGlbUrl');
+    sessionStorage.removeItem('pendingCADThumbUrl');
+    sessionStorage.removeItem('pendingCADCategory');
+    // Show result panel directly with the saved model URLs
+    showCADResult({
+      model_urls:       { glb: pendingGlb },
+      thumbnail_url:    pendingThumb || '',
+      model_viewer_url: '',
+    });
+    // Show thumbnail in sidebar if available
+    if (pendingThumb) {
+      document.getElementById('cadPreviewImg').src = pendingThumb;
+      document.getElementById('cadPlaceholder').style.display = 'none';
+      document.getElementById('cadPreview').style.display = 'block';
+    }
+    document.getElementById('cadHeaderActions').style.display = 'flex';
   }
   // Restore state
   let saved;
@@ -398,14 +702,21 @@ async function generateCAD() {
   document.getElementById('cadHeaderActions').style.display = 'none';
 
   const fd = new FormData();
-  fd.append('prompt', document.getElementById('cadPrompt').value);
-  fd.append('style', document.getElementById('cadStyle').value);
-  fd.append('target', document.getElementById('cadTarget').value);
+  fd.append('prompt',  document.getElementById('cadPrompt').value);
+  fd.append('art_style', document.getElementById('cadStyle').value);
+  fd.append('target_use', document.getElementById('cadTarget').value);
   fd.append('formats', JSON.stringify([...document.querySelectorAll('.format-chip.active')].map(c => c.dataset.fmt)));
 
+  // Always send the image as a file field so the backend can handle it cleanly
   if (cadImageFile) {
     fd.append('image', cadImageFile);
+  } else if (previewSrc.startsWith('data:')) {
+    // Convert data-URI to Blob
+    const res  = await fetch(previewSrc);
+    const blob = await res.blob();
+    fd.append('image', blob, 'jewellery.png');
   } else {
+    // Fetch from /static path and re-send as file
     try {
       const resp = await fetch(previewSrc);
       const blob = await resp.blob();
@@ -536,18 +847,40 @@ function updateStatusProgress(pct, status) {
 function showCADResult(data) {
   const urls  = data.model_urls || {};
   const thumb = data.thumbnail_url || '';
+  const glbUrl = urls.glb || urls.GLB || '';
 
+  // Build result layout: viewer left, meta right
   document.getElementById('cadOutputBody').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:28px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:28px;align-items:start">
       <div>
-        ${thumb
-          ? `<img src="${thumb}" style="width:100%;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);background:var(--ink);display:block" alt="3D model preview" />`
-          : `<div style="height:260px;background:var(--paper-2);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;opacity:.4">
-              <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
-              </svg>
-            </div>`}
+        <!-- Three.js embedded viewer (if GLB available) or thumbnail fallback -->
+        ${glbUrl ? `
+        <div class="threejs-viewer" id="threeViewer">
+          <div class="viewer-loading" id="viewerLoading">
+            <div class="spinner"></div>
+            <span>Loading 3D model…</span>
+          </div>
+          <div class="viewer-controls">
+            <button class="viewer-ctrl-btn" title="Reset camera" onclick="resetCamera()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.04"/></svg>
+            </button>
+            <button class="viewer-ctrl-btn" title="Toggle wireframe" onclick="toggleWireframe()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+            </button>
+            <button class="viewer-ctrl-btn" title="Open in Meshy" onclick="window.open('${data.model_viewer_url||''}','_blank')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="viewer-hint">Drag to rotate · Scroll to zoom · Right-drag to pan</div>
+        </div>` : thumb ? `
+        <img src="${thumb}" style="width:100%;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);background:var(--ink);display:block" alt="3D model preview" />` : `
+        <div style="height:260px;background:var(--paper-2);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;opacity:.4">
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+          </svg>
+        </div>`}
       </div>
+
       <div style="display:flex;flex-direction:column;gap:18px">
         <div>
           <div class="eyebrow" style="margin-bottom:8px">3D Model Ready</div>
@@ -578,17 +911,37 @@ function showCADResult(data) {
               </a>` : '').join('')}
           </div>
         </div>
-        ${data.model_viewer_url ? `
-        <div>
-          <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">3D Preview</div>
-          <iframe src="${data.model_viewer_url}" class="viewer-frame" style="height:220px;border-radius:var(--radius);border:1px solid var(--paper-3)"></iframe>
-        </div>` : ''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" style="align-self:flex-start" onclick="runValidation()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          Run Manufacturability Check
+        </button>
+        <button class="btn btn-gold btn-sm" id="saveModelBtn" style="align-self:flex-start"
+          onclick="saveModelToGallery(${JSON.stringify(glbUrl)},${JSON.stringify(thumb)},${JSON.stringify(urls)})">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Save to Gallery
+        </button>
+        </div>
       </div>
     </div>`;
 
   document.getElementById('cadHeaderActions').style.display = 'flex';
   showToast('3D model ready!', 'success');
+
+  // Reveal the adjust panel now that we have a result to iterate on
+  document.getElementById('adjustPanel').style.display = 'block';
+  document.getElementById('adjustPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  // Boot Three.js viewer if GLB available
+  if (glbUrl) {
+    setTimeout(() => initThreeViewer(glbUrl, thumb), 200);
+  }
 }
+
 
 function showCADError(msg, details) {
   document.getElementById('cadOutputBody').innerHTML = `
@@ -609,5 +962,378 @@ function showCADError(msg, details) {
 document.getElementById('cadPrompt').addEventListener('input', saveState);
 document.getElementById('cadStyle').addEventListener('change', saveState);
 document.getElementById('cadTarget').addEventListener('change', saveState);
+
+// ── Adjust & Regenerate ───────────────────────────────────────────────────────
+
+function selectDetail(el) {
+  document.querySelectorAll('.detail-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+async function regenerateWithAdjustments() {
+  const previewSrc = document.getElementById('cadPreviewImg').src;
+  if (!previewSrc || (!previewSrc.startsWith('data:') && !previewSrc.includes('/static'))) {
+    showToast('No source image to regenerate from.', 'error'); return;
+  }
+
+  const scale       = document.getElementById('scaleSlider').value;
+  const detail      = document.querySelector('.detail-chip.active')?.dataset.detail || 'medium';
+  const adjustText  = document.getElementById('adjustPrompt').value.trim();
+  const basePrompt  = document.getElementById('cadPrompt').value.trim();
+
+  // Build an augmented prompt
+  const parts = [];
+  if (basePrompt)   parts.push(basePrompt);
+  if (adjustText)   parts.push(adjustText);
+  if (scale !== '100') parts.push(`Scale the model to ${scale}% of the original size.`);
+  const detailMap = { low: 'low-poly, simplified geometry', medium: 'medium detail', high: 'high detail, fine surface features', ultra: 'ultra-high detail, maximum geometric fidelity' };
+  parts.push(`Geometry detail level: ${detailMap[detail] || 'medium detail'}.`);
+
+  const augmentedPrompt = parts.join(' ');
+
+  // Temporarily override the prompt field, run generation, restore
+  const origPrompt = document.getElementById('cadPrompt').value;
+  document.getElementById('cadPrompt').value = augmentedPrompt;
+
+  // Hide adjust panel during generation
+  document.getElementById('adjustPanel').style.display = 'none';
+
+  await generateCAD();
+
+  // Restore original prompt
+  document.getElementById('cadPrompt').value = origPrompt;
+}
+
+
+let threeScene = null, threeRenderer = null, threeCamera = null, threeControls = null;
+let threeAnimId = null, wireframeMode = false, threeModel = null;
+
+function initThreeViewer(glbUrl, fallbackThumb) {
+  const container = document.getElementById('threeViewer');
+  if (!container) return;
+
+  // Lazy-load Three.js + GLTFLoader + OrbitControls from CDN
+  const scripts = [
+    { id: 'three-core',    src: 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js' },
+    { id: 'three-gltf',   src: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js' },
+    { id: 'three-orbit',  src: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js' },
+  ];
+
+  function loadScript(s) {
+    return new Promise((res, rej) => {
+      if (document.getElementById(s.id)) { res(); return; }
+      const el = document.createElement('script');
+      el.id = s.id; el.src = s.src;
+      el.onload = res; el.onerror = rej;
+      document.head.appendChild(el);
+    });
+  }
+
+  scripts.reduce((p, s) => p.then(() => loadScript(s)), Promise.resolve())
+    .then(() => _bootThree(container, glbUrl))
+    .catch(err => {
+      console.warn('[three] CDN load failed, falling back to thumbnail', err);
+      if (fallbackThumb) {
+        container.innerHTML = `<img src="${fallbackThumb}" style="width:100%;height:100%;object-fit:contain;border-radius:var(--radius-lg)" />`;
+      }
+    });
+}
+
+function _bootThree(container, glbUrl) {
+  if (threeRenderer) { threeRenderer.dispose(); }
+  if (threeAnimId)   { cancelAnimationFrame(threeAnimId); }
+
+  const W = container.clientWidth, H = container.clientHeight;
+
+  // Scene
+  threeScene = new THREE.Scene();
+  threeScene.background = new THREE.Color(0x0e0c0a);
+
+  // Camera
+  threeCamera = new THREE.PerspectiveCamera(45, W / H, 0.01, 1000);
+  threeCamera.position.set(0, 1.2, 3.5);
+
+  // Renderer
+  threeRenderer = new THREE.WebGLRenderer({ antialias: true });
+  threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  threeRenderer.setSize(W, H);
+  threeRenderer.outputEncoding  = THREE.sRGBEncoding;
+  threeRenderer.toneMapping     = THREE.ACESFilmicToneMapping;
+  threeRenderer.toneMappingExposure = 1.4;
+  threeRenderer.shadowMap.enabled = true;
+
+  // Remove loading overlay, append canvas
+  const loading = document.getElementById('viewerLoading');
+  if (loading) loading.remove();
+  container.appendChild(threeRenderer.domElement);
+
+  // Lighting — warm studio setup
+  const ambient = new THREE.AmbientLight(0xfff8f0, 0.6);
+  threeScene.add(ambient);
+  const key = new THREE.DirectionalLight(0xfff5e0, 1.4);
+  key.position.set(3, 5, 4);
+  key.castShadow = true;
+  threeScene.add(key);
+  const fill = new THREE.DirectionalLight(0xd4c4a0, 0.5);
+  fill.position.set(-3, 2, -2);
+  threeScene.add(fill);
+  const rim = new THREE.DirectionalLight(0xb8924a, 0.35);
+  rim.position.set(0, -2, -4);
+  threeScene.add(rim);
+
+  // OrbitControls
+  threeControls = new THREE.OrbitControls(threeCamera, threeRenderer.domElement);
+  threeControls.enableDamping    = true;
+  threeControls.dampingFactor    = 0.07;
+  threeControls.autoRotate       = true;
+  threeControls.autoRotateSpeed  = 1.2;
+  threeControls.enablePan        = true;
+  threeControls.minDistance      = 0.3;
+  threeControls.maxDistance      = 20;
+
+  // Load GLB
+  const loader = new THREE.GLTFLoader();
+  loader.load(
+    glbUrl,
+    (gltf) => {
+      threeModel = gltf.scene;
+
+      // Centre & normalise scale
+      const box    = new THREE.Box3().setFromObject(threeModel);
+      const centre = box.getCenter(new THREE.Vector3());
+      const size   = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale  = 2.5 / maxDim;
+      threeModel.scale.setScalar(scale);
+      threeModel.position.sub(centre.multiplyScalar(scale));
+
+      // Enable shadows on all meshes
+      threeModel.traverse(n => {
+        if (n.isMesh) {
+          n.castShadow    = true;
+          n.receiveShadow = true;
+          if (n.material) {
+            n.material.envMapIntensity = 1.2;
+          }
+        }
+      });
+
+      threeScene.add(threeModel);
+      threeControls.target.copy(new THREE.Vector3(0, 0, 0));
+      threeControls.update();
+    },
+    undefined,
+    (err) => console.warn('[three] GLTFLoader error:', err)
+  );
+
+  // Render loop
+  (function animate() {
+    threeAnimId = requestAnimationFrame(animate);
+    threeControls.update();
+    threeRenderer.render(threeScene, threeCamera);
+  })();
+
+  // Resize observer
+  const ro = new ResizeObserver(() => {
+    if (!threeRenderer || !threeCamera) return;
+    const w = container.clientWidth, h = container.clientHeight;
+    threeCamera.aspect = w / h;
+    threeCamera.updateProjectionMatrix();
+    threeRenderer.setSize(w, h);
+  });
+  ro.observe(container);
+}
+
+function resetCamera() {
+  if (!threeCamera || !threeControls) return;
+  threeCamera.position.set(0, 1.2, 3.5);
+  threeControls.target.set(0, 0, 0);
+  threeControls.update();
+}
+
+function toggleWireframe() {
+  if (!threeModel) return;
+  wireframeMode = !wireframeMode;
+  threeModel.traverse(n => {
+    if (n.isMesh && n.material) {
+      n.material.wireframe = wireframeMode;
+    }
+  });
+}
+
+// ── Design Validation ─────────────────────────────────────────────────────────
+
+async function runValidation() {
+  const previewSrc = document.getElementById('cadPreviewImg').src;
+  if (!previewSrc || (!previewSrc.startsWith('data:') && !previewSrc.includes('/static'))) {
+    showToast('Upload a jewellery image first.', 'error'); return;
+  }
+
+  const vBtn = document.getElementById('validateBtn');
+  const origLabel = vBtn.innerHTML;
+  vBtn.disabled = true;
+  vBtn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Validating…';
+
+  renderValidationLoading();
+
+  // Convert image to base64 if it's a static URL
+  let imageData = previewSrc;
+  if (previewSrc.startsWith('/static')) {
+    try {
+      const resp = await fetch(previewSrc);
+      const blob = await resp.blob();
+      imageData  = await new Promise(res => {
+        const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(blob);
+      });
+    } catch(e) {
+      showToast('Could not load image for validation.', 'error');
+      vBtn.disabled = false; vBtn.innerHTML = origLabel; return;
+    }
+  }
+
+  const fd = new FormData();
+  fd.append('image_data', imageData);
+  fd.append('category',   document.getElementById('cadStyle')?.value  || 'Jewellery');
+  fd.append('target_use', document.getElementById('cadTarget')?.value || 'visualization');
+
+  try {
+    const res  = await fetch('/api/validate-cad', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) {
+      renderValidationError(data.error || 'Validation failed.');
+      showToast('Validation failed.', 'error');
+    } else {
+      renderValidationResult(data);
+      showToast('Validation complete.', 'success');
+    }
+  } catch(err) {
+    renderValidationError('Network error: ' + err.message);
+  } finally {
+    vBtn.disabled = false;
+    vBtn.innerHTML = origLabel;
+  }
+}
+
+function renderValidationLoading() {
+  document.getElementById('valBody').innerHTML = `
+    <div class="val-placeholder">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+        <div class="spinner"></div>
+        <span style="font-size:12px;font-family:var(--font-mono);color:var(--ink-3)">Analysing design for manufacturing feasibility…</span>
+      </div>
+    </div>`;
+}
+
+function renderValidationError(msg) {
+  document.getElementById('valBody').innerHTML = `
+    <div class="val-placeholder">
+      <div class="val-placeholder-icon" style="background:rgba(184,48,48,.08)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <span style="color:var(--error)">${msg}</span>
+    </div>`;
+}
+
+function renderValidationResult(d) {
+  const score   = d.overall_score  || 0;
+  const status  = (d.overall_status || 'WARN').toLowerCase();
+  const checks  = d.checks         || [];
+  const recs    = d.recommendations || [];
+
+  // Score ring
+  const circ   = 2 * Math.PI * 22;
+  const offset = circ - (score / 100) * circ;
+  const ringColor = status === 'pass' ? 'var(--success)' : status === 'fail' ? 'var(--error)' : 'var(--gold)';
+  const badgeClass = status === 'pass' ? 'vsb-pass' : status === 'fail' ? 'vsb-fail' : 'vsb-warn';
+  const badgeLabel = status.toUpperCase();
+
+  // Update header meta
+  document.getElementById('valHeaderMeta').style.display = 'flex';
+  document.getElementById('valHeaderMeta').innerHTML = `
+    <div style="position:relative">
+      <svg class="val-score-ring" viewBox="0 0 56 56">
+        <circle class="vsr-bg" cx="28" cy="28" r="22"/>
+        <circle class="vsr-fill" cx="28" cy="28" r="22"
+          style="stroke:${ringColor};stroke-dashoffset:${offset}"/>
+      </svg>
+      <div class="val-score-label" style="color:${ringColor}">${score}</div>
+    </div>
+    <span class="val-status-badge ${badgeClass}">${badgeLabel}</span>`;
+
+  // Checks
+  const checksHtml = checks.map(c => {
+    const dotClass = c.status === 'pass' ? 'vc-pass' : c.status === 'fail' ? 'vc-fail' : 'vc-warn';
+    const sevClass = `sev-${c.severity || 'low'}`;
+    return `
+      <div class="val-check">
+        <div class="vc-dot ${dotClass}"></div>
+        <div class="vc-body">
+          <div class="vc-label">${c.label || c.id}</div>
+          <div class="vc-desc">${c.description || ''}</div>
+          ${c.suggestion ? `<div class="vc-fix">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><polyline points="9 18 15 12 9 6"/></svg>
+            ${c.suggestion}
+          </div>` : ''}
+        </div>
+        <span class="vc-severity ${sevClass}">${c.severity || 'low'}</span>
+      </div>`;
+  }).join('');
+
+  // Recommendations
+  const recsHtml = recs.length ? `
+    <div class="val-recommendations">
+      <div class="val-rec-title">Recommendations</div>
+      ${recs.map(r => `<div class="val-rec-item">${r}</div>`).join('')}
+    </div>` : '';
+
+  document.getElementById('valBody').innerHTML = `
+    <div style="padding:10px 20px 4px">
+      <p style="font-size:12px;color:var(--ink-3);line-height:1.6">${d.summary || ''}</p>
+    </div>
+    <div class="val-checks">${checksHtml}</div>
+    ${recsHtml}`;
+}
+
+// ── Save 3D model to Gallery ──────────────────────────────────────────────────
+
+async function saveModelToGallery(glbUrl, thumbnailUrl, modelUrls) {
+  const btn = document.getElementById('saveModelBtn');
+  if (!btn || !glbUrl) return;
+
+  const origLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;border-width:2px"></div> Saving…';
+
+  try {
+    const category = document.getElementById('cadStyle')?.value || '';
+    const res = await fetch('/api/gallery/save-model', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        glb_url:       glbUrl,
+        thumbnail_url: thumbnailUrl || '',
+        model_urls:    modelUrls   || {},
+        category:      category,
+        title:         document.getElementById('cadPrompt')?.value?.trim() || '3D Jewellery Model',
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Saved to Gallery!', 'success');
+      btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Saved';
+      btn.disabled = true;
+    } else {
+      showToast(data.error || 'Could not save.', 'error');
+      btn.disabled = false;
+      btn.innerHTML = origLabel;
+    }
+  } catch(e) {
+    showToast('Network error saving to gallery.', 'error');
+    btn.disabled = false;
+    btn.innerHTML = origLabel;
+  }
+}
 </script>
 {% endblock %}

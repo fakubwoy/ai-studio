@@ -91,8 +91,29 @@
 
   .ga-btn:hover { background: rgba(184,146,74,.55); border-color: rgba(184,146,74,.6); }
 
-  /* Empty state */
-  .gallery-empty {
+  .gallery-item-3d-badge {
+    position: absolute; top: 8px; left: 8px;
+    background: rgba(26,22,20,.72);
+    border: 1px solid rgba(184,146,74,.4);
+    color: var(--gold, #b8924a);
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+    letter-spacing: .1em; padding: 2px 7px; border-radius: 20px;
+    backdrop-filter: blur(8px);
+  }
+
+  .gallery-item-model-thumb {
+    width: 100%; aspect-ratio: 1; display: flex;
+    align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #1a1614 0%, #2a2220 100%);
+  }
+
+  .gallery-item-model-thumb img {
+    width: 100%; height: 100%; object-fit: contain;
+  }
+
+  .gallery-item-model-thumb .model-icon {
+    opacity: .25;
+  }
     column-span: all; text-align: center; padding: 100px 40px; color: var(--ink-3);
   }
 
@@ -175,6 +196,7 @@
         <div class="filter-tab"        data-filter="model"   onclick="filterGallery('model',this)">Model Shots</div>
         <div class="filter-tab"        data-filter="concept" onclick="filterGallery('concept',this)">Concepts</div>
         <div class="filter-tab"        data-filter="product" onclick="filterGallery('product',this)">Product</div>
+        <div class="filter-tab"        data-filter="3d"      onclick="filterGallery('3d',this)">3D Models</div>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="clearGallery()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -266,8 +288,25 @@ function filterGallery(filter, el) {
   currentFilter = filter;
   document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  const filtered = filter === 'all' ? allItems : allItems.filter(i => i.type === filter);
+  const filtered = filter === 'all'
+    ? allItems
+    : filter === '3d'
+      ? allItems.filter(i => i.type === 'model')
+      : allItems.filter(i => i.type === filter);
   renderGallery(filtered);
+}
+
+function _modelThumbHTML(item) {
+  if (item.thumbnail_url) {
+    return `<div class="gallery-item-model-thumb"><img src="${item.thumbnail_url}" alt="3D model" loading="lazy" /></div>`;
+  }
+  return `<div class="gallery-item-model-thumb">
+    <div class="model-icon">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="rgba(250,247,242,.5)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+      </svg>
+    </div>
+  </div>`;
 }
 
 function renderGallery(items) {
@@ -292,35 +331,74 @@ function renderGallery(items) {
     return;
   }
 
-  grid.innerHTML = items.map(item => `
-    <div class="gallery-item" data-id="${item.id}">
-      <img src="${item.url}" alt="${item.category || 'Generated'}" loading="lazy"
-        onclick="openLightbox('${item.url}','${item.id}')" />
-      <div class="gallery-item-overlay">
-        <div class="gallery-item-info">
-          <div class="gallery-item-label">${item.category || 'Generated'} · ${item.type || 'image'}</div>
-          <div class="gallery-actions">
-            <a href="${item.url}" download class="ga-btn">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              Save
-            </a>
-            <button class="ga-btn" onclick="event.stopPropagation();sendToModel('${item.url}','${item.category || ''}')">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-              </svg>
-              Model
-            </button>
-            <button class="ga-btn" onclick="event.stopPropagation();deleteItem('${item.id}')">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
+  grid.innerHTML = items.map(item => {
+    const is3D = item.type === 'model';
+
+    if (is3D) {
+      // 3D model card — shows thumbnail (or mesh icon), opens CAD viewer
+      const modelUrlsJson = JSON.stringify(item.model_urls || {}).replace(/"/g, '&quot;');
+      return `
+        <div class="gallery-item" data-id="${item.id}">
+          ${_modelThumbHTML(item)}
+          <div class="gallery-item-3d-badge">3D</div>
+          <div class="gallery-item-overlay">
+            <div class="gallery-item-info">
+              <div class="gallery-item-label">${item.category || '3D Model'} · GLB</div>
+              <div class="gallery-actions">
+                <button class="ga-btn" onclick="event.stopPropagation();openInCADViewer('${item.url}','${item.thumbnail_url||''}','${item.category||''}')">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+                  </svg>
+                  View 3D
+                </button>
+                <a href="${item.url}" target="_blank" class="ga-btn">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  GLB
+                </a>
+                <button class="ga-btn" onclick="event.stopPropagation();deleteItem('${item.id}')">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // Standard image card
+    return `
+      <div class="gallery-item" data-id="${item.id}">
+        <img src="${item.url}" alt="${item.category || 'Generated'}" loading="lazy"
+          onclick="openLightbox('${item.url}','${item.id}')" />
+        <div class="gallery-item-overlay">
+          <div class="gallery-item-info">
+            <div class="gallery-item-label">${item.category || 'Generated'} · ${item.type || 'image'}</div>
+            <div class="gallery-actions">
+              <a href="${item.url}" download class="ga-btn">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Save
+              </a>
+              <button class="ga-btn" onclick="event.stopPropagation();sendToModel('${item.url}','${item.category || ''}')">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </svg>
+                Model
+              </button>
+              <button class="ga-btn" onclick="event.stopPropagation();deleteItem('${item.id}')">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>`).join('');
+      </div>`;
+  }).join('');
 }
 
 async function deleteItem(id) {
@@ -368,6 +446,14 @@ function sendToModel(url, cat) {
   sessionStorage.setItem('pendingModelImage', url);
   if (cat) sessionStorage.setItem('pendingModelCategory', cat);
   window.location.href = '/studio/model';
+}
+
+function openInCADViewer(glbUrl, thumbUrl, category) {
+  // Hand off to the CAD page — it picks these up on DOMContentLoaded
+  sessionStorage.setItem('pendingCADGlbUrl',   glbUrl);
+  sessionStorage.setItem('pendingCADThumbUrl',  thumbUrl || '');
+  sessionStorage.setItem('pendingCADCategory',  category || '');
+  window.location.href = '/studio/cad';
 }
 
 document.addEventListener('keydown', e => {
