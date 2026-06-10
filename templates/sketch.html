@@ -527,12 +527,41 @@ function clearConcepts() {
   saveState();
 }
 
+function _imgWithRetry(url, alt, cls) {
+  // Returns an <img> tag that retries up to 4 times with back-off when the
+  // freshly-uploaded R2/CDN URL hasn't propagated yet (the most common cause
+  // of "image kept loading" after generation).
+  const id = 'img-' + Math.random().toString(36).slice(2);
+  const escaped = url.replace(/'/g, "\\'");
+  return `<img
+    id="${id}"
+    class="${cls}"
+    src="${url}?t=${Date.now()}"
+    alt="${alt}"
+    onload="this.removeAttribute('data-retries')"
+    onerror="(function(el){
+      var retries = parseInt(el.getAttribute('data-retries') || '0');
+      if (retries < 4) {
+        el.setAttribute('data-retries', retries + 1);
+        var delay = [1500, 3000, 5000, 8000][retries];
+        setTimeout(function(){ el.src = '${escaped}?t=' + Date.now(); }, delay);
+      } else {
+        el.style.display = 'none';
+        var ph = document.createElement('div');
+        ph.className = 'concept-img-placeholder';
+        ph.innerHTML = '<svg width=\\'40\\' height=\\'40\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'var(--paper-4)\\' stroke-width=\\'1.2\\' stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\'><polygon points=\\'12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\\'/></svg>';
+        el.parentNode.insertBefore(ph, el);
+      }
+    })(this)"
+  />`;
+}
+
 function renderConcepts(list) {
   if (!list.length) { showEmpty(); return; }
   document.getElementById('conceptsArea').innerHTML = list.map((c, i) => `
     <div class="concept-card" id="concept-${i}">
       ${c.image_url
-        ? `<img class="concept-img" src="${c.image_url}" alt="${c.title}" />`
+        ? _imgWithRetry(c.image_url, c.title, 'concept-img')
         : `<div class="concept-img-placeholder">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--paper-4)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
