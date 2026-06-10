@@ -1862,6 +1862,35 @@ def api_gallery_save_model():
         return jsonify({'error': str(e)}), 500
 
 
+# ── GLB proxy (avoids Meshy CDN CORS block in browser) ───────────────────────
+
+@app.route('/api/proxy-glb')
+@login_required
+def api_proxy_glb():
+    """Stream a GLB file from an external URL (e.g. Meshy CDN) through our
+    server so the browser doesn't hit a CORS wall when Three.js loads it."""
+    url = request.args.get('url', '').strip()
+    if not url or not url.startswith('https://'):
+        return jsonify({'error': 'Invalid URL'}), 400
+    # Only proxy from known Meshy domains
+    from urllib.parse import urlparse
+    host = urlparse(url).hostname or ''
+    if not (host.endswith('meshy.ai') or host.endswith('meshy.oss-us-west-1.aliyuncs.com')):
+        return jsonify({'error': 'URL not from an allowed domain'}), 403
+    try:
+        r = requests.get(url, timeout=60, stream=True)
+        r.raise_for_status()
+        from flask import Response, stream_with_context
+        return Response(
+            stream_with_context(r.iter_content(chunk_size=65536)),
+            content_type=r.headers.get('Content-Type', 'model/gltf-binary'),
+            headers={'Cache-Control': 'private, max-age=3600'},
+        )
+    except Exception as e:
+        log.error(f'[proxy-glb] failed: {e}')
+        return jsonify({'error': str(e)}), 502
+
+
 # ── Static file serving ────────────────────────────────────────────────────────
 
 @app.route('/static/uploads/<filename>')

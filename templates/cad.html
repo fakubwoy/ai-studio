@@ -747,12 +747,15 @@ async function generateCAD() {
 }
 
 async function pollCADStatus(taskId) {
-  if (pollingTimer) clearInterval(pollingTimer);
+  if (pollingTimer) { clearInterval(pollingTimer); pollingTimer = null; }
   let attempts = 0;
+  let polling = true;
   pollingTimer = setInterval(async () => {
+    if (!polling) return;
     attempts++;
     if (attempts > 90) {
-      clearInterval(pollingTimer);
+      polling = false;
+      clearInterval(pollingTimer); pollingTimer = null;
       showCADError('Timed out. Please try again.');
       resetBtn(); return;
     }
@@ -761,10 +764,12 @@ async function pollCADStatus(taskId) {
       const data = await res.json();
       updateStatusProgress(data.progress || 0, data.status);
       if (data.status === 'SUCCEEDED') {
-        clearInterval(pollingTimer);
+        polling = false;
+        clearInterval(pollingTimer); pollingTimer = null;
         showCADResult(data); resetBtn();
       } else if (data.status === 'FAILED') {
-        clearInterval(pollingTimer);
+        polling = false;
+        clearInterval(pollingTimer); pollingTimer = null;
         showCADError(data.error || 'Generation failed.');
         showToast('3D generation failed.', 'error');
         resetBtn();
@@ -855,7 +860,7 @@ function showCADResult(data) {
       <div>
         <!-- Three.js embedded viewer (if GLB available) or thumbnail fallback -->
         ${glbUrl ? `
-        <div class="threejs-viewer" id="threeViewer">
+        <div class="threejs-viewer" id="threeViewer" data-thumb="${thumb}">
           <div class="viewer-loading" id="viewerLoading">
             <div class="spinner"></div>
             <span>Loading 3D model…</span>
@@ -1091,12 +1096,17 @@ function _bootThree(container, glbUrl) {
   threeControls.minDistance      = 0.3;
   threeControls.maxDistance      = 20;
 
-  // Load GLB
+  // Load GLB via our proxy endpoint to avoid Meshy CDN CORS restrictions
+  const proxiedUrl = '/api/proxy-glb?url=' + encodeURIComponent(glbUrl);
   const loader = new THREE.GLTFLoader();
   loader.load(
-    glbUrl,
+    proxiedUrl,
     (gltf) => {
       threeModel = gltf.scene;
+
+      // Hide loading overlay on success
+      const loading = document.getElementById('viewerLoading');
+      if (loading) loading.style.display = 'none';
 
       // Centre & normalise scale
       const box    = new THREE.Box3().setFromObject(threeModel);
@@ -1123,7 +1133,17 @@ function _bootThree(container, glbUrl) {
       threeControls.update();
     },
     undefined,
-    (err) => console.warn('[three] GLTFLoader error:', err)
+    (err) => {
+      console.warn('[three] GLTFLoader error:', err);
+      // Show thumbnail fallback with a message instead of black screen
+      const fallback = container.getAttribute('data-thumb') || '';
+      container.innerHTML = fallback
+        ? `<img src="${fallback}" style="width:100%;height:100%;object-fit:contain;border-radius:var(--radius-lg)" />`
+        : `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--ink-3)">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+            <span style="font-size:12px">Preview unavailable — download the GLB to view</span>
+          </div>`;
+    }
   );
 
   // Render loop
