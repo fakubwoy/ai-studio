@@ -191,20 +191,16 @@
       <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink)" id="galleryTitle">Gallery</h1>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <div style="display:flex;background:var(--paper-2);border-radius:var(--radius);padding:3px;gap:2px">
-        <button class="filter-tab active" id="viewGalleryBtn" onclick="switchView('gallery',this)" style="border-radius:calc(var(--radius) - 2px)">Gallery</button>
-        <button class="filter-tab" id="viewProjectsBtn" onclick="switchView('projects',this)" style="border-radius:calc(var(--radius) - 2px)">Projects</button>
-      </div>
       <div class="gallery-filter-tabs" id="galleryFilters">
         <div class="filter-tab active" data-filter="all"       onclick="filterGallery('all',this)">All</div>
         <div class="filter-tab"        data-filter="modelshot" onclick="filterGallery('modelshot',this)">Model Shots</div>
         <div class="filter-tab"        data-filter="concept"   onclick="filterGallery('concept',this)">Concepts</div>
         <div class="filter-tab"        data-filter="model"     onclick="filterGallery('model',this)">3D Models</div>
       </div>
-      <select id="projectFilter" style="display:none;max-width:180px;font-size:12px;padding:6px 10px" onchange="filterByProject(this.value)">
+      <select id="projectFilter" style="max-width:180px;font-size:12px;padding:6px 10px" onchange="filterByProject(this.value)">
         <option value="">All projects</option>
       </select>
-      <button class="btn btn-ghost btn-sm" id="newProjectBtn" style="display:none" onclick="promptNewProject()">+ New Project</button>
+      <a href="/studio/projects" class="btn btn-ghost btn-sm">Projects</a>
       <button class="btn btn-ghost btn-sm" id="clearAllBtn" onclick="clearGallery()">Clear All</button>
     </div>
   </div>
@@ -224,9 +220,7 @@
     </div>
   </div>
 
-  <div id="projectsView" style="display:none">
-    <div id="projectsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:8px"></div>
-  </div>
+
 </div>
 
 <!-- Lightbox -->
@@ -277,26 +271,10 @@
 let allItems      = [];
 let allProjects   = [];
 let currentFilter = 'all';
-let currentView   = 'gallery';
 let lightboxUrl   = '';
 let lightboxId    = '';
 let lightboxCategory = '';
 let lightboxImageData = '';
-
-/* ── View switcher ────────────────────────────────────────────────────────── */
-function switchView(view, el) {
-  currentView = view;
-  document.querySelectorAll('#viewGalleryBtn,#viewProjectsBtn').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('galleryView').style.display   = view === 'gallery'  ? 'block' : 'none';
-  document.getElementById('projectsView').style.display  = view === 'projects' ? 'block' : 'none';
-  document.getElementById('galleryFilters').style.display = view === 'gallery' ? 'flex' : 'none';
-  document.getElementById('projectFilter').style.display  = view === 'gallery' ? 'block' : 'none';
-  document.getElementById('newProjectBtn').style.display  = view === 'projects' ? 'inline-flex' : 'none';
-  document.getElementById('clearAllBtn').style.display    = view === 'gallery'  ? 'inline-flex' : 'none';
-  document.getElementById('galleryTitle').textContent = view === 'gallery' ? 'Gallery' : 'Projects';
-  if (view === 'projects') renderProjects();
-}
 
 /* ── Gallery load & filter ────────────────────────────────────────────────── */
 async function loadGallery() {
@@ -309,7 +287,6 @@ async function loadGallery() {
     const projectsData = await projectsRes.json();
     allItems    = galleryData.items    || [];
     allProjects = projectsData.projects || [];
-    // Populate project filter dropdown
     populateProjectDropdowns();
     // Migrate legacy localStorage items
     const legacy = JSON.parse(localStorage.getItem('glymrGallery') || '[]');
@@ -327,6 +304,13 @@ async function loadGallery() {
     }
   } catch(e) { allItems = []; allProjects = []; }
   renderGallery(allItems);
+  // Pick up project filter passed from /studio/projects
+  const pendingProj = sessionStorage.getItem('galleryProjectFilter');
+  if (pendingProj) {
+    sessionStorage.removeItem('galleryProjectFilter');
+    document.getElementById('projectFilter').value = pendingProj;
+    filterByProject(pendingProj);
+  }
 }
 
 function populateProjectDropdowns() {
@@ -398,93 +382,6 @@ function renderGallery(items) {
         </div>
       </div></div></div>`;
   }).join('');
-}
-
-/* ── Projects render ──────────────────────────────────────────────────────── */
-function renderProjects() {
-  const grid = document.getElementById('projectsGrid');
-  if (!allProjects.length) {
-    grid.innerHTML = `<div style="text-align:center;padding:80px 40px;color:var(--ink-3);grid-column:1/-1">
-      <h3 style="font-family:var(--font-serif);font-size:22px;color:var(--ink);margin-bottom:8px">No projects yet</h3>
-      <p style="font-size:13px;margin-bottom:20px">Organise your designs into projects for easy management.</p>
-      <button class="btn btn-gold" onclick="promptNewProject()">Create your first project</button></div>`;
-    return;
-  }
-  grid.innerHTML = allProjects.map(p => `
-    <div style="background:var(--surface);border:1px solid var(--paper-3);border-radius:var(--radius-lg);padding:20px;cursor:pointer;transition:box-shadow var(--t-slow) var(--ease),border-color var(--t-slow) var(--ease)"
-      onmouseenter="this.style.boxShadow='var(--shadow-lg)';this.style.borderColor='rgba(184,146,74,.25)'"
-      onmouseleave="this.style.boxShadow='';this.style.borderColor='var(--paper-3)'"
-      onclick="viewProject('${p.id}')">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
-        <div style="width:40px;height:40px;background:var(--gold-bg);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        </div>
-        <div style="display:flex;gap:4px">
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();renameProject('${p.id}','${p.name.replace(/'/g,"\\'")}')">Rename</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="event.stopPropagation();deleteProject('${p.id}')">Delete</button>
-        </div>
-      </div>
-      <div style="font-weight:600;font-size:15px;color:var(--ink);margin-bottom:4px">${p.name}</div>
-      <div style="font-size:12px;color:var(--ink-3);margin-bottom:10px">${p.description||'&nbsp;'}</div>
-      <div style="font-size:11px;font-family:var(--font-mono);color:var(--ink-4)">${p.item_count} item${p.item_count!==1?'s':''} · ${p.category||'General'}</div>
-    </div>`).join('');
-}
-
-function viewProject(projId) {
-  // Switch to gallery view, filter by project
-  switchView('gallery', document.getElementById('viewGalleryBtn'));
-  document.getElementById('projectFilter').value = projId;
-  filterByProject(projId);
-}
-
-/* ── Project CRUD ─────────────────────────────────────────────────────────── */
-async function promptNewProject() {
-  const name = prompt('Project name:');
-  if (!name?.trim()) return;
-  const cat  = prompt('Category (optional):') || '';
-  const desc = prompt('Description (optional):') || '';
-  try {
-    const res  = await fetch('/api/projects', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ name: name.trim(), category: cat.trim(), description: desc.trim() }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      allProjects.push({ id: data.id, name: data.name, category: cat, description: desc, item_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-      populateProjectDropdowns();
-      renderProjects();
-      showToast('Project created.', 'success');
-    } else {
-      showToast(data.error || 'Failed to create project.', 'error');
-    }
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
-}
-
-async function renameProject(id, currentName) {
-  const name = prompt('New name:', currentName);
-  if (!name?.trim() || name.trim() === currentName) return;
-  try {
-    await fetch(`/api/projects/${id}`, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ name: name.trim() }),
-    });
-    const p = allProjects.find(p => p.id === id);
-    if (p) p.name = name.trim();
-    populateProjectDropdowns();
-    renderProjects();
-    showToast('Project renamed.', 'success');
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
-}
-
-async function deleteProject(id) {
-  if (!confirm('Delete this project? Gallery items will not be deleted.')) return;
-  try {
-    await fetch(`/api/projects/${id}`, { method: 'DELETE' });
-    allProjects = allProjects.filter(p => p.id !== id);
-    populateProjectDropdowns();
-    renderProjects();
-    showToast('Project deleted.');
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 /* ── Project assignment ───────────────────────────────────────────────────── */

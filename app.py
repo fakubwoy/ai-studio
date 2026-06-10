@@ -954,7 +954,7 @@ def page_gallery():
 @app.route('/studio/projects')
 @login_required
 def page_projects():
-    return render_template('gallery.html', active_nav='projects', current_user=get_current_user(), view='projects')
+    return render_template('projects.html', active_nav='projects', current_user=get_current_user())
 
 # ── API: Categories ────────────────────────────────────────────────────────────
 
