@@ -187,42 +187,45 @@
 <div class="gallery-page">
   <div class="gallery-header">
     <div>
-      <div class="eyebrow" style="margin-bottom:4px">Generated Images</div>
-      <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink)">Gallery</h1>
+      <div class="eyebrow" style="margin-bottom:4px">My Work</div>
+      <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink)" id="galleryTitle">Gallery</h1>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <div class="gallery-filter-tabs">
-        <div class="filter-tab active" data-filter="all"     onclick="filterGallery('all',this)">All</div>
-        <div class="filter-tab"        data-filter="modelshot" onclick="filterGallery('modelshot',this)">Model Shots</div>
-        <div class="filter-tab"        data-filter="concept" onclick="filterGallery('concept',this)">Concepts</div>
-        <div class="filter-tab"        data-filter="product" onclick="filterGallery('product',this)">Product</div>
-        <div class="filter-tab"        data-filter="3d"      onclick="filterGallery('3d',this)">3D Models</div>
+      <div style="display:flex;background:var(--paper-2);border-radius:var(--radius);padding:3px;gap:2px">
+        <button class="filter-tab active" id="viewGalleryBtn" onclick="switchView('gallery',this)" style="border-radius:calc(var(--radius) - 2px)">Gallery</button>
+        <button class="filter-tab" id="viewProjectsBtn" onclick="switchView('projects',this)" style="border-radius:calc(var(--radius) - 2px)">Projects</button>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="clearGallery()">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-        </svg>
-        Clear All
-      </button>
+      <div class="gallery-filter-tabs" id="galleryFilters">
+        <div class="filter-tab active" data-filter="all"       onclick="filterGallery('all',this)">All</div>
+        <div class="filter-tab"        data-filter="modelshot" onclick="filterGallery('modelshot',this)">Model Shots</div>
+        <div class="filter-tab"        data-filter="concept"   onclick="filterGallery('concept',this)">Concepts</div>
+        <div class="filter-tab"        data-filter="model"     onclick="filterGallery('model',this)">3D Models</div>
+      </div>
+      <select id="projectFilter" style="display:none;max-width:180px;font-size:12px;padding:6px 10px" onchange="filterByProject(this.value)">
+        <option value="">All projects</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" id="newProjectBtn" style="display:none" onclick="promptNewProject()">+ New Project</button>
+      <button class="btn btn-ghost btn-sm" id="clearAllBtn" onclick="clearGallery()">Clear All</button>
     </div>
   </div>
 
-  <div class="gallery-grid" id="galleryGrid">
-    <div class="gallery-empty" style="column-span:all">
-      <div class="gallery-empty-icon">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-        </svg>
+  <div id="galleryView">
+    <div class="gallery-grid" id="galleryGrid">
+      <div class="gallery-empty" style="column-span:all">
+        <div class="gallery-empty-icon">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+          </svg>
+        </div>
+        <h3>Your gallery is empty</h3>
+        <p>Generated images will appear here automatically.</p>
+        <a href="/studio/sketch" class="btn btn-gold">Start creating</a>
       </div>
-      <h3>Your gallery is empty</h3>
-      <p>Generated images will automatically appear here.</p>
-      <a href="/studio/sketch" class="btn btn-gold">
-        Start creating
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </a>
     </div>
+  </div>
+
+  <div id="projectsView" style="display:none">
+    <div id="projectsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:8px"></div>
   </div>
 </div>
 
@@ -235,18 +238,36 @@
   </button>
   <img class="lightbox-img" id="lightboxImg" src="" alt="" />
   <div class="lightbox-actions">
-    <a id="lightboxDl" href="#" download class="btn btn-outline" style="background:rgba(250,247,242,.08);color:var(--paper);border-color:rgba(250,247,242,.2)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-      Download
-    </a>
-    <button class="btn btn-outline" style="background:rgba(250,247,242,.08);color:var(--paper);border-color:rgba(250,247,242,.2)" onclick="sendLightboxToModel()">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-      </svg>
-      Model Try-On
-    </button>
+    <a id="lightboxDl" href="#" download class="btn btn-outline" style="background:rgba(250,247,242,.08);color:var(--paper);border-color:rgba(250,247,242,.2)">Download</a>
+    <button class="btn btn-outline" style="background:rgba(250,247,242,.08);color:var(--paper);border-color:rgba(250,247,242,.2)" onclick="sendLightboxToCAD()">Send to CAD</button>
+    <button class="btn btn-outline" style="background:rgba(250,247,242,.08);color:var(--paper);border-color:rgba(250,247,242,.2)" onclick="sendLightboxToModel()">Model Try-On</button>
+    <button class="btn btn-outline" style="background:rgba(250,247,242,.08);color:var(--paper);border-color:rgba(250,247,242,.2)" onclick="generateBOMForLightbox()">BOM / Cost</button>
+    <button class="btn btn-outline" style="background:rgba(250,247,242,.08);color:var(--paper);border-color:rgba(250,247,242,.2)" onclick="openProjectAssign()">Move to Project</button>
+  </div>
+</div>
+
+<!-- BOM Modal -->
+<div id="bomModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(26,22,20,.85);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:40px">
+  <div style="background:var(--surface);border-radius:var(--radius-lg);max-width:540px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:var(--shadow-xl)">
+    <div style="padding:18px 22px;border-bottom:1px solid var(--paper-2);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);z-index:1">
+      <span style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--ink)">Bill of Materials &amp; Cost Estimate</span>
+      <button onclick="document.getElementById('bomModal').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--ink-3)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="bomModalBody" style="padding:22px"></div>
+  </div>
+</div>
+
+<!-- Project assign Modal -->
+<div id="projectItemModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(26,22,20,.85);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:40px">
+  <div style="background:var(--surface);border-radius:var(--radius-lg);max-width:420px;width:100%;box-shadow:var(--shadow-xl);padding:24px">
+    <p style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px">Move to Project</p>
+    <select id="projectAssignSelect" style="width:100%;margin-bottom:16px"><option value="">— No project (ungrouped) —</option></select>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-gold" style="flex:1" onclick="confirmAssignProject()">Move</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="document.getElementById('projectItemModal').style.display='none'">Cancel</button>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -254,163 +275,259 @@
 {% block scripts %}
 <script>
 let allItems      = [];
+let allProjects   = [];
 let currentFilter = 'all';
+let currentView   = 'gallery';
 let lightboxUrl   = '';
 let lightboxId    = '';
+let lightboxCategory = '';
+let lightboxImageData = '';
 
+/* ── View switcher ────────────────────────────────────────────────────────── */
+function switchView(view, el) {
+  currentView = view;
+  document.querySelectorAll('#viewGalleryBtn,#viewProjectsBtn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('galleryView').style.display   = view === 'gallery'  ? 'block' : 'none';
+  document.getElementById('projectsView').style.display  = view === 'projects' ? 'block' : 'none';
+  document.getElementById('galleryFilters').style.display = view === 'gallery' ? 'flex' : 'none';
+  document.getElementById('projectFilter').style.display  = view === 'gallery' ? 'block' : 'none';
+  document.getElementById('newProjectBtn').style.display  = view === 'projects' ? 'inline-flex' : 'none';
+  document.getElementById('clearAllBtn').style.display    = view === 'gallery'  ? 'inline-flex' : 'none';
+  document.getElementById('galleryTitle').textContent = view === 'gallery' ? 'Gallery' : 'Projects';
+  if (view === 'projects') renderProjects();
+}
+
+/* ── Gallery load & filter ────────────────────────────────────────────────── */
 async function loadGallery() {
   try {
-    const res  = await fetch('/api/gallery');
-    const data = await res.json();
-    allItems = data.items || [];
+    const [galleryRes, projectsRes] = await Promise.all([
+      fetch('/api/gallery'),
+      fetch('/api/projects'),
+    ]);
+    const galleryData  = await galleryRes.json();
+    const projectsData = await projectsRes.json();
+    allItems    = galleryData.items    || [];
+    allProjects = projectsData.projects || [];
+    // Populate project filter dropdown
+    populateProjectDropdowns();
     // Migrate legacy localStorage items
     const legacy = JSON.parse(localStorage.getItem('glymrGallery') || '[]');
     if (legacy.length) {
       await Promise.allSettled(legacy.map(item =>
         fetch('/api/gallery', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: item.url, type: item.type || 'image', category: item.category || '', title: item.title || '', tags: item.tags || [] }),
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ url: item.url, type: item.type||'image', category: item.category||'', title: item.title||'', tags: item.tags||[] }),
         })
       ));
       localStorage.removeItem('glymrGallery');
-      const res2  = await fetch('/api/gallery');
-      const data2 = await res2.json();
-      allItems = data2.items || [];
+      const res2 = await fetch('/api/gallery');
+      const d2   = await res2.json();
+      allItems   = d2.items || [];
     }
-  } catch(e) {
-    allItems = [];
-  }
+  } catch(e) { allItems = []; allProjects = []; }
   renderGallery(allItems);
+}
+
+function populateProjectDropdowns() {
+  const opts = allProjects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  document.getElementById('projectFilter').innerHTML = '<option value="">All projects</option>' + opts;
+  document.getElementById('projectAssignSelect').innerHTML = '<option value="">— No project (ungrouped) —</option>' + opts;
 }
 
 function filterGallery(filter, el) {
   currentFilter = filter;
-  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  const filtered = filter === 'all'
-    ? allItems
-    : filter === '3d'
-      ? allItems.filter(i => i.type === 'model')
-      : filter === 'modelshot'
-        ? allItems.filter(i => i.type === 'modelshot' || i.type === 'model_shot')
-        : allItems.filter(i => i.type === filter);
+  document.querySelectorAll('#galleryFilters .filter-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  let filtered = filter === 'all' ? allItems
+    : filter === 'model' ? allItems.filter(i => i.type === 'model')
+    : filter === 'modelshot' ? allItems.filter(i => i.type === 'modelshot' || i.type === 'model_shot')
+    : allItems.filter(i => i.type === filter);
+  // Also apply project filter if set
+  const projId = document.getElementById('projectFilter')?.value;
+  if (projId) filtered = filtered.filter(i => i.project_id === projId);
   renderGallery(filtered);
 }
 
+function filterByProject(projId) {
+  filterGallery(currentFilter, document.querySelector(`#galleryFilters .filter-tab[data-filter="${currentFilter}"]`));
+}
+
+/* ── Gallery render ────────────────────────────────────────────────────────── */
 function _modelThumbHTML(item) {
-  if (item.thumbnail_url) {
-    return `<div class="gallery-item-model-thumb"><img src="${item.thumbnail_url}" alt="3D model" loading="lazy" /></div>`;
-  }
-  return `<div class="gallery-item-model-thumb">
-    <div class="model-icon">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="rgba(250,247,242,.5)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
-      </svg>
-    </div>
-  </div>`;
+  if (item.thumbnail_url) return `<div class="gallery-item-model-thumb"><img src="${item.thumbnail_url}" alt="3D model" loading="lazy"/></div>`;
+  return `<div class="gallery-item-model-thumb"><div class="model-icon"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="rgba(250,247,242,.5)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div></div>`;
 }
 
 function renderGallery(items) {
   const grid = document.getElementById('galleryGrid');
   if (!items.length) {
-    grid.innerHTML = `
-      <div class="gallery-empty" style="column-span:all">
-        <div class="gallery-empty-icon">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-          </svg>
-        </div>
-        <h3>Your gallery is empty</h3>
-        <p>Generated images will automatically appear here.</p>
-        <a href="/studio/sketch" class="btn btn-gold">
-          Start creating
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-          </svg>
-        </a>
-      </div>`;
+    grid.innerHTML = `<div class="gallery-empty" style="column-span:all">
+      <div class="gallery-empty-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+      <h3>Your gallery is empty</h3><p>Generated images will appear here automatically.</p>
+      <a href="/studio/sketch" class="btn btn-gold">Start creating</a></div>`;
     return;
   }
-
   grid.innerHTML = items.map(item => {
     const is3D = item.type === 'model';
-
+    const projLabel = item.project_id ? (allProjects.find(p=>p.id===item.project_id)?.name || '') : '';
     if (is3D) {
-      // 3D model card — shows thumbnail (or mesh icon), opens CAD viewer
-      const modelUrlsJson = JSON.stringify(item.model_urls || {}).replace(/"/g, '&quot;');
-      return `
-        <div class="gallery-item" data-id="${item.id}">
-          ${_modelThumbHTML(item)}
-          <div class="gallery-item-3d-badge">3D</div>
-          <div class="gallery-item-overlay">
-            <div class="gallery-item-info">
-              <div class="gallery-item-label">${item.category || '3D Model'} · GLB</div>
-              <div class="gallery-actions">
-                <button class="ga-btn" onclick="event.stopPropagation();openInCADViewer('${item.url}','${item.thumbnail_url||''}','${item.category||''}')">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
-                  </svg>
-                  View 3D
-                </button>
-                <a href="${item.url}" target="_blank" class="ga-btn">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                  GLB
-                </a>
-                <button class="ga-btn" onclick="event.stopPropagation();deleteItem('${item.id}')">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
+      return `<div class="gallery-item" data-id="${item.id}">
+        ${_modelThumbHTML(item)}
+        <div class="gallery-item-3d-badge">3D</div>
+        <div class="gallery-item-overlay"><div class="gallery-item-info">
+          <div class="gallery-item-label">${item.category||'3D Model'}${projLabel?' · '+projLabel:''}</div>
+          <div class="gallery-actions">
+            <button class="ga-btn" onclick="event.stopPropagation();openInCADViewer('${item.url}','${item.thumbnail_url||''}','${item.category||''}')">View 3D</button>
+            <a href="${item.url}" target="_blank" class="ga-btn">GLB</a>
+            <button class="ga-btn" onclick="event.stopPropagation();openProjectAssignFor('${item.id}')">Move</button>
+            <button class="ga-btn" onclick="event.stopPropagation();deleteItem('${item.id}')">✕</button>
           </div>
-        </div>`;
+        </div></div></div>`;
     }
-
-    // Standard image card
-    return `
-      <div class="gallery-item" data-id="${item.id}">
-        <img src="${item.url}" alt="${item.category || 'Generated'}" loading="lazy"
-          onclick="openLightbox('${item.url}','${item.id}')" />
-        <div class="gallery-item-overlay">
-          <div class="gallery-item-info">
-            <div class="gallery-item-label">${item.category || 'Generated'} · ${item.type || 'image'}</div>
-            <div class="gallery-actions">
-              <a href="${item.url}" download class="ga-btn">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Save
-              </a>
-              <button class="ga-btn" onclick="event.stopPropagation();sendToModel('${item.url}','${item.category || ''}')">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                </svg>
-                Model
-              </button>
-              <button class="ga-btn" onclick="event.stopPropagation();deleteItem('${item.id}')">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </div>
-          </div>
+    return `<div class="gallery-item" data-id="${item.id}">
+      <img src="${item.url}" alt="${item.category||'Generated'}" loading="lazy" onclick="openLightbox('${item.url}','${item.id}','${item.category||''}')"/>
+      <div class="gallery-item-overlay"><div class="gallery-item-info">
+        <div class="gallery-item-label">${item.category||'Generated'}${projLabel?' · '+projLabel:''}</div>
+        <div class="gallery-actions">
+          <a href="${item.url}" download class="ga-btn">Save</a>
+          <button class="ga-btn" onclick="event.stopPropagation();sendToCAD('${item.url}','${item.category||''}')">CAD</button>
+          <button class="ga-btn" onclick="event.stopPropagation();sendToModel('${item.url}','${item.category||''}')">Model</button>
+          <button class="ga-btn" onclick="event.stopPropagation();openProjectAssignFor('${item.id}')">Move</button>
+          <button class="ga-btn" onclick="event.stopPropagation();deleteItem('${item.id}')">✕</button>
         </div>
-      </div>`;
+      </div></div></div>`;
   }).join('');
 }
 
+/* ── Projects render ──────────────────────────────────────────────────────── */
+function renderProjects() {
+  const grid = document.getElementById('projectsGrid');
+  if (!allProjects.length) {
+    grid.innerHTML = `<div style="text-align:center;padding:80px 40px;color:var(--ink-3);grid-column:1/-1">
+      <h3 style="font-family:var(--font-serif);font-size:22px;color:var(--ink);margin-bottom:8px">No projects yet</h3>
+      <p style="font-size:13px;margin-bottom:20px">Organise your designs into projects for easy management.</p>
+      <button class="btn btn-gold" onclick="promptNewProject()">Create your first project</button></div>`;
+    return;
+  }
+  grid.innerHTML = allProjects.map(p => `
+    <div style="background:var(--surface);border:1px solid var(--paper-3);border-radius:var(--radius-lg);padding:20px;cursor:pointer;transition:box-shadow var(--t-slow) var(--ease),border-color var(--t-slow) var(--ease)"
+      onmouseenter="this.style.boxShadow='var(--shadow-lg)';this.style.borderColor='rgba(184,146,74,.25)'"
+      onmouseleave="this.style.boxShadow='';this.style.borderColor='var(--paper-3)'"
+      onclick="viewProject('${p.id}')">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+        <div style="width:40px;height:40px;background:var(--gold-bg);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();renameProject('${p.id}','${p.name.replace(/'/g,"\\'")}')">Rename</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="event.stopPropagation();deleteProject('${p.id}')">Delete</button>
+        </div>
+      </div>
+      <div style="font-weight:600;font-size:15px;color:var(--ink);margin-bottom:4px">${p.name}</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-bottom:10px">${p.description||'&nbsp;'}</div>
+      <div style="font-size:11px;font-family:var(--font-mono);color:var(--ink-4)">${p.item_count} item${p.item_count!==1?'s':''} · ${p.category||'General'}</div>
+    </div>`).join('');
+}
+
+function viewProject(projId) {
+  // Switch to gallery view, filter by project
+  switchView('gallery', document.getElementById('viewGalleryBtn'));
+  document.getElementById('projectFilter').value = projId;
+  filterByProject(projId);
+}
+
+/* ── Project CRUD ─────────────────────────────────────────────────────────── */
+async function promptNewProject() {
+  const name = prompt('Project name:');
+  if (!name?.trim()) return;
+  const cat  = prompt('Category (optional):') || '';
+  const desc = prompt('Description (optional):') || '';
+  try {
+    const res  = await fetch('/api/projects', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name: name.trim(), category: cat.trim(), description: desc.trim() }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      allProjects.push({ id: data.id, name: data.name, category: cat, description: desc, item_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+      populateProjectDropdowns();
+      renderProjects();
+      showToast('Project created.', 'success');
+    } else {
+      showToast(data.error || 'Failed to create project.', 'error');
+    }
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function renameProject(id, currentName) {
+  const name = prompt('New name:', currentName);
+  if (!name?.trim() || name.trim() === currentName) return;
+  try {
+    await fetch(`/api/projects/${id}`, {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    const p = allProjects.find(p => p.id === id);
+    if (p) p.name = name.trim();
+    populateProjectDropdowns();
+    renderProjects();
+    showToast('Project renamed.', 'success');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function deleteProject(id) {
+  if (!confirm('Delete this project? Gallery items will not be deleted.')) return;
+  try {
+    await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+    allProjects = allProjects.filter(p => p.id !== id);
+    populateProjectDropdowns();
+    renderProjects();
+    showToast('Project deleted.');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+/* ── Project assignment ───────────────────────────────────────────────────── */
+let _assignTargetId = null;
+
+function openProjectAssignFor(itemId) {
+  _assignTargetId = itemId;
+  document.getElementById('projectAssignSelect').innerHTML =
+    '<option value="">— No project (ungrouped) —</option>' +
+    allProjects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  const item = allItems.find(i => i.id === itemId);
+  if (item?.project_id) document.getElementById('projectAssignSelect').value = item.project_id;
+  document.getElementById('projectItemModal').style.display = 'flex';
+}
+
+function openProjectAssign() {
+  openProjectAssignFor(lightboxId);
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+async function confirmAssignProject() {
+  if (!_assignTargetId) return;
+  const pid = document.getElementById('projectAssignSelect').value || null;
+  try {
+    await fetch(`/api/gallery/${_assignTargetId}/assign-project`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ project_id: pid }),
+    });
+    const item = allItems.find(i => i.id === _assignTargetId);
+    if (item) item.project_id = pid;
+    document.getElementById('projectItemModal').style.display = 'none';
+    filterGallery(currentFilter, document.querySelector(`#galleryFilters .filter-tab[data-filter="${currentFilter}"]`));
+    showToast(pid ? 'Moved to project.' : 'Removed from project.', 'success');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+/* ── Delete / clear ────────────────────────────────────────────────────────── */
 async function deleteItem(id) {
   try {
     await fetch(`/api/gallery/${id}`, { method: 'DELETE' });
     allItems = allItems.filter(i => i.id !== id);
-    filterGallery(currentFilter, document.querySelector(`.filter-tab[data-filter="${currentFilter}"]`));
-  } catch(e) {
-    showToast('Failed to delete item.', 'error');
-  }
+    filterGallery(currentFilter, document.querySelector(`#galleryFilters .filter-tab[data-filter="${currentFilter}"]`));
+  } catch(e) { showToast('Failed to delete item.', 'error'); }
 }
 
 async function clearGallery() {
@@ -420,13 +537,12 @@ async function clearGallery() {
     allItems = [];
     renderGallery([]);
     showToast('Gallery cleared.');
-  } catch(e) {
-    showToast('Failed to clear gallery.', 'error');
-  }
+  } catch(e) { showToast('Failed to clear gallery.', 'error'); }
 }
 
-function openLightbox(url, id) {
-  lightboxUrl = url; lightboxId = id;
+/* ── Lightbox ──────────────────────────────────────────────────────────────── */
+function openLightbox(url, id, category) {
+  lightboxUrl = url; lightboxId = id; lightboxCategory = category || '';
   document.getElementById('lightboxImg').src = url;
   document.getElementById('lightboxDl').href  = url;
   document.getElementById('lightbox').classList.add('open');
@@ -444,24 +560,106 @@ function sendLightboxToModel() {
   window.location.href = '/studio/model';
 }
 
+function sendLightboxToCAD() {
+  sessionStorage.setItem('pendingCADImage', lightboxUrl);
+  if (lightboxCategory) sessionStorage.setItem('pendingCADCategory', lightboxCategory);
+  window.location.href = '/studio/cad';
+}
+
 function sendToModel(url, cat) {
   sessionStorage.setItem('pendingModelImage', url);
   if (cat) sessionStorage.setItem('pendingModelCategory', cat);
   window.location.href = '/studio/model';
 }
 
+function sendToCAD(url, cat) {
+  sessionStorage.setItem('pendingCADImage', url);
+  if (cat) sessionStorage.setItem('pendingCADCategory', cat);
+  window.location.href = '/studio/cad';
+}
+
 function openInCADViewer(glbUrl, thumbUrl, category) {
-  // Hand off to the CAD page — it picks these up on DOMContentLoaded
   sessionStorage.setItem('pendingCADGlbUrl',   glbUrl);
   sessionStorage.setItem('pendingCADThumbUrl',  thumbUrl || '');
   sessionStorage.setItem('pendingCADCategory',  category || '');
   window.location.href = '/studio/cad';
 }
 
+/* ── BOM / Cost generation ─────────────────────────────────────────────────── */
+async function generateBOMForLightbox() {
+  if (!lightboxUrl) { showToast('No image selected.', 'error'); return; }
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+
+  const modal = document.getElementById('bomModal');
+  const body  = document.getElementById('bomModalBody');
+  modal.style.display = 'flex';
+  body.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:8px 0"><div class="spinner"></div><span style="font-size:13px;color:var(--ink-3)">Estimating materials and costs…</span></div>';
+
+  // Convert image URL to base64
+  let imgData = lightboxUrl;
+  if (!lightboxUrl.startsWith('data:')) {
+    try {
+      const r = await fetch(lightboxUrl);
+      const b = await r.blob();
+      imgData = await new Promise(res => { const rd = new FileReader(); rd.onload = e => res(e.target.result); rd.readAsDataURL(b); });
+    } catch(e) { body.innerHTML = `<p style="color:var(--error)">Could not load image: ${e.message}</p>`; return; }
+  }
+
+  const fd = new FormData();
+  fd.append('image_data', imgData);
+  fd.append('category', lightboxCategory || 'Jewellery');
+  fd.append('metal', '22K Yellow Gold');
+  if (lightboxId) fd.append('gallery_id', lightboxId);
+
+  try {
+    const res  = await fetch('/api/generate-bom', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) { body.innerHTML = `<p style="color:var(--error)">${data.error}</p>`; return; }
+
+    const fmt = n => '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--paper-2);border-radius:var(--radius);overflow:hidden;margin-bottom:20px">
+        ${[
+          ['Category', data.category],
+          ['Metal', data.metal],
+          ['Metal weight', data.metal_weight_g + ' g'],
+          ['Complexity', data.complexity],
+          ['Labour hrs', data.labour_hrs + ' hrs'],
+        ].map(([l,v]) => `<div style="background:var(--surface);padding:10px 14px"><div style="font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-4);margin-bottom:3px">${l}</div><div style="font-size:13px;font-weight:600;color:var(--ink)">${v||'—'}</div></div>`).join('')}
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px">
+        ${[
+          ['Metal cost', fmt(data.metal_cost_inr)],
+          ['Stone cost', fmt(data.stone_cost_inr)],
+          ['Labour', fmt(data.labour_cost_inr)],
+          ['Making charges', fmt(data.making_charges_inr)],
+          ['GST (3%)', fmt(data.gst_inr)],
+        ].map(([l,v]) => `<div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--paper);border-radius:var(--radius)"><span style="font-size:12px;color:var(--ink-3)">${l}</span><span style="font-size:13px;font-weight:600;color:var(--ink)">${v}</span></div>`).join('')}
+        <div style="display:flex;justify-content:space-between;padding:12px 14px;background:var(--ink);border-radius:var(--radius)">
+          <span style="font-size:13px;font-weight:600;color:var(--paper)">Estimated Total</span>
+          <span style="font-size:18px;font-weight:700;color:var(--gold)">${fmt(data.total_inr)}</span>
+        </div>
+      </div>
+
+      ${data.stone_details?.length ? `<div style="margin-bottom:16px">
+        <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Stone Details</div>
+        ${data.stone_details.map(s => `<div style="font-size:12px;color:var(--ink-3);padding:6px 0;border-bottom:1px solid var(--paper-2)">${s.count}× ${s.type} · ${s.est_ct_ea}ct ea. · ${fmt(s.total_inr)} total</div>`).join('')}
+      </div>` : ''}
+
+      <p style="font-size:10px;color:var(--ink-4);font-family:var(--font-mono);line-height:1.6">${data.disclaimer}</p>`;
+  } catch(e) {
+    body.innerHTML = `<p style="color:var(--error)">Error: ${e.message}</p>`;
+  }
+}
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     document.getElementById('lightbox').classList.remove('open');
     document.body.style.overflow = '';
+    document.getElementById('bomModal').style.display = 'none';
+    document.getElementById('projectItemModal').style.display = 'none';
   }
 });
 

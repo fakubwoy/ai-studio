@@ -770,7 +770,11 @@ function applyRefinement() {
 }
 
 function sendToCADFromModel() {
-  if (currentOutputUrl) { sessionStorage.setItem('pendingCADImage', currentOutputUrl); window.location.href = '/studio/cad'; }
+  if (currentOutputUrl) {
+    sessionStorage.setItem('pendingCADImage',    currentOutputUrl);
+    sessionStorage.setItem('pendingCADCategory', document.getElementById('modelCategory').value);
+    window.location.href = '/studio/cad';
+  }
 }
 
 function sendToMarket() {

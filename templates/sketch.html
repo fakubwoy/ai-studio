@@ -73,6 +73,146 @@
 
   .preview-remove:hover { background: var(--error); }
 
+  /* ── Sketch input tabs (Draw / Upload) ─────────────────────────────── */
+  .input-tabs {
+    display: flex;
+    background: var(--paper-2);
+    border-radius: var(--radius);
+    padding: 3px; gap: 2px;
+    margin-bottom: 12px;
+  }
+  .input-tab {
+    flex: 1; padding: 6px;
+    text-align: center;
+    border-radius: calc(var(--radius) - 1px);
+    font-size: 11px; font-weight: 600;
+    letter-spacing: .05em; text-transform: uppercase;
+    color: var(--ink-3);
+    transition: all var(--t) var(--ease);
+    cursor: pointer;
+  }
+  .input-tab.active {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  }
+  .input-tab:hover:not(.active) { color: var(--ink); }
+
+  /* ── Canvas drawing pad ────────────────────────────────────────────── */
+  .canvas-container {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: #fff;
+    border: 1.5px solid var(--paper-3);
+  }
+  #sketchCanvas {
+    display: block;
+    cursor: crosshair;
+    width: 100%;
+    touch-action: none;
+  }
+  .canvas-toolbar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 10px;
+    background: var(--paper);
+    border-top: 1px solid var(--paper-3);
+    flex-wrap: wrap;
+  }
+  .tool-btn {
+    width: 30px; height: 30px;
+    border-radius: var(--radius);
+    border: 1.5px solid var(--paper-3);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface);
+    color: var(--ink-3);
+    cursor: pointer;
+    transition: all var(--t) var(--ease);
+    font-size: 11px; font-weight: 600;
+  }
+  .tool-btn:hover { border-color: var(--paper-4); color: var(--ink); }
+  .tool-btn.active { border-color: var(--gold); color: var(--gold-dk); background: var(--gold-bg); }
+  .tool-btn.danger:hover { border-color: var(--error); color: var(--error); }
+
+  .stroke-swatch {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid var(--paper-3);
+    cursor: pointer;
+    transition: transform var(--t) var(--ease), border-color var(--t) var(--ease);
+  }
+  .stroke-swatch:hover { transform: scale(1.15); border-color: var(--paper-4); }
+  .stroke-swatch.active { border-color: var(--gold); transform: scale(1.15); }
+
+  .size-track {
+    display: flex; align-items: center; gap: 6px; flex: 1;
+    min-width: 80px;
+  }
+  .size-track input[type=range] {
+    flex: 1; width: auto; min-width: 0; padding: 0; border: none;
+    background: transparent; height: 4px;
+    accent-color: var(--gold);
+  }
+  .size-dot {
+    background: var(--ink-3); border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── Sketch Enhancement toggle ─────────────────────────────────────── */
+  .enhance-toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--gold-bg);
+    border: 1.5px solid rgba(184,146,74,.25);
+    border-radius: var(--radius);
+    margin-top: 4px;
+  }
+  .enhance-toggle-label {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .enhance-toggle-label strong {
+    font-size: 12px; font-weight: 600; color: var(--ink);
+  }
+  .enhance-toggle-label span {
+    font-size: 10px; color: var(--ink-3); font-family: var(--font-mono);
+  }
+  /* Toggle switch */
+  .toggle-switch {
+    position: relative; width: 40px; height: 22px; flex-shrink: 0;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; inset: 0;
+    background: var(--paper-3); border-radius: 20px;
+    cursor: pointer;
+    transition: background var(--t) var(--ease);
+  }
+  .toggle-slider::before {
+    content: ''; position: absolute;
+    width: 16px; height: 16px; border-radius: 50%;
+    left: 3px; top: 3px;
+    background: #fff;
+    transition: transform var(--t) var(--ease);
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  }
+  .toggle-switch input:checked + .toggle-slider { background: var(--gold); }
+  .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+  .enhance-style-row {
+    display: flex; gap: 6px; margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .enhance-style-chip {
+    padding: 4px 10px; border-radius: 20px;
+    border: 1.5px solid var(--paper-3);
+    font-size: 10px; font-weight: 600; letter-spacing: .04em;
+    cursor: pointer; transition: all var(--t) var(--ease);
+    color: var(--ink-3);
+  }
+  .enhance-style-chip.active {
+    border-color: var(--gold); color: var(--gold-dk); background: var(--gold-bg);
+  }
+  .enhance-style-chip:hover:not(.active) { border-color: var(--paper-4); color: var(--ink); }
+
   /* Mode tabs */
   .mode-tabs {
     display: flex;
@@ -248,28 +388,93 @@
     <div class="panel">
       <div class="panel-title">
         <span class="step">Step 01</span>
-        Upload Sketch
+        Sketch Input
       </div>
-      <div class="upload-zone" id="sketchUploadZone">
-        <input type="file" id="sketchFile" accept="image/*" />
-        <div id="sketchPlaceholder">
-          <div class="upload-zone-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
+
+      <!-- Input mode tabs: Draw / Upload -->
+      <div class="input-tabs" id="inputTabs">
+        <div class="input-tab active" data-itab="draw" onclick="setInputTab('draw')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Draw
+        </div>
+        <div class="input-tab" data-itab="upload" onclick="setInputTab('upload')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Upload
+        </div>
+      </div>
+
+      <!-- ── DRAW TAB ──────────────────────────────────────────────── -->
+      <div id="drawTab">
+        <div class="canvas-container">
+          <canvas id="sketchCanvas" width="340" height="260"></canvas>
+          <div class="canvas-toolbar">
+            <!-- Tool: Pen / Eraser -->
+            <button class="tool-btn active" id="penBtn" title="Pen" onclick="setTool('pen')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </button>
+            <button class="tool-btn" id="eraserBtn" title="Eraser" onclick="setTool('eraser')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/><path d="M6.0253 11.0253l6.9497 6.9497"/></svg>
+            </button>
+            <!-- Stroke colours -->
+            <div class="stroke-swatch active" data-col="#1a1614" style="background:#1a1614" onclick="setColor(this)" title="Black"></div>
+            <div class="stroke-swatch" data-col="#b8924a" style="background:#b8924a" onclick="setColor(this)" title="Gold"></div>
+            <div class="stroke-swatch" data-col="#6b5f58" style="background:#6b5f58" onclick="setColor(this)" title="Grey"></div>
+            <!-- Brush size -->
+            <div class="size-track">
+              <div class="size-dot" style="width:6px;height:6px"></div>
+              <input type="range" id="brushSize" min="1" max="24" value="3" oninput="setBrushSize(this.value)" />
+              <div class="size-dot" style="width:12px;height:12px"></div>
+            </div>
+            <!-- Undo / Clear -->
+            <button class="tool-btn" title="Undo" onclick="undoStroke()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+            </button>
+            <button class="tool-btn danger" title="Clear canvas" onclick="clearCanvas()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
           </div>
-          <p>Drop your sketch here</p>
-          <small>PNG, JPG, WEBP &middot; up to 16 MB</small>
         </div>
-        <div id="sketchPreview" class="upload-preview" style="display:none">
-          <img id="sketchPreviewImg" src="" alt="sketch" />
-          <button class="preview-remove" onclick="clearSketch(event)">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
+        <p style="font-size:10px;color:var(--ink-4);font-family:var(--font-mono);text-align:center;margin-top:6px">Draw your jewellery idea above — pen pressure optional</p>
+      </div>
+
+      <!-- ── UPLOAD TAB ─────────────────────────────────────────────── -->
+      <div id="uploadTab" style="display:none">
+        <div class="upload-zone" id="sketchUploadZone">
+          <input type="file" id="sketchFile" accept="image/*" />
+          <div id="sketchPlaceholder">
+            <div class="upload-zone-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </div>
+            <p>Drop your sketch here</p>
+            <small>PNG, JPG, WEBP &middot; up to 16 MB</small>
+          </div>
+          <div id="sketchPreview" class="upload-preview" style="display:none">
+            <img id="sketchPreviewImg" src="" alt="sketch" />
+            <button class="preview-remove" onclick="clearSketch(event)">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
         </div>
+      </div>
+
+      <!-- ── AI Sketch Enhancement (toggleable) ────────────────────── -->
+      <div class="enhance-toggle-row" id="enhanceRow">
+        <div class="enhance-toggle-label">
+          <strong>✦ AI Sketch Enhancement</strong>
+          <span>Gemini cleans sketch before conceptualising</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="enhanceToggle" onchange="onEnhanceToggle()" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div id="enhanceStyleRow" class="enhance-style-row" style="display:none">
+        <div class="enhance-style-chip active" data-estyle="clean_concept" onclick="setEnhanceStyle(this)">Concept</div>
+        <div class="enhance-style-chip" data-estyle="line_art" onclick="setEnhanceStyle(this)">Line Art</div>
+        <div class="enhance-style-chip" data-estyle="detail_render" onclick="setEnhanceStyle(this)">Detail Render</div>
       </div>
     </div>
 
@@ -367,22 +572,152 @@
 {% block scripts %}
 <script>
 const SS_KEY = 'sketchStudioState';
-let sketchDataUrl  = null;   // data-URI for preview & sessionStorage
-let sketchFileObj  = null;   // raw File — sent as multipart to backend
-let activeVars     = new Set(['Classic']);
-let currentMode    = 'sketch';
-let concepts       = [];
+let sketchDataUrl   = null;
+let sketchFileObj   = null;
+let activeVars      = new Set(['Classic']);
+let currentMode     = 'sketch';
+let currentInputTab = 'draw';
+let enhanceEnabled  = false;
+let enhanceStyle    = 'clean_concept';
+let concepts        = [];
+
+// ── Canvas drawing state ──────────────────────────────────────────────────────
+let canvas, ctx;
+let isDrawing    = false;
+let currentTool  = 'pen';
+let brushColor   = '#1a1614';
+let brushSizeVal = 3;
+let strokes      = [];
+
+window.addEventListener('DOMContentLoaded', () => {
+  canvas = document.getElementById('sketchCanvas');
+  ctx    = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  canvas.addEventListener('pointerdown',  onPointerDown);
+  canvas.addEventListener('pointermove',  onPointerMove);
+  canvas.addEventListener('pointerup',    onPointerUp);
+  canvas.addEventListener('pointerleave', onPointerUp);
+  restoreState();
+});
+
+function setInputTab(tab) {
+  currentInputTab = tab;
+  document.querySelectorAll('.input-tab').forEach(t => t.classList.toggle('active', t.dataset.itab === tab));
+  document.getElementById('drawTab').style.display   = tab === 'draw'   ? 'block' : 'none';
+  document.getElementById('uploadTab').style.display = tab === 'upload' ? 'block' : 'none';
+  if (tab === 'draw') syncCanvasToDataUrl();
+  saveState();
+}
+
+function getCanvasPos(e) {
+  const rect  = canvas.getBoundingClientRect();
+  const scaleX = canvas.width  / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+}
+
+function onPointerDown(e) {
+  e.preventDefault();
+  canvas.setPointerCapture(e.pointerId);
+  isDrawing = true;
+  strokes.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  if (strokes.length > 50) strokes.shift();
+  const pos = getCanvasPos(e);
+  ctx.beginPath();
+  ctx.moveTo(pos.x, pos.y);
+  applyToolStyle(e);
+}
+
+function onPointerMove(e) {
+  if (!isDrawing) return;
+  e.preventDefault();
+  const pos = getCanvasPos(e);
+  applyToolStyle(e);
+  ctx.lineTo(pos.x, pos.y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(pos.x, pos.y);
+}
+
+function applyToolStyle(e) {
+  const pressure = e.pressure > 0 ? e.pressure : 0.5;
+  if (currentTool === 'eraser') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = 'rgba(0,0,0,1)';
+    ctx.lineWidth   = brushSizeVal * 4;
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = brushColor;
+    ctx.lineWidth   = brushSizeVal * (0.4 + pressure * 1.2);
+  }
+  ctx.lineCap  = 'round';
+  ctx.lineJoin = 'round';
+}
+
+function onPointerUp(e) {
+  if (!isDrawing) return;
+  isDrawing = false;
+  ctx.globalCompositeOperation = 'source-over';
+  syncCanvasToDataUrl();
+}
+
+function syncCanvasToDataUrl() {
+  const tmp = document.createElement('canvas');
+  tmp.width  = canvas.width; tmp.height = canvas.height;
+  const tc = tmp.getContext('2d');
+  tc.fillStyle = '#ffffff'; tc.fillRect(0, 0, tmp.width, tmp.height);
+  tc.drawImage(canvas, 0, 0);
+  sketchDataUrl = tmp.toDataURL('image/png');
+  sketchFileObj = null;
+  saveState();
+}
+
+function setTool(tool) {
+  currentTool = tool;
+  document.getElementById('penBtn').classList.toggle('active',    tool === 'pen');
+  document.getElementById('eraserBtn').classList.toggle('active', tool === 'eraser');
+}
+
+function setColor(el) {
+  document.querySelectorAll('.stroke-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  brushColor = el.dataset.col;
+  setTool('pen');
+}
+
+function setBrushSize(v) { brushSizeVal = parseInt(v); }
+
+function undoStroke() {
+  if (!strokes.length) return;
+  ctx.putImageData(strokes.pop(), 0, 0);
+  syncCanvasToDataUrl();
+}
+
+function clearCanvas() {
+  strokes.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  syncCanvasToDataUrl();
+}
+
+function isCanvasBlank() {
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i] < 250 || data[i+1] < 250 || data[i+2] < 250) return false;
+  }
+  return true;
+}
 
 function saveState() {
   try {
     sessionStorage.setItem(SS_KEY, JSON.stringify({
-      prompt:       document.getElementById('sketchPrompt').value,
-      category:     document.getElementById('sketchCategory').value,
-      metal:        document.getElementById('metalFinish').value,
-      mode:         currentMode,
-      activeVars:   [...activeVars],
-      sketchDataUrl: sketchDataUrl,
-      concepts,
+      prompt: document.getElementById('sketchPrompt').value,
+      category: document.getElementById('sketchCategory').value,
+      metal: document.getElementById('metalFinish').value,
+      mode: currentMode, inputTab: currentInputTab,
+      enhanceEnabled, enhanceStyle, activeVars: [...activeVars],
+      sketchDataUrl, concepts,
     }));
   } catch(e) {}
 }
@@ -395,17 +730,33 @@ function restoreState() {
   if (saved.category) document.getElementById('sketchCategory').value = saved.category;
   if (saved.metal)    document.getElementById('metalFinish').value    = saved.metal;
   if (saved.mode)     setMode(saved.mode);
+  if (saved.inputTab) setInputTab(saved.inputTab);
+  if (typeof saved.enhanceEnabled === 'boolean') {
+    enhanceEnabled = saved.enhanceEnabled;
+    document.getElementById('enhanceToggle').checked = enhanceEnabled;
+    document.getElementById('enhanceStyleRow').style.display = enhanceEnabled ? 'flex' : 'none';
+  }
+  if (saved.enhanceStyle) {
+    enhanceStyle = saved.enhanceStyle;
+    document.querySelectorAll('.enhance-style-chip').forEach(c =>
+      c.classList.toggle('active', c.dataset.estyle === enhanceStyle));
+  }
   if (Array.isArray(saved.activeVars) && saved.activeVars.length) {
     activeVars = new Set(saved.activeVars);
-    document.querySelectorAll('.var-chip').forEach(el => {
-      el.classList.toggle('active', activeVars.has(el.dataset.var));
-    });
+    document.querySelectorAll('.var-chip').forEach(el =>
+      el.classList.toggle('active', activeVars.has(el.dataset.var)));
   }
   if (saved.sketchDataUrl) {
     sketchDataUrl = saved.sketchDataUrl;
-    document.getElementById('sketchPreviewImg').src = sketchDataUrl;
-    document.getElementById('sketchPlaceholder').style.display = 'none';
-    document.getElementById('sketchPreview').style.display = 'block';
+    if (saved.inputTab !== 'upload') {
+      const img = new Image();
+      img.onload = () => { if (canvas) { ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0,canvas.width,canvas.height); } };
+      img.src = sketchDataUrl;
+    } else {
+      document.getElementById('sketchPreviewImg').src = sketchDataUrl;
+      document.getElementById('sketchPlaceholder').style.display = 'none';
+      document.getElementById('sketchPreview').style.display = 'block';
+    }
   }
   if (Array.isArray(saved.concepts) && saved.concepts.length) {
     concepts = saved.concepts;
@@ -414,13 +765,26 @@ function restoreState() {
   }
 }
 
+function onEnhanceToggle() {
+  enhanceEnabled = document.getElementById('enhanceToggle').checked;
+  document.getElementById('enhanceStyleRow').style.display = enhanceEnabled ? 'flex' : 'none';
+  saveState();
+}
+
+function setEnhanceStyle(el) {
+  document.querySelectorAll('.enhance-style-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  enhanceStyle = el.dataset.estyle;
+  saveState();
+}
+
+// Upload tab
 const sketchFile = document.getElementById('sketchFile');
 const sketchZone = document.getElementById('sketchUploadZone');
 
 sketchFile.addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  sketchFileObj = file;   // keep the File for multipart upload to backend
+  const file = e.target.files[0]; if (!file) return;
+  sketchFileObj = file;
   const reader = new FileReader();
   reader.onload = ev => {
     sketchDataUrl = ev.target.result;
@@ -465,35 +829,61 @@ async function runConceptualise() {
   const prompt   = document.getElementById('sketchPrompt').value.trim();
   const category = document.getElementById('sketchCategory').value;
   const metal    = document.getElementById('metalFinish').value;
-  if (!prompt && !sketchDataUrl && !sketchFileObj) {
-    showToast('Please upload a sketch or enter a description.', 'error'); return;
+  if (currentInputTab === 'draw') syncCanvasToDataUrl();
+  const hasCanvas = currentInputTab === 'draw' && !isCanvasBlank();
+  const hasUpload = currentInputTab === 'upload' && (sketchDataUrl || sketchFileObj);
+  if (!prompt && !hasCanvas && !hasUpload) {
+    showToast('Draw a sketch, upload an image, or enter a description.', 'error'); return;
   }
   const btn = document.getElementById('conceptualiseBtn');
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner"></div> Generating…';
   showLoading();
   try {
+    let finalSketchDataUrl = sketchDataUrl;
+    let finalSketchFile    = sketchFileObj;
+
+    if (enhanceEnabled && (hasCanvas || hasUpload)) {
+      btn.innerHTML = '<div class="spinner"></div> Enhancing sketch…';
+      const enhFd = new FormData();
+      enhFd.append('style', enhanceStyle);
+      enhFd.append('category', category);
+      if (prompt) enhFd.append('notes', prompt);
+      if (finalSketchFile) {
+        enhFd.append('sketch_image', finalSketchFile);
+      } else if (finalSketchDataUrl) {
+        try {
+          const blob = await (await fetch(finalSketchDataUrl)).blob();
+          enhFd.append('sketch_image', blob, 'sketch.png');
+        } catch(e) { enhFd.append('sketch_data', finalSketchDataUrl); }
+      }
+      try {
+        const enhRes  = await fetch('/api/enhance-sketch', { method: 'POST', body: enhFd });
+        const enhData = await enhRes.json();
+        if (enhData.success && enhData.enhanced_url) {
+          finalSketchDataUrl = enhData.enhanced_url;
+          finalSketchFile    = null;
+          showToast('Sketch enhanced — generating concepts…', 'success');
+        } else {
+          showToast('Enhancement skipped: ' + (enhData.error || 'unknown'), 'error');
+        }
+      } catch(enhErr) { showToast('Enhancement failed, continuing without it.', 'error'); }
+      btn.innerHTML = '<div class="spinner"></div> Generating…';
+    }
+
     const fd = new FormData();
     fd.append('prompt', prompt);
     fd.append('category', category);
     fd.append('metal', metal);
     fd.append('variations', JSON.stringify([...activeVars]));
 
-    // Send the sketch as a proper file field so the backend gets a real image,
-    // not a potentially-truncated base64 string
-    if (sketchFileObj) {
-      // Fresh file upload — send directly
-      fd.append('sketch_image', sketchFileObj);
-    } else if (sketchDataUrl) {
-      // Restored from session — convert data-URI → Blob → File
+    if (finalSketchFile) {
+      fd.append('sketch_image', finalSketchFile);
+    } else if (finalSketchDataUrl) {
       try {
-        const res  = await fetch(sketchDataUrl);
-        const blob = await res.blob();
+        const blob = await (await fetch(finalSketchDataUrl)).blob();
         fd.append('sketch_image', blob, 'sketch.png');
-      } catch(e) {
-        // If conversion fails, fall back to base64 field (backend handles both)
-        fd.append('sketch_data', sketchDataUrl);
-      }
+      } catch(e) { fd.append('sketch_data', finalSketchDataUrl); }
     }
 
     const res  = await fetch('/api/conceptualise', { method: 'POST', body: fd });
@@ -512,25 +902,11 @@ async function runConceptualise() {
 }
 
 function showLoading() {
-  document.getElementById('conceptsArea').innerHTML = `
-    <div class="gen-loading">
-      <div class="spinner" style="width:36px;height:36px;border-width:3px"></div>
-      <p>Analysing sketch and generating concepts…</p>
-    </div>`;
+  document.getElementById('conceptsArea').innerHTML = `<div class="gen-loading"><div class="spinner" style="width:36px;height:36px;border-width:3px"></div><p>Analysing sketch and generating concepts…</p></div>`;
 }
 
 function showEmpty() {
-  document.getElementById('conceptsArea').innerHTML = `
-    <div class="empty-state">
-      <div class="empty-state-icon">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-        </svg>
-      </div>
-      <h3>Your concepts will appear here</h3>
-      <p>Upload a sketch or describe your idea, then click Conceptualise.</p>
-    </div>`;
+  document.getElementById('conceptsArea').innerHTML = `<div class="empty-state"><div class="empty-state-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div><h3>Your concepts will appear here</h3><p>Draw or upload a sketch, or describe your idea, then click Conceptualise.</p></div>`;
 }
 
 function clearConcepts() {
@@ -540,66 +916,37 @@ function clearConcepts() {
 }
 
 function _imgWithRetry(url, alt, cls) {
-  // Returns an <img> tag that retries up to 4 times with back-off when the
-  // freshly-uploaded R2/CDN URL hasn't propagated yet (the most common cause
-  // of "image kept loading" after generation).
   const id = 'img-' + Math.random().toString(36).slice(2);
   const escaped = url.replace(/'/g, "\\'");
-  return `<img
-    id="${id}"
-    class="${cls}"
-    src="${url}?t=${Date.now()}"
-    alt="${alt}"
+  return `<img id="${id}" class="${cls}" src="${url}?t=${Date.now()}" alt="${alt}"
     onload="this.removeAttribute('data-retries')"
-    onerror="(function(el){
-      var retries = parseInt(el.getAttribute('data-retries') || '0');
-      if (retries < 4) {
-        el.setAttribute('data-retries', retries + 1);
-        var delay = [1500, 3000, 5000, 8000][retries];
-        setTimeout(function(){ el.src = '${escaped}?t=' + Date.now(); }, delay);
-      } else {
-        el.style.display = 'none';
-        var ph = document.createElement('div');
-        ph.className = 'concept-img-placeholder';
-        ph.innerHTML = '<svg width=\\'40\\' height=\\'40\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'var(--paper-4)\\' stroke-width=\\'1.2\\' stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\'><polygon points=\\'12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\\'/></svg>';
-        el.parentNode.insertBefore(ph, el);
-      }
-    })(this)"
-  />`;
+    onerror="(function(el){var r=parseInt(el.getAttribute('data-retries')||'0');if(r<4){el.setAttribute('data-retries',r+1);setTimeout(function(){el.src='${escaped}?t='+Date.now();},[1500,3000,5000,8000][r]);}else{el.style.display='none';}})(this)" />`;
 }
 
 function renderConcepts(list) {
   if (!list.length) { showEmpty(); return; }
   document.getElementById('conceptsArea').innerHTML = list.map((c, i) => `
     <div class="concept-card" id="concept-${i}">
-      ${c.image_url
-        ? _imgWithRetry(c.image_url, c.title, 'concept-img')
-        : `<div class="concept-img-placeholder">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--paper-4)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
-          </div>`}
+      ${c.image_url ? _imgWithRetry(c.image_url, c.title, 'concept-img') : '<div class="concept-img-placeholder"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--paper-4)" stroke-width="1.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>'}
       <div class="concept-body">
-        <div class="concept-variant">${c.variation || 'Concept ' + (i+1)}</div>
+        <div class="concept-variant">${c.variation||'Concept '+(i+1)}</div>
         <div class="concept-title">${c.title}</div>
         <p class="concept-desc">${c.description}</p>
-        <div class="concept-tags">${(c.tags || []).map(t => `<span class="tag tag-gold">${t}</span>`).join('')}</div>
+        <div class="concept-tags">${(c.tags||[]).map(t=>'<span class="tag tag-gold">'+t+'</span>').join('')}</div>
         <div class="concept-actions">
           <button class="btn btn-outline btn-sm btn-action" onclick="sendToModel(${i})">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            Try on Model
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Try on Model
           </button>
           <button class="btn btn-outline btn-sm btn-action" onclick="sendToCAD(${i})">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-            3D CAD
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>3D CAD
           </button>
-          ${c.image_url ? `
-          <button class="btn btn-outline btn-sm btn-icon" onclick="saveConceptToGallery(${i}, this)" title="Save to gallery">
+          ${c.image_url?`
+          <button class="btn btn-outline btn-sm btn-icon" onclick="saveConceptToGallery(${i},this)" title="Save to gallery">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </button>
           <a href="${c.image_url}" download="concept-${i+1}.png" class="btn btn-outline btn-sm btn-icon" title="Download">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          </a>` : ''}
+          </a>`:''}
         </div>
       </div>
     </div>`).join('');
@@ -611,67 +958,38 @@ function sendToModel(i) {
     sessionStorage.setItem('pendingModelImage', c.image_url);
     sessionStorage.setItem('pendingModelCategory', document.getElementById('sketchCategory').value);
     window.location.href = '/studio/model';
-  } else {
-    showToast('Generate a concept image first.', 'error');
-  }
+  } else { showToast('Generate a concept image first.', 'error'); }
 }
 
 function sendToCAD(i) {
   const c = concepts[i];
   if (c && c.image_url) {
-    sessionStorage.setItem('pendingCADImage', c.image_url);
+    sessionStorage.setItem('pendingCADImage',    c.image_url);
+    sessionStorage.setItem('pendingCADCategory', document.getElementById('sketchCategory').value);
+    sessionStorage.setItem('pendingCADMetal',    document.getElementById('metalFinish').value);
     window.location.href = '/studio/cad';
-  } else {
-    showToast('Generate a concept image first.', 'error');
-  }
+  } else { showToast('Generate a concept image first.', 'error'); }
 }
 
 async function saveConceptToGallery(i, btn) {
-  const c = concepts[i];
-  if (!c || !c.image_url) { showToast('No image to save.', 'error'); return; }
-
-  // Visual feedback on the button
-  const origHTML = btn.innerHTML;
-  btn.disabled   = true;
-  btn.innerHTML  = '<div class="spinner" style="width:11px;height:11px;border-width:2px"></div>';
-
+  const c = concepts[i]; if (!c || !c.image_url) { showToast('No image to save.', 'error'); return; }
+  const origHTML = btn.innerHTML; btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:11px;height:11px;border-width:2px"></div>';
   try {
-    const res  = await fetch('/api/gallery', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url:      c.image_url,
-        type:     'concept',
-        category: document.getElementById('sketchCategory').value || '',
-        title:    c.title || '',
-        tags:     c.tags  || [],
-      }),
-    });
+    const res  = await fetch('/api/gallery', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: c.image_url, type: 'concept', category: document.getElementById('sketchCategory').value||'', title: c.title||'', tags: c.tags||[] }) });
     const data = await res.json();
     if (data.success) {
-      // Turn button gold to confirm saved
       btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-      btn.style.borderColor  = 'var(--gold)';
-      btn.style.color        = 'var(--gold-dk)';
-      btn.style.background   = 'var(--gold-bg)';
+      btn.style.cssText += ';border-color:var(--gold);color:var(--gold-dk);background:var(--gold-bg)';
       showToast('Saved to gallery!', 'success');
-    } else {
-      btn.innerHTML = origHTML;
-      btn.disabled  = false;
-      showToast(data.error || 'Could not save.', 'error');
-    }
-  } catch(err) {
-    btn.innerHTML = origHTML;
-    btn.disabled  = false;
-    showToast('Network error: ' + err.message, 'error');
-  }
+    } else { btn.innerHTML = origHTML; btn.disabled = false; showToast(data.error||'Could not save.','error'); }
+  } catch(err) { btn.innerHTML = origHTML; btn.disabled = false; showToast('Network error: '+err.message,'error'); }
 }
 
 document.getElementById('sketchPrompt').addEventListener('input', saveState);
 document.getElementById('sketchCategory').addEventListener('change', saveState);
 document.getElementById('metalFinish').addEventListener('change', saveState);
 document.querySelectorAll('.mode-tab').forEach(t => t.addEventListener('click', () => saveState()));
-
-restoreState();
 </script>
 {% endblock %}

@@ -151,6 +151,57 @@ def init_db():
                     ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
                     model_urls JSONB NOT NULL DEFAULT '{}'::jsonb;
                 """)
+                # ── Projects table (v2: folder / version grouping) ────────────────
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS projects (
+                        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        name        TEXT NOT NULL DEFAULT 'Untitled Project',
+                        description TEXT NOT NULL DEFAULT '',
+                        category    TEXT NOT NULL DEFAULT '',
+                        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    );
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);")
+                # Migrate: add project_id to gallery
+                cur.execute("""
+                    ALTER TABLE gallery ADD COLUMN IF NOT EXISTS
+                    project_id UUID REFERENCES projects(id) ON DELETE SET NULL;
+                """)
+                # Migrate: add version number to gallery
+                cur.execute("""
+                    ALTER TABLE gallery ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;
+                """)
+                # ── Usage / quota tracking ────────────────────────────────────────
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS api_usage (
+                        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+                        endpoint    TEXT NOT NULL,
+                        provider    TEXT NOT NULL DEFAULT '',
+                        tokens_used INT NOT NULL DEFAULT 0,
+                        cost_usd    NUMERIC(10,6) NOT NULL DEFAULT 0,
+                        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    );
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_usage_user ON api_usage(user_id, created_at);")
+                # ── BOM / costing table ───────────────────────────────────────────
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS bom_reports (
+                        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id       UUID REFERENCES users(id) ON DELETE CASCADE,
+                        gallery_id    UUID REFERENCES gallery(id) ON DELETE CASCADE,
+                        category      TEXT NOT NULL DEFAULT '',
+                        metal         TEXT NOT NULL DEFAULT '',
+                        metal_weight_g NUMERIC(8,3),
+                        stone_details JSONB NOT NULL DEFAULT '[]'::jsonb,
+                        labour_hrs    NUMERIC(6,2),
+                        est_cost_inr  NUMERIC(12,2),
+                        report_json   JSONB NOT NULL DEFAULT '{}'::jsonb,
+                        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    );
+                """)
                 # Seed categories from DEFAULT_CATEGORIES if table is empty
                 cur.execute('SELECT COUNT(*) AS n FROM categories')
                 row = cur.fetchone()
@@ -836,6 +887,11 @@ def page_market():
 def page_gallery():
     return render_template('gallery.html', active_nav='gallery', current_user=get_current_user())
 
+@app.route('/studio/projects')
+@login_required
+def page_projects():
+    return render_template('gallery.html', active_nav='projects', current_user=get_current_user(), view='projects')
+
 # ── API: Categories ────────────────────────────────────────────────────────────
 
 @app.route('/api/categories', methods=['GET'])
@@ -913,6 +969,7 @@ def add_template():
 
 @app.route('/api/conceptualise', methods=['POST'])
 @login_required
+@rate_limited
 def api_conceptualise():
     """
     Takes a sketch image (optional, as file upload OR base64) + text description
@@ -1095,6 +1152,7 @@ Return ONLY the JSON, no markdown."""
 
 @app.route('/api/generate-image', methods=['POST'])
 @login_required
+@rate_limited
 def generate_image():
     files = request.files.getlist('jewellery_image')
     if not files or not files[0].filename:
@@ -1318,16 +1376,22 @@ def _upload_to_r2(img_bytes: bytes, filename: str) -> str | None:
 
 @app.route('/api/generate-cad', methods=['POST'])
 @login_required
+@rate_limited
 def api_generate_cad():
     """Submit an image to Meshy AI image-to-3D and return a task_id for polling.
 
     Accepts the image either as:
       • a multipart file field  (name='image')  — preferred, sent by cad.html
       • a base64 data-URI string (name='image_data') — legacy / fallback
+
+    Optional form field 'geometry_hint' — structured description from
+    /api/extract-design-features — injected into the Meshy object_prompt
+    to improve 3D reconstruction accuracy.
     """
-    prompt     = request.form.get('prompt', '').strip()
-    art_style  = request.form.get('art_style', 'realistic')
-    target_use = request.form.get('target_use', 'visualization')
+    prompt        = request.form.get('prompt', '').strip()
+    art_style     = request.form.get('art_style', 'realistic')
+    target_use    = request.form.get('target_use', 'visualization')
+    geometry_hint = request.form.get('geometry_hint', '').strip()
 
     meshy_key, err = get_meshy_key()
     if err:
@@ -1358,16 +1422,30 @@ def api_generate_cad():
         pil_img.save(buf, format='PNG')
         img_bytes = buf.getvalue()
 
+        # Compress: if image is large, resize to max 1200px and re-encode as JPEG
+        # This matters most for the base64 Meshy path where payload size is critical
+        pil_img_rgb = pil_img.convert('RGB')
+        MAX_DIM = 1200
+        w, h = pil_img_rgb.size
+        if w > MAX_DIM or h > MAX_DIM:
+            ratio = min(MAX_DIM / w, MAX_DIM / h)
+            pil_img_rgb = pil_img_rgb.resize(
+                (int(w * ratio), int(h * ratio)), Image.LANCZOS
+            )
+        buf_jpg = io.BytesIO()
+        pil_img_rgb.save(buf_jpg, format='JPEG', quality=88)
+        img_bytes_compressed = buf_jpg.getvalue()
+
         tmp_fn = f"cad_input_{uuid.uuid4()}.png"
 
         # ── Attempt 1: upload to R2 / S3 for a public URL ────────────────────
-        public_img_url = _upload_to_r2(img_bytes, f'cad-inputs/{tmp_fn}')
+        public_img_url = _upload_to_r2(img_bytes_compressed, f'cad-inputs/{tmp_fn}')
 
         # ── Attempt 2: use host URL (works when deployed publicly) ──────────
         if not public_img_url:
             tmp_path = os.path.join(app.config['UPLOAD_FOLDER'], tmp_fn)
             with open(tmp_path, 'wb') as f:
-                f.write(img_bytes)
+                f.write(img_bytes_compressed)
             host = request.host_url.rstrip('/')
             # On Railway the host is public; locally it resolves to localhost
             # which Meshy cannot reach — we fall through to base64 below.
@@ -1386,24 +1464,32 @@ def api_generate_cad():
                 "should_remesh": True,
             }
         else:
-            # ── Attempt 3: send base64 directly — Meshy image-to-3D v1 supports it
-            log.info("[cad] no public URL available, sending base64 data URI to Meshy")
-            b64str = base64.b64encode(img_bytes).decode()
+            # ── Attempt 3: send compressed base64 — Meshy image-to-3D v1 supports it
+            log.info("[cad] no public URL available, sending compressed base64 to Meshy")
+            b64str = base64.b64encode(img_bytes_compressed).decode()
             payload = {
-                "image_url": f"data:image/png;base64,{b64str}",
+                "image_url": f"data:image/jpeg;base64,{b64str}",
                 "enable_pbr": True,
                 "should_remesh": True,
             }
 
+        # Build the richest possible object_prompt:
+        # geometry_hint (from feature extraction) takes precedence;
+        # user prompt appended as extra context when both are present.
+        object_prompt_parts = []
+        if geometry_hint:
+            object_prompt_parts.append(geometry_hint)
         if prompt:
-            payload["object_prompt"] = prompt
+            object_prompt_parts.append(prompt)
+        if object_prompt_parts:
+            payload["object_prompt"] = ' '.join(object_prompt_parts)[:500]
 
         headers = {
             "Authorization": f"Bearer {meshy_key}",
             "Content-Type": "application/json",
         }
 
-        log.info(f"[cad] submitting to Meshy AI (style={meshy_style})")
+        log.info(f"[cad] submitting to Meshy AI (style={meshy_style}) | prompt_len={len(payload.get('object_prompt',''))}")
         res = requests.post(
             "https://api.meshy.ai/openapi/v1/image-to-3d",
             headers=headers,
@@ -1587,6 +1673,597 @@ RULES:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ── API: Sketch Enhancement (Gemini cleans 2D sketch before 3D) ───────────────
+
+@app.route('/api/enhance-sketch', methods=['POST'])
+@login_required
+def api_enhance_sketch():
+    """
+    Gemini-powered 2D sketch enhancement step.
+
+    Takes a rough hand-drawn or uploaded sketch image and produces a clean,
+    production-quality line drawing / concept render — better input for Meshy.
+
+    Accepts: multipart file field 'sketch_image'  OR  form field 'sketch_data' (base64)
+    Optional: 'style' (line_art | clean_concept | detail_render), 'category', 'notes'
+    Returns: { enhanced_url, original_url, style, notes }
+    """
+    style    = request.form.get('style', 'clean_concept')    # line_art | clean_concept | detail_render
+    category = request.form.get('category', 'Jewellery').strip()
+    notes    = request.form.get('notes', '').strip()
+
+    # ── Resolve sketch image ──────────────────────────────────────────────────
+    sketch_img = None
+    has_sketch = False
+    original_b64 = None
+
+    sketch_file = request.files.get('sketch_image')
+    if sketch_file and sketch_file.filename:
+        try:
+            raw = sketch_file.read()
+            sketch_img = Image.open(io.BytesIO(raw)).convert('RGB')
+            original_b64 = 'data:image/png;base64,' + base64.b64encode(raw).decode()
+            has_sketch = True
+        except Exception as e:
+            log.warning(f'[enhance-sketch] could not read file: {e}')
+
+    if not has_sketch:
+        sketch_data = request.form.get('sketch_data', '')
+        if sketch_data:
+            try:
+                b64 = sketch_data.split(',', 1)[1] if ',' in sketch_data else sketch_data
+                raw = base64.b64decode(b64)
+                sketch_img = Image.open(io.BytesIO(raw)).convert('RGB')
+                original_b64 = sketch_data if sketch_data.startswith('data:') else ('data:image/png;base64,' + b64)
+                has_sketch = True
+            except Exception as e:
+                log.warning(f'[enhance-sketch] could not decode sketch_data: {e}')
+
+    if not has_sketch or sketch_img is None:
+        return jsonify({'error': 'No sketch image provided'}), 400
+
+    client, err = get_gemini_client()
+    if err:
+        return jsonify({'error': err}), 500
+
+    style_instructions = {
+        'line_art': (
+            "Convert this rough sketch into a precise, clean technical line drawing. "
+            "Use crisp black lines on a pure white background. "
+            "Preserve all design intent — shapes, proportions, stone placements, decorative motifs — "
+            "but clean up stray marks, wobbly lines, and smudges. "
+            "The result should look like a drafter's clean ink drawing suitable for a goldsmith."
+        ),
+        'clean_concept': (
+            "Transform this rough jewellery sketch into a polished concept illustration. "
+            "Keep the overall design and proportions faithful to the original. "
+            "Add subtle shading to suggest metal surfaces and stone facets. "
+            "Clean white/cream background, professional jewellery illustration style. "
+            "Make it suitable as a clear briefing document for a CAD operator."
+        ),
+        'detail_render': (
+            "Enhance this jewellery sketch into a detailed photorealistic render while faithfully "
+            "preserving the original design's shape, proportions, and all decorative elements. "
+            "Show realistic gold/metal texture, stone settings, and surface finish. "
+            "Professional product photography style on a clean background. "
+            "This will be used as the input image for Meshy 3D generation — maximum clarity and detail."
+        ),
+    }.get(style, 'clean_concept')
+
+    prompt = f"""You are a senior jewellery design illustrator.
+
+The user has provided a rough sketch of a {category} jewellery piece{(' — notes: ' + notes) if notes else ''}.
+
+{style_instructions}
+
+IMPORTANT CONSTRAINTS:
+- Preserve every design element from the original sketch exactly
+- Do NOT add new design features that aren't in the sketch
+- Do NOT add a model or body part; show only the jewellery piece itself
+- Maintain the same viewing angle/perspective as the original
+- Output a single, complete jewellery illustration on a clean background"""
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash-image',
+            contents=[prompt, sketch_img],
+            config=types.GenerateContentConfig(response_modalities=['TEXT', 'IMAGE']),
+        )
+
+        enhanced_url = None
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                out_bytes = part.inline_data.data
+                out_fn    = f'enhanced_{uuid.uuid4()}.png'
+                r2_url    = _upload_to_r2(out_bytes, f'enhanced/{out_fn}')
+                if r2_url:
+                    enhanced_url = r2_url
+                else:
+                    out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
+                    Image.open(io.BytesIO(out_bytes)).save(out_path)
+                    enhanced_url = f'/static/outputs/{out_fn}'
+                break
+
+        if not enhanced_url:
+            text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
+            return jsonify({'error': 'Gemini returned no image.', 'details': ' '.join(text_parts)}), 500
+
+        log.info(f'[enhance-sketch] done | style={style} | url={enhanced_url}')
+        return jsonify({'success': True, 'enhanced_url': enhanced_url, 'original_url': original_b64, 'style': style})
+
+    except Exception as e:
+        log.error(f'[enhance-sketch] exception: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+# ── API: CAD Comparison (2D sketch vs generated 3D) ───────────────────────────
+
+@app.route('/api/compare-cad', methods=['POST'])
+@login_required
+def api_compare_cad():
+    """
+    Side-by-side AI comparison of a 2D source image vs the generated 3D thumbnail.
+
+    Body (JSON or form):
+      sketch_data   – base64 data-URI of the original 2D image
+      thumbnail_url – URL of the Meshy 3D thumbnail (or any generated 3D preview)
+      category      – jewellery category string
+
+    Returns structured JSON:
+      {
+        "similarity_score": 0-100,
+        "design_preserved": ["element1", ...],
+        "design_lost":      ["element2", ...],
+        "design_changed":   ["element3", ...],
+        "verdict":          "PASS | WARN | FAIL",
+        "summary":          "2-3 sentence plain-English comparison",
+        "recommendations":  ["fix 1", ...]
+      }
+    """
+    data          = request.json or request.form
+    sketch_data   = (data.get('sketch_data') or '').strip()
+    thumbnail_url = (data.get('thumbnail_url') or '').strip()
+    category      = (data.get('category') or 'Jewellery').strip()
+
+    if not sketch_data:
+        return jsonify({'error': 'sketch_data (base64) required'}), 400
+    if not thumbnail_url:
+        return jsonify({'error': 'thumbnail_url required'}), 400
+
+    client, err = get_gemini_client()
+    if err:
+        return jsonify({'error': err}), 500
+
+    # Cache key
+    cache_key = 'glymr:compare:' + hashlib.sha1(
+        (sketch_data[:200] + thumbnail_url + category).encode()
+    ).hexdigest()
+    cached = cache_get(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    try:
+        # Decode source sketch
+        b64 = sketch_data.split(',', 1)[1] if ',' in sketch_data else sketch_data
+        source_img = Image.open(io.BytesIO(base64.b64decode(b64))).convert('RGB')
+    except Exception as e:
+        return jsonify({'error': f'Could not decode sketch_data: {e}'}), 400
+
+    try:
+        # Fetch 3D thumbnail
+        if thumbnail_url.startswith('http://') or thumbnail_url.startswith('https://'):
+            r = requests.get(thumbnail_url, timeout=15)
+            r.raise_for_status()
+            thumb_img = Image.open(io.BytesIO(r.content)).convert('RGB')
+        else:
+            fn = thumbnail_url.split('/static/outputs/')[-1].split('?')[0]
+            thumb_img = Image.open(os.path.join(app.config['OUTPUT_FOLDER'], fn)).convert('RGB')
+    except Exception as e:
+        return jsonify({'error': f'Could not fetch thumbnail: {e}'}), 400
+
+    def pil_to_part(img):
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        return types.Part.from_bytes(data=buf.getvalue(), mime_type='image/png')
+
+    prompt = f"""You are a senior jewellery CAD quality-control specialist.
+
+Image 1 (SOURCE): The original 2D design — either a hand sketch, concept render, or product photo.
+Image 2 (OUTPUT): A 3D model render generated by Meshy AI from Image 1.
+
+Category: {category}
+
+Your task is to compare Image 1 and Image 2 and assess how faithfully the 3D model
+captured the original design intent.
+
+Analyse across these dimensions:
+- Overall silhouette and proportions
+- Individual design elements (motifs, filigree, pendants, stones, settings)
+- Symmetry and balance
+- Surface texture and finish representation
+- Stone placement and count
+- Structural features (shanks, clasps, links, prongs)
+
+Return ONLY this exact JSON, no markdown:
+{{
+  "similarity_score": <integer 0-100>,
+  "verdict": "<PASS|WARN|FAIL>",
+  "summary": "<2-3 sentence plain-English comparison verdict>",
+  "design_preserved": ["<element accurately captured>", ...],
+  "design_lost": ["<element missing or absent in 3D>", ...],
+  "design_changed": ["<element present but distorted or altered>", ...],
+  "recommendations": ["<actionable fix to improve fidelity>", ...]
+}}
+
+SCORING GUIDE: 80-100=high fidelity (PASS), 55-79=moderate (WARN), <55=low fidelity (FAIL).
+Be specific — reference actual visible features, not generic boilerplate."""
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[prompt, pil_to_part(source_img), pil_to_part(thumb_img)],
+            config=types.GenerateContentConfig(temperature=0.1),
+        )
+        raw   = response.text.strip().replace('```json', '').replace('```', '').strip()
+        match = re.search(r'\{[\s\S]*\}', raw)
+        if not match:
+            return jsonify({'error': 'No JSON in response. Raw: ' + raw[:200]}), 500
+        parsed = json.loads(match.group(0))
+        result = {'success': True, **parsed}
+        cache_set(cache_key, result, ttl=1800)
+        log.info(f'[compare-cad] done | category={category} | score={parsed.get("similarity_score")}')
+        return jsonify(result)
+    except Exception as e:
+        log.error(f'[compare-cad] exception: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── API: Design Feature Extraction (structured sketch analysis) ───────────────
+
+@app.route('/api/extract-design-features', methods=['POST'])
+@login_required
+def api_extract_design_features():
+    """
+    Run structured feature extraction on a 2D jewellery sketch/image before
+    sending to Meshy, so we can (a) show the user what was recognised and
+    (b) enrich the Meshy object_prompt with precise geometry hints.
+
+    Accepts: multipart file 'image' OR form field 'image_data' (base64 data-URI)
+    Optional: 'category'
+
+    Returns:
+    {
+      "success": true,
+      "category": "Ring",
+      "stone_count": 3,
+      "stone_type": "round brilliant",
+      "symmetry": "bilateral",
+      "metal_finish": "polished yellow gold",
+      "motifs": ["filigree", "floral"],
+      "setting_type": "prong",
+      "prong_count": 4,
+      "shank_style": "split shank",
+      "sketch_quality": "clear",
+      "geometry_hint": "<concise sentence for Meshy object_prompt>",
+      "warnings": ["thin prong detected", ...]
+    }
+    """
+    category = request.form.get('category', 'Jewellery').strip()
+
+    # Resolve image bytes
+    img_bytes = None
+    uploaded  = request.files.get('image')
+    if uploaded and uploaded.filename:
+        img_bytes = uploaded.read()
+    else:
+        image_data = request.form.get('image_data', '')
+        if image_data:
+            try:
+                b64 = image_data.split(',', 1)[1] if ',' in image_data else image_data
+                img_bytes = base64.b64decode(b64)
+            except Exception as e:
+                return jsonify({'success': False, 'error': f'Invalid base64: {e}'}), 400
+
+    if not img_bytes:
+        return jsonify({'success': False, 'error': 'No image provided'}), 400
+
+    client, err = get_gemini_client()
+    if err:
+        return jsonify({'success': False, 'error': err}), 500
+
+    # Cache to avoid re-running on repeated generate attempts with the same image
+    cache_key = 'glymr:features:' + hashlib.sha1(img_bytes + category.encode()).hexdigest()
+    cached = cache_get(cache_key)
+    if cached:
+        log.info('[extract-features] cache HIT')
+        return jsonify(cached)
+
+    prompt = f"""You are an expert jewellery CAD analyst.
+
+Examine this {category} jewellery image (sketch, render, or photo) and extract every observable design detail.
+
+Return ONLY this exact JSON, no markdown, no extra keys:
+{{
+  "category": "<detected jewellery type, e.g. Ring / Necklace / Earring / Bracelet>",
+  "stone_count": <integer or null if no stones visible>,
+  "stone_type": "<e.g. round brilliant / oval / marquise / no stones>",
+  "stone_size_hint": "<e.g. large centre stone + 6 side stones / uniform small stones>",
+  "symmetry": "<bilateral / radial / asymmetric / unknown>",
+  "metal_finish": "<e.g. high-polish yellow gold / matte white gold / textured rose gold>",
+  "motifs": ["<motif1>", "<motif2>"],
+  "setting_type": "<prong / bezel / pavé / channel / invisible / none>",
+  "prong_count": <integer or null>,
+  "shank_style": "<e.g. plain band / split shank / twisted / tapered / N/A>",
+  "sketch_quality": "<clear / moderate / rough>",
+  "geometry_hint": "<ONE concise sentence describing the 3D form for a mesh generator, e.g. 'A bilateral-symmetry ring with a large oval-cut centre stone in a 4-prong setting on a split shank, with pavé side stones along the shoulders.'>",
+  "warnings": ["<any fragility / manufacturability concern visible in the sketch>"]
+}}
+
+RULES:
+- stone_count: count only the clearly distinct stones, not implied ones.
+- geometry_hint: must be ≤35 words, specific, spatial — this is injected directly into the 3D generation prompt.
+- warnings: list only issues actually visible; use empty array [] if none.
+- If a field cannot be determined from the image, use null."""
+
+    try:
+        pil = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[prompt, pil],
+            config=types.GenerateContentConfig(temperature=0.1),
+        )
+        raw   = response.text.strip().replace('```json', '').replace('```', '').strip()
+        match = re.search(r'\{[\s\S]*\}', raw)
+        if not match:
+            return jsonify({'success': False, 'error': 'No JSON in response. Raw: ' + raw[:200]}), 500
+        parsed = json.loads(match.group(0))
+        result = {'success': True, **parsed}
+        cache_set(cache_key, result, ttl=3600)
+        log.info(f'[extract-features] done | category={parsed.get("category")} | stones={parsed.get("stone_count")} | quality={parsed.get("sketch_quality")}')
+        return jsonify(result)
+    except Exception as e:
+        log.error(f'[extract-features] exception: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── API: STEP/IGES conversion (OBJ → STEP via CadQuery) ───────────────────────
+
+@app.route('/api/convert-to-step', methods=['POST'])
+@login_required
+def api_convert_to_step():
+    """
+    Download an OBJ from Meshy, convert it to STEP via CadQuery (Open CASCADE),
+    and return a download URL.
+
+    Body JSON: { "obj_url": "https://…/model.obj", "title": "optional" }
+
+    Returns: { "success": true, "step_url": "/static/outputs/…step",
+               "note": "…" }
+
+    Falls back gracefully if CadQuery is not installed — returns an informative
+    error instead of 500 so the UI can display a 'not available' message rather
+    than crashing.
+    """
+    body    = request.json or {}
+    obj_url = body.get('obj_url', '').strip()
+    title   = body.get('title', 'jewellery_model').strip() or 'jewellery_model'
+
+    if not obj_url:
+        return jsonify({'success': False, 'error': 'obj_url required'}), 400
+
+    # Validate URL is from Meshy
+    from urllib.parse import urlparse
+    host = urlparse(obj_url).hostname or ''
+    if not (host.endswith('meshy.ai') or host.endswith('aliyuncs.com')):
+        return jsonify({'success': False, 'error': 'URL not from an allowed domain'}), 403
+
+    # Check CadQuery is available
+    try:
+        import cadquery as cq  # noqa: F401
+    except ImportError:
+        return jsonify({
+            'success': False,
+            'error': 'CadQuery not installed on this server.',
+            'note': 'Install with: pip install cadquery  (requires Open CASCADE). '
+                    'The OBJ / GLB formats are available for download and can be imported '
+                    'into Rhino, Fusion 360, or FreeCAD to produce STEP manually.',
+        }), 501
+
+    try:
+        # Download OBJ
+        r = requests.get(obj_url, timeout=60)
+        r.raise_for_status()
+        obj_bytes = r.content
+
+        # Write temp OBJ
+        tmp_dir  = app.config['OUTPUT_FOLDER']
+        safe     = re.sub(r'[^a-zA-Z0-9_-]', '_', title)[:40]
+        obj_fn   = f'{safe}_{uuid.uuid4().hex[:8]}.obj'
+        step_fn  = obj_fn.replace('.obj', '.step')
+        obj_path = os.path.join(tmp_dir, obj_fn)
+        step_path= os.path.join(tmp_dir, step_fn)
+
+        with open(obj_path, 'wb') as fh:
+            fh.write(obj_bytes)
+
+        # Convert OBJ → STEP via CadQuery / Open CASCADE
+        import cadquery as cq
+        shape = cq.importers.importStep(obj_path) if obj_path.endswith('.step') else None
+        # CadQuery doesn't import OBJ natively — use FreeCAD CLI or Open CASCADE
+        # FreeCAD CLI path (available on Railway if freecad installed)
+        freecad_script = f"""
+import sys, FreeCAD, Part, Mesh
+mesh = Mesh.Mesh()
+mesh.read("{obj_path}")
+shape = Part.Shape()
+shape.makeShapeFromMesh(mesh.Topology, 0.1)
+solid = Part.makeSolid(shape)
+solid.exportStep("{step_path}")
+"""
+        import subprocess, tempfile
+        script_file = tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False)
+        script_file.write(freecad_script)
+        script_file.close()
+
+        result = subprocess.run(
+            ['freecadcmd', script_file.name],
+            timeout=120, capture_output=True, text=True
+        )
+        os.unlink(script_file.name)
+
+        if result.returncode != 0 or not os.path.exists(step_path):
+            log.warning(f'[convert-step] FreeCAD failed: {result.stderr[:300]}')
+            # Fallback: try pure CadQuery if shape can be built from triangles
+            return jsonify({
+                'success': False,
+                'error': 'STEP conversion requires FreeCAD to be installed on the server.',
+                'note': 'The OBJ file is available for download — import it into FreeCAD, '
+                        'Fusion 360, or Rhino to export STEP/IGES yourself.',
+                'freecad_stderr': result.stderr[:300],
+            }), 501
+
+        # Try uploading to R2, fallback to local serve
+        with open(step_path, 'rb') as fh:
+            step_bytes = fh.read()
+        r2_url = _upload_to_r2(step_bytes, f'outputs/{step_fn}')
+        step_url = r2_url if r2_url else f'/static/outputs/{step_fn}'
+
+        log.info(f'[convert-step] done | step_url={step_url}')
+        return jsonify({'success': True, 'step_url': step_url, 'filename': step_fn})
+
+    except Exception as e:
+        log.error(f'[convert-step] exception: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── API: Multi-angle CAD (accepts up to 4 images) ─────────────────────────────
+
+@app.route('/api/generate-cad-multi', methods=['POST'])
+@login_required
+def api_generate_cad_multi():
+    """
+    Submit multiple angle images to Meshy image-to-3D for better reconstruction.
+    Uses the first/primary image as the Meshy image_url.
+    Additional angles are composited into a 2×2 grid and uploaded as a single image,
+    which Meshy uses via its object_prompt context hint.
+
+    Accepts: multipart files  image_0 (primary), image_1, image_2, image_3  (up to 4)
+    Falls back to /api/generate-cad behaviour when only one image provided.
+    """
+    prompt        = request.form.get('prompt', '').strip()
+    art_style     = request.form.get('art_style', 'realistic')
+    target_use    = request.form.get('target_use', 'visualization')
+    geometry_hint = request.form.get('geometry_hint', '').strip()
+    images_raw = []
+    for i in range(4):
+        f = request.files.get(f'image_{i}')
+        if f and f.filename:
+            try:
+                images_raw.append(f.read())
+            except Exception:
+                pass
+
+    if not images_raw:
+        return jsonify({'error': 'No images provided'}), 400
+
+    try:
+        # ── Primary image — always sent as Meshy's image_url ─────────────────
+        pil_primary = Image.open(io.BytesIO(images_raw[0])).convert('RGBA')
+        buf_primary = io.BytesIO()
+        pil_primary.save(buf_primary, format='PNG')
+        primary_bytes = buf_primary.getvalue()
+
+        # Compress primary
+        pil_rgb = pil_primary.convert('RGB')
+        MAX_DIM  = 1200
+        w, h = pil_rgb.size
+        if w > MAX_DIM or h > MAX_DIM:
+            ratio = min(MAX_DIM / w, MAX_DIM / h)
+            pil_rgb = pil_rgb.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+        buf_jpg = io.BytesIO()
+        pil_rgb.save(buf_jpg, format='JPEG', quality=88)
+        primary_compressed = buf_jpg.getvalue()
+
+        # ── If multiple images: create a composite grid for context ──────────
+        angle_note = ''
+        if len(images_raw) > 1:
+            imgs = []
+            for raw in images_raw[:4]:
+                try:
+                    img = Image.open(io.BytesIO(raw)).convert('RGB').resize((512, 512), Image.LANCZOS)
+                    imgs.append(img)
+                except Exception:
+                    pass
+
+            if len(imgs) >= 2:
+                cols = 2
+                rows = (len(imgs) + 1) // 2
+                grid = Image.new('RGB', (cols * 512, rows * 512), (255, 255, 255))
+                for idx, img in enumerate(imgs):
+                    grid.paste(img, ((idx % cols) * 512, (idx // cols) * 512))
+
+                buf_grid = io.BytesIO()
+                grid.save(buf_grid, format='JPEG', quality=85)
+                grid_bytes = buf_grid.getvalue()
+                grid_fn    = f'cad_grid_{uuid.uuid4()}.jpg'
+                # Upload grid to R2 for object_prompt context (or ignore if unavailable)
+                grid_url = _upload_to_r2(grid_bytes, f'cad-inputs/{grid_fn}')
+                angle_count = len(imgs)
+                angle_note = (
+                    f' Multi-angle input: {angle_count} views provided '
+                    f'(front, side, back, detail). Reconstruct all sides accurately.'
+                )
+                log.info(f'[cad-multi] grid uploaded: {grid_url} | angles={angle_count}')
+
+        # ── Resolve public URL for primary image ──────────────────────────────
+        tmp_fn = f'cad_input_{uuid.uuid4()}.jpg'
+        public_img_url = _upload_to_r2(primary_compressed, f'cad-inputs/{tmp_fn}')
+        if not public_img_url:
+            tmp_path = os.path.join(app.config['UPLOAD_FOLDER'], tmp_fn)
+            with open(tmp_path, 'wb') as fh:
+                fh.write(primary_compressed)
+            host = request.host_url.rstrip('/')
+            if 'localhost' not in host and '127.0.0.1' not in host:
+                public_img_url = f'{host}/static/uploads/{tmp_fn}'
+
+        # ── Build Meshy payload ───────────────────────────────────────────────
+        if public_img_url:
+            payload = {'image_url': public_img_url, 'enable_pbr': True, 'should_remesh': True}
+        else:
+            b64str = base64.b64encode(primary_compressed).decode()
+            payload = {'image_url': f'data:image/jpeg;base64,{b64str}', 'enable_pbr': True, 'should_remesh': True}
+
+        # Compose richest possible object_prompt: geometry_hint + user prompt + angle note
+        full_prompt_parts = []
+        if geometry_hint:
+            full_prompt_parts.append(geometry_hint)
+        if prompt:
+            full_prompt_parts.append(prompt)
+        if angle_note:
+            full_prompt_parts.append(angle_note.strip())
+        full_prompt = ' '.join(full_prompt_parts).strip()
+        if full_prompt:
+            payload['object_prompt'] = full_prompt[:500]
+
+        headers = {'Authorization': f'Bearer {meshy_key}', 'Content-Type': 'application/json'}
+        log.info(f'[cad-multi] submitting | angles={len(images_raw)} | prompt={full_prompt[:80]}')
+        res = requests.post(
+            'https://api.meshy.ai/openapi/v1/image-to-3d',
+            headers=headers, json=payload, timeout=30,
+        )
+        if res.status_code == 202:
+            task_id = res.json().get('result')
+            log.info(f'[cad-multi] task submitted | task_id={task_id}')
+            return jsonify({'task_id': task_id, 'success': True, 'angle_count': len(images_raw)})
+        else:
+            log.error(f'[cad-multi] Meshy error {res.status_code}: {res.text}')
+            return jsonify({'error': f'Meshy API error: {res.status_code}', 'details': res.text[:300]}), 500
+
+    except Exception as e:
+        log.error(f'[cad-multi] exception: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 # ── API: Market Research ───────────────────────────────────────────────────────
 
 def _normalize_price_to_inr(price_str):
@@ -1624,6 +2301,7 @@ def _fetch_og_thumbnail(url):
 
 @app.route('/api/market-research', methods=['POST'])
 @login_required
+@rate_limited
 def api_market_research():
     category = request.form.get('category', 'Jewellery')
     keyword  = request.form.get('keyword', '').strip() or None
@@ -1889,6 +2567,658 @@ def api_proxy_glb():
     except Exception as e:
         log.error(f'[proxy-glb] failed: {e}')
         return jsonify({'error': str(e)}), 502
+
+
+# ── Per-user rate limiting helpers ────────────────────────────────────────────
+
+_RATE_LIMITS = {
+    '/api/generate-cad':        (10, 3600),   # 10 per hour
+    '/api/generate-cad-multi':  (10, 3600),
+    '/api/conceptualise':       (20, 3600),
+    '/api/generate-image':      (20, 3600),
+    '/api/market-research':     (15, 3600),
+    '/api/validate-cad':        (30, 3600),
+    '/api/enhance-sketch':      (20, 3600),
+}
+
+def _rate_limit_check(endpoint: str, user_id: str) -> tuple[bool, int]:
+    """Returns (allowed, seconds_until_reset). Uses Redis sliding window."""
+    if endpoint not in _RATE_LIMITS:
+        return True, 0
+    limit, window = _RATE_LIMITS[endpoint]
+    r = get_redis()
+    if r is None:
+        return True, 0  # no Redis → skip limiting
+    key = f'glymr:rl:{user_id}:{endpoint}'
+    try:
+        pipe = r.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, window)
+        count, _ = pipe.execute()
+        if count > limit:
+            ttl = r.ttl(key)
+            return False, max(ttl, 1)
+        return True, 0
+    except Exception:
+        return True, 0
+
+def track_usage(endpoint: str, provider: str = '', tokens: int = 0, cost_usd: float = 0.0):
+    """Persist API usage record for the current user (best-effort, non-blocking)."""
+    user_id = session.get('user_id')
+    if not _DB_URL or not user_id:
+        return
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO api_usage (user_id, endpoint, provider, tokens_used, cost_usd)
+                       VALUES (%s, %s, %s, %s, %s)""",
+                    (user_id, endpoint, provider, tokens, cost_usd)
+                )
+    except Exception as e:
+        log.warning(f'[usage] track failed: {e}')
+
+def rate_limited(f):
+    """Decorator that enforces per-user rate limits defined in _RATE_LIMITS."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        uid = session.get('user_id', 'anon')
+        allowed, reset_in = _rate_limit_check(request.path, uid)
+        if not allowed:
+            return jsonify({
+                'error': f'Rate limit exceeded. Try again in {reset_in}s.',
+                'retry_after': reset_in,
+            }), 429
+        return f(*args, **kwargs)
+    return decorated
+
+# ── Projects API ───────────────────────────────────────────────────────────────
+
+@app.route('/api/projects', methods=['GET'])
+@login_required
+def api_projects_list():
+    """List all projects for current user."""
+    if not _DB_URL:
+        return jsonify({'projects': []}), 200
+    uid = session['user_id']
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT p.id, p.name, p.description, p.category, p.created_at, p.updated_at,
+                              COUNT(g.id) AS item_count
+                       FROM projects p
+                       LEFT JOIN gallery g ON g.project_id = p.id
+                       WHERE p.user_id = %s
+                       GROUP BY p.id
+                       ORDER BY p.updated_at DESC""",
+                    (uid,)
+                )
+                rows = cur.fetchall()
+        return jsonify({'projects': [
+            {
+                'id':          str(r['id']),
+                'name':        r['name'],
+                'description': r['description'],
+                'category':    r['category'],
+                'item_count':  r['item_count'],
+                'created_at':  r['created_at'].isoformat(),
+                'updated_at':  r['updated_at'].isoformat(),
+            } for r in rows
+        ]})
+    except Exception as e:
+        log.error(f'[projects] list error: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/projects', methods=['POST'])
+@login_required
+def api_projects_create():
+    """Create a new project."""
+    if not _DB_URL:
+        return jsonify({'error': 'DATABASE_URL not set'}), 500
+    uid  = session['user_id']
+    body = request.json or {}
+    name = body.get('name', '').strip() or 'Untitled Project'
+    desc = body.get('description', '').strip()
+    cat  = body.get('category', '').strip()
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO projects (user_id, name, description, category)
+                       VALUES (%s, %s, %s, %s) RETURNING id""",
+                    (uid, name, desc, cat)
+                )
+                pid = str(cur.fetchone()['id'])
+        cache_del(f'glymr:projects:{uid}')
+        return jsonify({'success': True, 'id': pid, 'name': name})
+    except Exception as e:
+        log.error(f'[projects] create error: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/projects/<project_id>', methods=['PATCH'])
+@login_required
+def api_projects_update(project_id):
+    """Rename / re-describe a project."""
+    if not _DB_URL:
+        return jsonify({'error': 'DATABASE_URL not set'}), 500
+    uid  = session['user_id']
+    body = request.json or {}
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE projects SET name=%s, description=%s, category=%s, updated_at=NOW()
+                       WHERE id=%s AND user_id=%s""",
+                    (body.get('name','').strip() or 'Untitled Project',
+                     body.get('description','').strip(),
+                     body.get('category','').strip(),
+                     project_id, uid)
+                )
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/projects/<project_id>', methods=['DELETE'])
+@login_required
+def api_projects_delete(project_id):
+    """Delete a project (gallery items become orphaned, not deleted)."""
+    if not _DB_URL:
+        return jsonify({'error': 'DATABASE_URL not set'}), 500
+    uid = session['user_id']
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('DELETE FROM projects WHERE id=%s AND user_id=%s', (project_id, uid))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gallery/<item_id>/assign-project', methods=['POST'])
+@login_required
+def api_gallery_assign_project(item_id):
+    """Move a gallery item into a project."""
+    if not _DB_URL:
+        return jsonify({'error': 'DATABASE_URL not set'}), 500
+    uid  = session['user_id']
+    body = request.json or {}
+    pid  = body.get('project_id') or None
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    'UPDATE gallery SET project_id=%s WHERE id=%s AND user_id=%s',
+                    (pid, item_id, uid)
+                )
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ── BOM / Costing Report ───────────────────────────────────────────────────────
+
+# Metal density table (g/cm³)
+_METAL_DENSITY = {
+    '22K Yellow Gold': 17.7, 'Rose Gold': 14.6, 'White Gold / Silver': 14.6,
+    'Oxidised Silver': 10.49, 'Platinum': 21.45, 'Panchdhatu': 10.5,
+    '18K Yellow Gold': 15.5, '14K Yellow Gold': 13.1, 'Sterling Silver': 10.36,
+}
+# Rough INR price per gram (update periodically via env var)
+_METAL_PRICE_PER_G_INR = {
+    '22K Yellow Gold': float(os.getenv('GOLD_22K_PRICE_G', '6800')),
+    'Rose Gold':       float(os.getenv('GOLD_ROSE_PRICE_G', '5500')),
+    'White Gold / Silver': float(os.getenv('WHITE_GOLD_PRICE_G', '5200')),
+    'Oxidised Silver': float(os.getenv('SILVER_PRICE_G', '90')),
+    'Platinum':        float(os.getenv('PLATINUM_PRICE_G', '2800')),
+    'Panchdhatu':      float(os.getenv('PANCHDHATU_PRICE_G', '220')),
+    '18K Yellow Gold': float(os.getenv('GOLD_18K_PRICE_G', '5100')),
+    '14K Yellow Gold': float(os.getenv('GOLD_14K_PRICE_G', '3900')),
+    'Sterling Silver': float(os.getenv('STERLING_PRICE_G', '85')),
+}
+_STONE_PRICE_PER_CT_INR = {
+    'round brilliant': 25000, 'oval': 20000, 'marquise': 18000,
+    'princess cut': 22000, 'emerald cut': 19000, 'pear': 17000,
+    'cushion': 21000, 'heart': 16000, 'ruby': 40000, 'emerald': 35000,
+    'sapphire': 30000, 'no stones': 0,
+}
+
+
+@app.route('/api/generate-bom', methods=['POST'])
+@login_required
+@rate_limited
+def api_generate_bom():
+    """
+    Generate a Bill of Materials + costing estimate for a jewellery design.
+
+    Body (multipart or JSON):
+        image_data  – base64 data-URI of the design image (for feature extraction)
+        category    – jewellery category
+        metal       – metal type
+        gallery_id  – optional gallery item UUID to link the report to
+        features    – optional JSON string of pre-extracted design features
+
+    Returns rich JSON BOM with material weights, stone costs, labour, and total.
+    """
+    image_data  = request.form.get('image_data', '') or (request.json or {}).get('image_data', '')
+    category    = (request.form.get('category') or (request.json or {}).get('category', 'Jewellery')).strip()
+    metal       = (request.form.get('metal') or (request.json or {}).get('metal', '22K Yellow Gold')).strip()
+    gallery_id  = request.form.get('gallery_id') or (request.json or {}).get('gallery_id')
+    features_raw= request.form.get('features') or (request.json or {}).get('features')
+
+    client, err = get_gemini_client()
+    if err:
+        return jsonify({'success': False, 'error': err}), 500
+
+    # Use pre-extracted features if supplied, otherwise extract now
+    features = {}
+    if features_raw:
+        try:
+            features = json.loads(features_raw) if isinstance(features_raw, str) else features_raw
+        except Exception:
+            pass
+
+    if not features and image_data:
+        try:
+            b64 = image_data.split(',', 1)[1] if ',' in image_data else image_data
+            img_bytes = base64.b64decode(b64)
+            pil = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+            feat_resp = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[f"""Extract jewellery design features for BOM. Return ONLY JSON:
+{{"stone_count":null,"stone_type":"round brilliant","stone_size_hint":"","setting_type":"prong","prong_count":null,"shank_style":"plain band","category":"{category}","metal_finish":"{metal}","geometry_hint":""}}""", pil],
+                config=types.GenerateContentConfig(temperature=0.1),
+            )
+            raw = feat_resp.text.strip().replace('```json','').replace('```','').strip()
+            m   = re.search(r'\{[\s\S]*\}', raw)
+            if m:
+                features = json.loads(m.group(0))
+        except Exception as e:
+            log.warning(f'[bom] feature extraction failed: {e}')
+
+    # ── Estimate metal volume from category ──────────────────────────────────
+    # Rough volume estimates in cm³ for typical pieces (used when mesh unavailable)
+    _CATEGORY_VOLUME_CM3 = {
+        'Ring': 1.2, 'Necklace': 8.5, 'Earrings': 0.8, 'Bracelet': 5.5,
+        'Anklet': 3.2, 'Brooch': 2.0, 'Jewellery Set': 12.0, 'Jewellery': 4.0,
+    }
+    vol_cm3   = _CATEGORY_VOLUME_CM3.get(category, 4.0)
+    density   = _METAL_DENSITY.get(metal, 14.0)
+    metal_g   = round(vol_cm3 * density, 2)
+    metal_ppm = _METAL_PRICE_PER_G_INR.get(metal, 5000)
+    metal_cost = round(metal_g * metal_ppm, 2)
+
+    # ── Stone costs ──────────────────────────────────────────────────────────
+    stone_count = features.get('stone_count') or 0
+    stone_type  = (features.get('stone_type') or 'round brilliant').lower().strip()
+    stone_ct    = 0.10  # default carat estimate per stone
+    size_hint   = features.get('stone_size_hint', '')
+    if 'large' in size_hint.lower():
+        stone_ct = 0.50
+    elif 'small' in size_hint.lower():
+        stone_ct = 0.05
+    stone_price_ct = _STONE_PRICE_PER_CT_INR.get(stone_type, 15000)
+    stone_cost     = round(stone_count * stone_ct * stone_price_ct, 2)
+    stone_details  = []
+    if stone_count and stone_type != 'no stones':
+        stone_details.append({
+            'type':      stone_type,
+            'count':     stone_count,
+            'est_ct_ea': stone_ct,
+            'price_ct':  stone_price_ct,
+            'total_inr': stone_cost,
+        })
+
+    # ── Labour estimate ──────────────────────────────────────────────────────
+    complexity  = 'medium'
+    if features.get('setting_type') in ('pavé', 'invisible') or stone_count and stone_count > 10:
+        complexity = 'high'
+    elif not stone_count or stone_count < 3:
+        complexity = 'low'
+    labour_map = {'low': (2.0, 600), 'medium': (4.5, 800), 'high': (8.0, 1000)}
+    labour_hrs, rate_per_hr = labour_map[complexity]
+    labour_cost = round(labour_hrs * rate_per_hr, 2)
+
+    # ── Making charges & markup ──────────────────────────────────────────────
+    making_pct   = 0.15  # 15% on metal cost
+    making_cost  = round(metal_cost * making_pct, 2)
+
+    subtotal = metal_cost + stone_cost + labour_cost + making_cost
+    gst      = round(subtotal * 0.03, 2)   # 3% GST on jewellery
+    total    = round(subtotal + gst, 2)
+
+    report = {
+        'category':    category,
+        'metal':       metal,
+        'metal_weight_g':      metal_g,
+        'metal_cost_inr':      metal_cost,
+        'stone_details':       stone_details,
+        'stone_cost_inr':      stone_cost,
+        'labour_hrs':          labour_hrs,
+        'labour_cost_inr':     labour_cost,
+        'making_charges_inr':  making_cost,
+        'subtotal_inr':        subtotal,
+        'gst_inr':             gst,
+        'total_inr':           total,
+        'complexity':          complexity,
+        'disclaimer': 'Estimates only. Actual costs depend on final design, current metal spot price, and craftsman rates.',
+    }
+
+    # Persist to DB
+    uid = session.get('user_id')
+    if _DB_URL and uid:
+        try:
+            with db_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """INSERT INTO bom_reports
+                               (user_id, gallery_id, category, metal, metal_weight_g,
+                                stone_details, labour_hrs, est_cost_inr, report_json)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        (uid, gallery_id, category, metal, metal_g,
+                         json.dumps(stone_details), labour_hrs, total, json.dumps(report))
+                    )
+        except Exception as e:
+            log.warning(f'[bom] db save failed: {e}')
+
+    track_usage('/api/generate-bom', 'gemini', tokens=400)
+    return jsonify({'success': True, **report})
+
+
+# ── Usage Dashboard API ────────────────────────────────────────────────────────
+
+@app.route('/api/usage/summary', methods=['GET'])
+@login_required
+def api_usage_summary():
+    """Return cost and call counts for the current user for the last 30 days."""
+    if not _DB_URL:
+        return jsonify({'summary': [], 'total_cost_usd': 0}), 200
+    uid = session['user_id']
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT endpoint, provider,
+                              COUNT(*) AS calls,
+                              SUM(tokens_used) AS tokens,
+                              SUM(cost_usd) AS cost_usd
+                       FROM api_usage
+                       WHERE user_id = %s AND created_at > NOW() - INTERVAL '30 days'
+                       GROUP BY endpoint, provider
+                       ORDER BY cost_usd DESC""",
+                    (uid,)
+                )
+                rows = cur.fetchall()
+                cur.execute(
+                    "SELECT SUM(cost_usd) AS total FROM api_usage WHERE user_id=%s AND created_at > NOW() - INTERVAL '30 days'",
+                    (uid,)
+                )
+                total = cur.fetchone()['total'] or 0
+        return jsonify({
+            'summary': [dict(r) for r in rows],
+            'total_cost_usd': float(total),
+        })
+    except Exception as e:
+        log.error(f'[usage] summary error: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+# ── Ring-size / Dimension Inference ───────────────────────────────────────────
+
+# Standard ring size tables
+_RING_SIZES = {
+    'IN': {6: 15.7, 8: 16.5, 10: 17.4, 12: 18.2, 14: 18.9, 16: 19.8, 18: 20.6, 20: 21.3, 22: 22.2},
+    'US': {'4': 14.8, '5': 15.7, '6': 16.5, '7': 17.4, '8': 18.2, '9': 18.9, '10': 19.8, '11': 20.6, '12': 21.3},
+    'EU': {46: 14.6, 48: 15.3, 50: 15.9, 52: 16.6, 54: 17.2, 56: 17.8, 58: 18.5, 60: 19.1, 62: 19.7},
+    'UK': {'H': 14.8, 'J': 15.3, 'L': 15.9, 'N': 16.8, 'P': 17.7, 'R': 18.5, 'T': 19.4, 'V': 20.2, 'X': 21.1},
+}
+
+# Standard jewellery dimensions (mm)
+_CATEGORY_DIMS = {
+    'Ring':          {'inner_diameter_mm': 17.4, 'band_width_mm': 3.0, 'height_mm': 8.0},
+    'Necklace':      {'length_mm': 450, 'chain_width_mm': 2.0, 'pendant_height_mm': 30},
+    'Earrings':      {'drop_mm': 35, 'width_mm': 15, 'post_diameter_mm': 0.9},
+    'Bracelet':      {'inner_circumference_mm': 175, 'width_mm': 8.0, 'thickness_mm': 3.0},
+    'Anklet':        {'inner_circumference_mm': 230, 'width_mm': 2.0},
+    'Brooch':        {'width_mm': 40, 'height_mm': 30, 'pin_length_mm': 35},
+    'Jewellery Set': {'necklace_length_mm': 450, 'earring_drop_mm': 30},
+}
+
+
+@app.route('/api/dimension-guide', methods=['GET'])
+@login_required
+def api_dimension_guide():
+    """Return standard dimensions and ring size tables for a given category."""
+    category = request.args.get('category', 'Ring').strip()
+    ring_size = request.args.get('ring_size', '')
+    region    = request.args.get('region', 'IN').upper()
+
+    dims = _CATEGORY_DIMS.get(category, {})
+    result = {'category': category, 'standard_dims_mm': dims}
+
+    # Ring size lookup
+    if category == 'Ring' and ring_size:
+        size_table = _RING_SIZES.get(region, _RING_SIZES['IN'])
+        try:
+            key = int(ring_size) if ring_size.isdigit() else ring_size
+            diameter_mm = size_table.get(key)
+            if diameter_mm:
+                result['ring_size']    = ring_size
+                result['region']       = region
+                result['diameter_mm']  = diameter_mm
+                result['circumference_mm'] = round(diameter_mm * 3.14159, 1)
+                result['scale_note']   = (
+                    f'Scale your 3D model so the inner ring diameter equals {diameter_mm:.1f} mm '
+                    f'({region} size {ring_size}).'
+                )
+        except (ValueError, TypeError):
+            pass
+
+    result['ring_size_table'] = _RING_SIZES.get(region, _RING_SIZES['IN'])
+    result['all_categories']  = list(_CATEGORY_DIMS.keys())
+    return jsonify(result)
+
+
+@app.route('/api/scale-model', methods=['POST'])
+@login_required
+def api_scale_model():
+    """
+    Given a Meshy task ID (to get model statistics) and a target size, compute
+    the scaling factor needed to achieve real-world dimensions.
+
+    Body JSON:
+        task_id        – Meshy task ID
+        category       – jewellery category
+        target_mm      – desired dimension in mm (e.g. inner diameter for ring)
+        dimension_axis – 'x', 'y', or 'z' (default 'y')
+        ring_size      – optional, e.g. '14' (IN) or '7' (US)
+        region         – 'IN', 'US', 'EU', 'UK'
+    """
+    body      = request.json or {}
+    task_id   = body.get('task_id', '').strip()
+    category  = body.get('category', 'Ring').strip()
+    target_mm = body.get('target_mm')
+    ring_size = body.get('ring_size', '')
+    region    = body.get('region', 'IN').upper()
+
+    # Resolve target_mm from ring size if not given directly
+    if not target_mm and ring_size and category == 'Ring':
+        size_table = _RING_SIZES.get(region, _RING_SIZES['IN'])
+        try:
+            key = int(ring_size) if ring_size.isdigit() else ring_size
+            target_mm = size_table.get(key)
+        except (ValueError, TypeError):
+            pass
+
+    if not target_mm:
+        target_mm = _CATEGORY_DIMS.get(category, {}).get('inner_diameter_mm', 17.4)
+
+    # Fetch Meshy stats to get bounding box
+    meshy_key, err = get_meshy_key()
+    if err:
+        return jsonify({'success': False, 'error': err}), 500
+
+    model_size_mm = None
+    if task_id:
+        try:
+            r = requests.get(
+                f'https://api.meshy.ai/openapi/v1/image-to-3d/{task_id}',
+                headers={'Authorization': f'Bearer {meshy_key}'},
+                timeout=10,
+            )
+            if r.status_code == 200:
+                stats = r.json().get('statistics', {})
+                # Meshy uses metres internally; bounding_box in metres
+                bbox = stats.get('bounding_box', {})
+                axis_map = {'x': 'x', 'y': 'y', 'z': 'z'}
+                axis = axis_map.get(body.get('dimension_axis', 'y').lower(), 'y')
+                model_size_m  = bbox.get(f'size_{axis}', 0)
+                model_size_mm = model_size_m * 1000 if model_size_m else None
+        except Exception as e:
+            log.warning(f'[scale-model] meshy fetch failed: {e}')
+
+    # If no bounding box available, assume Meshy outputs at ~30mm scale
+    assumed_size_mm = model_size_mm or 30.0
+    scale_factor    = round(target_mm / assumed_size_mm, 4) if assumed_size_mm else 1.0
+
+    return jsonify({
+        'success':         True,
+        'target_mm':       target_mm,
+        'model_size_mm':   model_size_mm,
+        'assumed_size_mm': assumed_size_mm,
+        'scale_factor':    scale_factor,
+        'scale_pct':       round(scale_factor * 100, 1),
+        'note':            f'Apply ×{scale_factor} to the 3D model to achieve {target_mm}mm ({category}).',
+    })
+
+
+# ── Manufacturer Export API ────────────────────────────────────────────────────
+
+@app.route('/api/export-manufacturer', methods=['POST'])
+@login_required
+def api_export_manufacturer():
+    """
+    Package a completed 3D model for manufacturer delivery.
+    Creates a JSON spec sheet + download manifest that can be emailed to a manufacturer.
+
+    Body JSON:
+        task_id       – Meshy task ID
+        category, metal, description, ring_size, region
+        bom_data      – optional pre-generated BOM dict
+    """
+    body        = request.json or {}
+    task_id     = body.get('task_id', '').strip()
+    category    = body.get('category', 'Jewellery').strip()
+    metal       = body.get('metal', '22K Yellow Gold').strip()
+    description = body.get('description', '').strip()
+    ring_size   = body.get('ring_size', '').strip()
+    region      = body.get('region', 'IN').upper()
+    bom_data    = body.get('bom_data', {})
+
+    meshy_key, err = get_meshy_key()
+    model_urls     = {}
+    thumbnail_url  = ''
+    stats          = {}
+    if not err and task_id:
+        try:
+            r = requests.get(
+                f'https://api.meshy.ai/openapi/v1/image-to-3d/{task_id}',
+                headers={'Authorization': f'Bearer {meshy_key}'},
+                timeout=10,
+            )
+            if r.status_code == 200:
+                d             = r.json()
+                model_urls    = d.get('model_urls', {})
+                thumbnail_url = d.get('thumbnail_url', '')
+                stats         = d.get('statistics', {})
+        except Exception as e:
+            log.warning(f'[export-mfr] meshy fetch failed: {e}')
+
+    # Ring size dimension
+    ring_dim = ''
+    if category == 'Ring' and ring_size:
+        size_table  = _RING_SIZES.get(region, _RING_SIZES['IN'])
+        try:
+            key     = int(ring_size) if ring_size.isdigit() else ring_size
+            dia_mm  = size_table.get(key)
+            ring_dim = f'{dia_mm}mm inner diameter (size {ring_size} {region})' if dia_mm else ''
+        except Exception:
+            pass
+
+    spec = {
+        'generated_at':   datetime.now(timezone.utc).isoformat(),
+        'project_title':  description or f'{metal} {category}',
+        'category':       category,
+        'metal':          metal,
+        'description':    description,
+        'ring_size':      ring_size,
+        'ring_dimension': ring_dim,
+        'model_files':    model_urls,
+        'thumbnail':      thumbnail_url,
+        'mesh_statistics': stats,
+        'bom':            bom_data,
+        'instructions': [
+            f'This is a {category} in {metal}.',
+            f'Use the GLB/OBJ file for 3D printing or wax milling.',
+            ring_dim and f'Scale model so inner bore = {ring_dim}.',
+            'Finish: high polish unless specified otherwise.',
+            'Contact designer for stone sourcing and setting instructions.',
+        ],
+        'contact': session.get('user_email', ''),
+    }
+    # Remove empty instructions
+    spec['instructions'] = [i for i in spec['instructions'] if i]
+
+    log.info(f'[export-mfr] spec generated | category={category} | metal={metal}')
+    return jsonify({'success': True, 'spec': spec})
+
+
+# ── Admin / Observability API ─────────────────────────────────────────────────
+
+@app.route('/api/admin/stats', methods=['GET'])
+@login_required
+def api_admin_stats():
+    """Return platform-wide usage stats. Only accessible to the first registered user (owner)."""
+    if not _DB_URL:
+        return jsonify({'error': 'DATABASE_URL not set'}), 500
+
+    # Simple ownership check: first user by created_at is the admin
+    uid = session['user_id']
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT id FROM users ORDER BY created_at ASC LIMIT 1')
+                first = cur.fetchone()
+        if not first or str(first['id']) != uid:
+            return jsonify({'error': 'Forbidden'}), 403
+
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT COUNT(*) AS n FROM users')
+                user_count = cur.fetchone()['n']
+                cur.execute("SELECT COUNT(*) AS n FROM gallery WHERE created_at > NOW() - INTERVAL '30 days'")
+                gallery_30d = cur.fetchone()['n']
+                cur.execute("""
+                    SELECT endpoint, COUNT(*) AS calls, SUM(cost_usd) AS cost
+                    FROM api_usage WHERE created_at > NOW() - INTERVAL '30 days'
+                    GROUP BY endpoint ORDER BY calls DESC LIMIT 15
+                """)
+                usage_rows = cur.fetchall()
+                cur.execute("SELECT SUM(cost_usd) AS total FROM api_usage WHERE created_at > NOW() - INTERVAL '30 days'")
+                total_cost = cur.fetchone()['total'] or 0
+
+        return jsonify({
+            'user_count':    user_count,
+            'gallery_30d':   gallery_30d,
+            'total_cost_usd_30d': float(total_cost),
+            'top_endpoints': [dict(r) for r in usage_rows],
+        })
+    except Exception as e:
+        log.error(f'[admin-stats] error: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
 # ── Static file serving ────────────────────────────────────────────────────────

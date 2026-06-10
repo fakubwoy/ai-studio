@@ -393,6 +393,188 @@
     .cad-layout { grid-template-columns: 1fr; padding: 20px; }
     .cad-sidebar { position: static; }
   }
+
+  /* ── Split-view 2D/3D panel ────────────────────────────────────── */
+  .splitview-panel {
+    background: var(--surface); border: 1px solid var(--paper-3);
+    border-radius: var(--radius-lg); overflow: hidden; margin-top: 20px;
+  }
+
+  .splitview-header {
+    padding: 13px 20px; border-bottom: 1px solid var(--paper-2);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .splitview-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  }
+
+  .splitview-side {
+    position: relative;
+  }
+
+  .splitview-side + .splitview-side {
+    border-left: 1px solid var(--paper-2);
+  }
+
+  .splitview-img {
+    width: 100%; height: 280px; object-fit: contain;
+    background: var(--paper); display: block;
+  }
+
+  .splitview-label {
+    position: absolute; top: 10px; left: 12px;
+    font-size: 10px; font-weight: 600; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--ink-3);
+    font-family: var(--font-mono);
+    background: var(--paper); padding: 2px 8px;
+    border-radius: 10px; border: 1px solid var(--paper-3);
+  }
+
+  /* ── Feature extraction panel ──────────────────────────────────── */
+  .features-panel {
+    background: var(--surface); border: 1px solid var(--paper-3);
+    border-radius: var(--radius-lg); overflow: hidden; margin-top: 16px;
+  }
+
+  .features-header {
+    padding: 12px 18px; border-bottom: 1px solid var(--paper-2);
+    display: flex; align-items: center; gap: 9px; justify-content: space-between;
+  }
+
+  .features-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--paper-2);
+  }
+
+  .feat-cell {
+    background: var(--surface); padding: 10px 14px;
+  }
+
+  .feat-label {
+    font-size: 9px; font-weight: 600; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--ink-4);
+    font-family: var(--font-mono); margin-bottom: 3px;
+  }
+
+  .feat-val {
+    font-size: 12px; font-weight: 600; color: var(--ink);
+  }
+
+  .feat-hint {
+    grid-column: 1 / -1; padding: 10px 14px;
+    background: var(--gold-bg); border-top: 1px solid rgba(184,146,74,.15);
+    font-size: 11px; color: var(--ink-2); line-height: 1.55;
+  }
+
+  .feat-hint strong { color: var(--gold-dk); font-weight: 600; }
+
+  .feat-warnings {
+    padding: 8px 14px 10px; border-top: 1px solid var(--paper-2);
+  }
+
+  .feat-warning-item {
+    font-size: 11px; color: var(--error); padding: 2px 0;
+    display: flex; align-items: flex-start; gap: 6px;
+  }
+
+  .feat-warning-item::before {
+    content: '⚠'; flex-shrink: 0; margin-top: 1px;
+  }
+
+  /* ── PBR material switcher ──────────────────────────────────────── */
+  .material-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+
+  .mat-chip {
+    padding: 4px 11px; border-radius: 20px;
+    border: 1.5px solid var(--paper-3);
+    font-size: 10px; font-weight: 600; cursor: pointer;
+    color: var(--ink-3); font-family: var(--font-mono);
+    transition: all var(--t) var(--ease);
+    display: flex; align-items: center; gap: 5px;
+  }
+
+  .mat-chip .mat-swatch {
+    width: 10px; height: 10px; border-radius: 50%;
+    flex-shrink: 0; border: 1px solid rgba(0,0,0,.1);
+  }
+
+  .mat-chip.active {
+    border-color: var(--gold); color: var(--gold-dk); background: var(--gold-bg);
+  }
+
+  .mat-chip:hover:not(.active) { border-color: var(--paper-4); color: var(--ink); }
+
+  /* ── Render export button ───────────────────────────────────────── */
+  .render-export-row {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+
+  /* ── Multi-angle slots ──────────────────────────────────────────── */
+  .angle-slot {
+    height: 64px; border-radius: var(--radius);
+    border: 1.5px dashed var(--paper-3);
+    cursor: pointer; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--paper);
+    transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
+    position: relative;
+  }
+  .angle-slot:hover { border-color: var(--gold); background: var(--gold-bg); }
+  .angle-slot.has-image { border-style: solid; border-color: var(--gold-lt); }
+  .angle-placeholder {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    color: var(--ink-4); font-size: 9px; font-family: var(--font-mono);
+    letter-spacing: .05em; text-transform: uppercase;
+    pointer-events: none;
+  }
+
+  /* ── 2D vs 3D Comparison panel ──────────────────────────────────── */
+  .compare-panel {
+    margin-top: 20px;
+    background: var(--surface);
+    border: 1px solid var(--paper-3);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .compare-header {
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--paper-2);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .compare-body { padding: 20px 22px; }
+  .compare-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    margin-bottom: 18px;
+  }
+  .compare-side { display: flex; flex-direction: column; gap: 8px; }
+  .compare-label {
+    font-size: 10px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-3); font-family: var(--font-mono);
+  }
+  .compare-img {
+    width: 100%; aspect-ratio: 1; object-fit: contain;
+    border-radius: var(--radius); background: var(--paper-2);
+    border: 1px solid var(--paper-3);
+  }
+  .compare-score-bar {
+    height: 6px; border-radius: 3px;
+    background: var(--paper-3); overflow: hidden; margin: 8px 0;
+  }
+  .compare-score-fill {
+    height: 100%; border-radius: 3px;
+    background: var(--gold);
+    transition: width .5s var(--ease);
+  }
+  .compare-tags { display: flex; flex-direction: column; gap: 6px; }
+  .compare-tag-row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+  .compare-tag-label {
+    font-size: 9px; font-weight: 700; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--ink-4); min-width: 52px;
+  }
+  .ctag-preserved { background: rgba(45,106,79,.1); color: #2d6a4f; }
+  .ctag-lost      { background: rgba(184,48,48,.1);  color: #b83030; }
+  .ctag-changed   { background: rgba(184,146,74,.1); color: var(--gold-dk); }
 </style>
 {% endblock %}
 
@@ -402,7 +584,9 @@
   <!-- SIDEBAR -->
   <aside class="cad-sidebar">
     <div class="panel">
-      <div class="panel-title"><span class="step">Input</span>Jewellery Image</div>
+      <div class="panel-title"><span class="step">Input</span>Jewellery Image(s)</div>
+
+      <!-- Primary image -->
       <div class="upload-zone" id="cadUploadZone">
         <input type="file" id="cadFile" accept="image/*" />
         <div id="cadPlaceholder">
@@ -421,6 +605,44 @@
           </button>
         </div>
       </div>
+
+      <!-- Multi-angle additional images -->
+      <div id="multiAngleSection" style="margin-top:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+          <span style="font-size:11px;font-weight:600;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase">Additional Angles</span>
+          <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px" onclick="toggleMultiAngle()" id="multiAngleToggle">+ Add angles</button>
+        </div>
+        <div id="multiAngleGrid" style="display:none;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <!-- Side -->
+          <div class="angle-slot" data-slot="1" onclick="triggerAngleInput(1)">
+            <input type="file" id="angleFile1" accept="image/*" style="display:none" onchange="onAngleFile(1,this)" />
+            <div class="angle-placeholder" id="anglePh1">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Side</span>
+            </div>
+            <img id="angleImg1" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:4px" alt="side" />
+          </div>
+          <!-- Back -->
+          <div class="angle-slot" data-slot="2" onclick="triggerAngleInput(2)">
+            <input type="file" id="angleFile2" accept="image/*" style="display:none" onchange="onAngleFile(2,this)" />
+            <div class="angle-placeholder" id="anglePh2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Back</span>
+            </div>
+            <img id="angleImg2" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:4px" alt="back" />
+          </div>
+          <!-- Detail -->
+          <div class="angle-slot" data-slot="3" onclick="triggerAngleInput(3)">
+            <input type="file" id="angleFile3" accept="image/*" style="display:none" onchange="onAngleFile(3,this)" />
+            <div class="angle-placeholder" id="anglePh3">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Detail</span>
+            </div>
+            <img id="angleImg3" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:4px" alt="detail" />
+          </div>
+        </div>
+        <p id="multiAngleHint" style="display:none;font-size:10px;color:var(--ink-4);font-family:var(--font-mono);margin-top:5px;line-height:1.5">Extra angles improve 3D reconstruction accuracy. All views are composited and sent to Meshy as a multi-view input.</p>
+      </div>
     </div>
 
     <div class="panel">
@@ -432,11 +654,24 @@
       </div>
 
       <div class="form-row">
-        <label>Art Style</label>
-        <select id="cadStyle">
-          <option value="realistic">Realistic</option>
-          <option value="jewelry">Jewellery / Product</option>
-          <option value="sculpture">Sculptural</option>
+        <label>Jewellery Category</label>
+        <select id="cadCategory">
+          <option value="Jewellery">— General —</option>
+          {% for cat in categories %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>Metal / Material</label>
+        <select id="cadMetal">
+          <option value="22K Yellow Gold">22K Yellow Gold</option>
+          <option value="Rose Gold">Rose Gold</option>
+          <option value="White Gold / Silver">White Gold / Silver</option>
+          <option value="Oxidised Silver">Oxidised Silver</option>
+          <option value="Platinum">Platinum</option>
+          <option value="Panchdhatu">Panchdhatu</option>
         </select>
       </div>
 
@@ -468,6 +703,48 @@
         Generate 3D Model
       </button>
 
+      <!-- ── Feature Extraction panel (populated after Extract click) ── -->
+      <div class="features-panel" id="featuresPanel" style="display:none">
+        <div class="features-header">
+          <div style="display:flex;align-items:center;gap:8px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <span style="font-size:13px;font-weight:600;color:var(--ink)">Design Features</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="extractFeatures()" id="extractBtn" style="font-size:10px">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.04"/></svg>
+            Re-analyse
+          </button>
+        </div>
+        <div id="featuresBody"></div>
+      </div>
+
+      <!-- ── PBR material switcher ──────────────────────────────────── -->
+      <div class="panel" id="materialPanel" style="display:none">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Material Preview</div>
+        <div class="material-chips">
+          <div class="mat-chip active" data-mat="gold" onclick="applyMaterial(this)">
+            <div class="mat-swatch" style="background:#d4a843"></div> Yellow Gold
+          </div>
+          <div class="mat-chip" data-mat="rose" onclick="applyMaterial(this)">
+            <div class="mat-swatch" style="background:#c97b5a"></div> Rose Gold
+          </div>
+          <div class="mat-chip" data-mat="white" onclick="applyMaterial(this)">
+            <div class="mat-swatch" style="background:#d0d0d0"></div> White Gold
+          </div>
+          <div class="mat-chip" data-mat="silver" onclick="applyMaterial(this)">
+            <div class="mat-swatch" style="background:#b0b8c0"></div> Silver
+          </div>
+          <div class="mat-chip" data-mat="platinum" onclick="applyMaterial(this)">
+            <div class="mat-swatch" style="background:#9aa0aa"></div> Platinum
+          </div>
+          <div class="mat-chip" data-mat="original" onclick="applyMaterial(this)">
+            <div class="mat-swatch" style="background:var(--paper-3)"></div> Original
+          </div>
+        </div>
+      </div>
+
       <button class="btn btn-outline" style="width:100%;margin-top:8px" id="validateBtn" onclick="runValidation()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
@@ -475,9 +752,80 @@
         Validate Design
       </button>
 
+      <button class="btn btn-outline" style="width:100%;margin-top:8px" id="extractFeaturesBtn" onclick="extractFeatures()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        Extract Design Features
+      </button>
+
       <p style="font-size:11px;color:var(--ink-4);text-align:center;margin-top:8px;font-family:var(--font-mono)">
         Powered by Meshy AI &middot; ~60–90 seconds
       </p>
+    </div>
+
+    <!-- ── Ring Size / Dimension Panel ──────────────────────────────────── -->
+    <div class="panel" id="dimPanel">
+      <div class="panel-title"><span class="step">Size</span>Real-world Dimensions</div>
+      <div class="form-row">
+        <label>Ring Size (for Ring category)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="ringSizeSelect" style="flex:1">
+            <option value="">Select size</option>
+            <option value="8">8 (India)</option>
+            <option value="10">10 (India)</option>
+            <option value="12">12 (India)</option>
+            <option value="14">14 (India)</option>
+            <option value="16">16 (India)</option>
+            <option value="18">18 (India)</option>
+            <option value="20">20 (India)</option>
+          </select>
+          <select id="ringSizeRegion" style="width:70px;font-size:12px">
+            <option value="IN">IN</option>
+            <option value="US">US</option>
+            <option value="EU">EU</option>
+            <option value="UK">UK</option>
+          </select>
+        </div>
+      </div>
+      <div id="dimGuideResult" style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);line-height:1.7;margin-top:4px"></div>
+      <button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px" onclick="lookupDimGuide()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Look up Dimensions
+      </button>
+      <button class="btn btn-outline btn-sm" style="width:100%;margin-top:6px;display:none" id="applyScaleBtn" onclick="applyDimScale()">
+        Apply Scale to Model
+      </button>
+    </div>
+
+    <!-- ── BOM & Costing Panel ───────────────────────────────────────────── -->
+    <div class="panel" id="bomPanel" style="display:none">
+      <div class="panel-title"><span class="step">Cost</span>BOM &amp; Cost Estimate</div>
+      <div id="bomBody">
+        <p style="font-size:12px;color:var(--ink-3)">Generate a 3D model first, then run the BOM estimator.</p>
+      </div>
+      <button class="btn btn-outline btn-sm" style="width:100%;margin-top:10px" id="bomBtn" onclick="generateBOM()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Estimate BOM &amp; Cost
+      </button>
+    </div>
+
+    <!-- ── Manufacturer Export Panel ─────────────────────────────────────── -->
+    <div class="panel" id="mfrExportPanel" style="display:none">
+      <div class="panel-title"><span class="step">Export</span>Manufacturer Package</div>
+      <div class="form-row">
+        <label>Ring Size (for spec sheet)</label>
+        <select id="mfrRingSize">
+          <option value="">N/A</option>
+          <option value="8">8 (IN)</option><option value="10">10 (IN)</option>
+          <option value="12">12 (IN)</option><option value="14">14 (IN)</option>
+          <option value="16">16 (IN)</option><option value="18">18 (IN)</option>
+        </select>
+      </div>
+      <button class="btn btn-gold btn-sm" style="width:100%;margin-top:8px" id="mfrExportBtn" onclick="exportManufacturerPackage()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Spec Sheet
+      </button>
     </div>
   </aside>
 
@@ -581,6 +929,56 @@
         </button>
       </div>
     </div>
+
+    <!-- COMPARISON PANEL -->
+    <div class="compare-panel" id="comparePanel" style="display:none">
+      <div class="compare-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          <span style="font-family:var(--font-serif);font-size:16px;font-weight:600;color:var(--ink)">2D → 3D Fidelity Check</span>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="runComparison()" id="compareBtn">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.04"/></svg>
+          Re-run
+        </button>
+      </div>
+      <div class="compare-body" id="compareBody">
+        <p style="font-size:12px;color:var(--ink-3)">Comparing your source image against the generated 3D model…</p>
+      </div>
+    </div>
+
+    <!-- SPLIT-VIEW 2D / 3D PANEL -->
+    <div class="splitview-panel" id="splitviewPanel" style="display:none">
+      <div class="splitview-header">
+        <div style="display:flex;align-items:center;gap:9px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/>
+          </svg>
+          <span style="font-family:var(--font-serif);font-size:16px;font-weight:600;color:var(--ink)">Side-by-Side View</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ghost btn-sm" id="renderExportBtn" onclick="exportRender()" title="Save viewer screenshot as PNG" style="display:none">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+            </svg>
+            Export PNG
+          </button>
+        </div>
+      </div>
+      <div class="splitview-grid" id="splitviewGrid">
+        <div class="splitview-side">
+          <div class="splitview-label">2D Source</div>
+          <img id="sv2dImg" class="splitview-img" src="" alt="2D source" />
+        </div>
+        <div class="splitview-side">
+          <div class="splitview-label">3D Output</div>
+          <img id="sv3dImg" class="splitview-img" src="" alt="3D render" />
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -606,10 +1004,11 @@ function saveState(modelResult) {
   try {
     const existing = JSON.parse(sessionStorage.getItem(SS_KEY) || '{}');
     const next = {
-      prompt:  document.getElementById('cadPrompt').value,
-      style:   document.getElementById('cadStyle').value,
-      target:  document.getElementById('cadTarget').value,
-      formats: [...document.querySelectorAll('.format-chip.active')].map(c => c.dataset.fmt),
+      prompt:    document.getElementById('cadPrompt').value,
+      category:  document.getElementById('cadCategory').value,
+      metal:     document.getElementById('cadMetal').value,
+      target:    document.getElementById('cadTarget').value,
+      formats:   [...document.querySelectorAll('.format-chip.active')].map(c => c.dataset.fmt),
       // Preserve existing model result unless a new one is explicitly provided
       modelResult: modelResult !== undefined ? modelResult : (existing.modelResult || null),
     };
@@ -619,12 +1018,25 @@ function saveState(modelResult) {
 
 window.addEventListener('DOMContentLoaded', () => {
   // ── Cross-module handoff: image from gallery/sketch/model ────────────────
-  const pending = sessionStorage.getItem('pendingCADImage');
+  const pending     = sessionStorage.getItem('pendingCADImage');
+  const pendingCat  = sessionStorage.getItem('pendingCADCategory');
+  const pendingMetal = sessionStorage.getItem('pendingCADMetal');
   if (pending) {
     document.getElementById('cadPreviewImg').src = pending;
     document.getElementById('cadPlaceholder').style.display = 'none';
     document.getElementById('cadPreview').style.display = 'block';
     sessionStorage.removeItem('pendingCADImage');
+    if (pendingCat) {
+      const catEl = document.getElementById('cadCategory');
+      if (catEl) catEl.value = pendingCat;
+      sessionStorage.removeItem('pendingCADCategory');
+    }
+    if (pendingMetal) {
+      const metalEl = document.getElementById('cadMetal');
+      if (metalEl) metalEl.value = pendingMetal;
+      sessionStorage.removeItem('pendingCADMetal');
+    }
+    _autoExtract();
   }
 
   // ── Cross-module handoff: re-open a saved 3D model from gallery ──────────
@@ -653,9 +1065,10 @@ window.addEventListener('DOMContentLoaded', () => {
   let saved;
   try { saved = JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch(e) {}
   if (saved) {
-    if (saved.prompt) document.getElementById('cadPrompt').value = saved.prompt;
-    if (saved.style)  document.getElementById('cadStyle').value  = saved.style;
-    if (saved.target) document.getElementById('cadTarget').value = saved.target;
+    if (saved.prompt)   document.getElementById('cadPrompt').value   = saved.prompt;
+    if (saved.category) document.getElementById('cadCategory').value = saved.category;
+    if (saved.metal)    document.getElementById('cadMetal').value    = saved.metal;
+    if (saved.target)   document.getElementById('cadTarget').value   = saved.target;
     if (saved.formats) {
       document.querySelectorAll('.format-chip').forEach(c => {
         c.classList.toggle('active', saved.formats.includes(c.dataset.fmt));
@@ -678,6 +1091,7 @@ cadFile.addEventListener('change', e => {
     document.getElementById('cadPreviewImg').src = ev.target.result;
     document.getElementById('cadPlaceholder').style.display = 'none';
     document.getElementById('cadPreview').style.display = 'block';
+    _autoExtract();
   };
   reader.readAsDataURL(file);
 });
@@ -696,9 +1110,42 @@ function toggleFmt(el) {
   saveState();
 }
 
+// ── Multi-angle upload helpers ────────────────────────────────────────────────
+let angleFiles = { 1: null, 2: null, 3: null };
+
+function toggleMultiAngle() {
+  const grid = document.getElementById('multiAngleGrid');
+  const hint = document.getElementById('multiAngleHint');
+  const btn  = document.getElementById('multiAngleToggle');
+  const open = grid.style.display === 'none';
+  grid.style.display = open ? 'grid' : 'none';
+  hint.style.display = open ? 'block' : 'none';
+  btn.textContent = open ? '− Hide' : '+ Add angles';
+}
+
+function triggerAngleInput(slot) {
+  document.getElementById('angleFile' + slot).click();
+}
+
+function onAngleFile(slot, input) {
+  const file = input.files[0]; if (!file) return;
+  angleFiles[slot] = file;
+  const img  = document.getElementById('angleImg' + slot);
+  const ph   = document.getElementById('anglePh'  + slot);
+  const slot_el = img.closest('.angle-slot');
+  const reader = new FileReader();
+  reader.onload = ev => {
+    img.src = ev.target.result;
+    img.style.display = 'block';
+    ph.style.display  = 'none';
+    slot_el.classList.add('has-image');
+  };
+  reader.readAsDataURL(file);
+}
+
 async function generateCAD() {
   const previewSrc = document.getElementById('cadPreviewImg').src;
-  if (!cadImageFile && !previewSrc.startsWith('data:') && !previewSrc.includes('/static')) {
+  if (!cadImageFile && !previewSrc.startsWith('data:') && !previewSrc.includes('/static') && !previewSrc.startsWith('http')) {
     showToast('Please upload a jewellery image.', 'error'); return;
   }
 
@@ -710,33 +1157,66 @@ async function generateCAD() {
   document.getElementById('cadHeaderActions').style.display = 'none';
 
   const fd = new FormData();
-  fd.append('prompt',  document.getElementById('cadPrompt').value);
-  fd.append('art_style', document.getElementById('cadStyle').value);
+  fd.append('prompt',     document.getElementById('cadPrompt').value);
+  fd.append('art_style',  'realistic');
   fd.append('target_use', document.getElementById('cadTarget').value);
-  fd.append('formats', JSON.stringify([...document.querySelectorAll('.format-chip.active')].map(c => c.dataset.fmt)));
+  fd.append('formats',    JSON.stringify([...document.querySelectorAll('.format-chip.active')].map(c => c.dataset.fmt)));
+  if (_lastGeometryHint) fd.append('geometry_hint', _lastGeometryHint);
 
-  // Always send the image as a file field so the backend can handle it cleanly
+  // Helper: compress a blob to JPEG under ~1.5 MB for base64 Meshy fallback
+  async function compressBlob(blob) {
+    return new Promise(res => {
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        const MAX = 1200;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) { const ratio = Math.min(MAX/w, MAX/h); w = Math.round(w*ratio); h = Math.round(h*ratio); }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(b => { URL.revokeObjectURL(url); res(b||blob); }, 'image/jpeg', 0.88);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); res(blob); };
+      img.src = url;
+    });
+  }
+
+  // Determine if we have extra angle images
+  const extraAngles = Object.values(angleFiles).filter(Boolean);
+  const useMulti    = extraAngles.length > 0;
+  const endpoint    = useMulti ? '/api/generate-cad-multi' : '/api/generate-cad';
+
+  // Primary image as image_0 (multi) or image (single)
+  const primaryKey  = useMulti ? 'image_0' : 'image';
   if (cadImageFile) {
-    fd.append('image', cadImageFile);
+    const compressed = await compressBlob(cadImageFile);
+    fd.append(primaryKey, compressed, 'jewellery.jpg');
   } else if (previewSrc.startsWith('data:')) {
-    // Convert data-URI to Blob
     const res  = await fetch(previewSrc);
-    const blob = await res.blob();
-    fd.append('image', blob, 'jewellery.png');
+    const blob = await compressBlob(await res.blob());
+    fd.append(primaryKey, blob, 'jewellery.jpg');
   } else {
-    // Fetch from /static path and re-send as file
     try {
       const resp = await fetch(previewSrc);
-      const blob = await resp.blob();
-      fd.append('image', blob, 'jewellery.jpg');
-    } catch(e) {
-      showToast('Could not load image.', 'error');
-      resetBtn(); return;
+      const blob = await compressBlob(await resp.blob());
+      fd.append(primaryKey, blob, 'jewellery.jpg');
+    } catch(e) { showToast('Could not load image.', 'error'); resetBtn(); return; }
+  }
+
+  // Additional angle images
+  if (useMulti) {
+    let slotIdx = 1;
+    for (const f of extraAngles) {
+      const compressed = await compressBlob(f);
+      fd.append('image_' + slotIdx, compressed, 'angle_' + slotIdx + '.jpg');
+      slotIdx++;
     }
+    if (extraAngles.length > 0) showToast(`Sending ${1 + extraAngles.length} views to Meshy for better reconstruction.`, 'success');
   }
 
   try {
-    const res  = await fetch('/api/generate-cad', { method: 'POST', body: fd });
+    const res  = await fetch(endpoint, { method: 'POST', body: fd });
     const data = await res.json();
     if (data.error) {
       showCADError(data.error, data.details);
@@ -862,6 +1342,22 @@ function showCADResult(data, _silent) {
   const thumb = data.thumbnail_url || '';
   const glbUrl = urls.glb || urls.GLB || '';
 
+  // Mark format chips as available/unavailable based on what Meshy returned
+  document.querySelectorAll('.format-chip').forEach(chip => {
+    const fmt = chip.dataset.fmt;
+    const available = !!(urls[fmt] || urls[fmt.toUpperCase()]);
+    if (chip.classList.contains('active') && !available) {
+      chip.classList.remove('active');
+      chip.title = `${fmt.toUpperCase()} not available for this model`;
+      chip.style.opacity = '0.45';
+      chip.style.cursor  = 'default';
+    } else if (available) {
+      chip.style.opacity = '';
+      chip.style.cursor  = '';
+      chip.title = '';
+    }
+  });
+
   // Build result layout: viewer left, meta right
   document.getElementById('cadOutputBody').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:28px;align-items:start">
@@ -931,6 +1427,12 @@ function showCADResult(data, _silent) {
           </svg>
           Run Manufacturability Check
         </button>
+        <button class="btn btn-outline btn-sm" id="stepDownloadBtn" style="align-self:flex-start;display:none" onclick="downloadSTEP()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          STEP / CAD
+        </button>
         <button class="btn btn-gold btn-sm" id="saveModelBtn" style="align-self:flex-start"
           onclick="saveModelToGallery(${JSON.stringify(glbUrl)},${JSON.stringify(thumb)},${JSON.stringify(urls)})">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -950,6 +1452,37 @@ function showCADResult(data, _silent) {
               vertex_count: data.vertex_count, face_count: data.face_count,
               texture_resolution: data.texture_resolution });
 
+  // ── Reveal split-view panel ──────────────────────────────────────────────
+  const splitPanel = document.getElementById('splitviewPanel');
+  const src2d = document.getElementById('cadPreviewImg').src;
+  if (splitPanel && src2d && src2d !== window.location.href) {
+    document.getElementById('sv2dImg').src = src2d;
+    document.getElementById('sv3dImg').src = thumb || '';
+    splitPanel.style.display = 'block';
+    // Show export button only if Three.js viewer is available (GLB present)
+    if (glbUrl) {
+      const exportBtn = document.getElementById('renderExportBtn');
+      if (exportBtn) exportBtn.style.display = 'inline-flex';
+    }
+  }
+
+  // ── Wire STEP download button if OBJ URL present ──────────────────────────
+  const objUrl = urls.obj || urls.OBJ || '';
+  const stepBtn = document.getElementById('stepDownloadBtn');
+  if (stepBtn) {
+    if (objUrl) {
+      stepBtn.style.display = 'inline-flex';
+      stepBtn.dataset.objUrl = objUrl;
+      stepBtn.dataset.title  = document.getElementById('cadPrompt')?.value?.trim() || 'jewellery_model';
+    } else {
+      stepBtn.style.display = 'none';
+    }
+  }
+
+  // ── Reveal PBR material panel ────────────────────────────────────────────
+  const matPanel = document.getElementById('materialPanel');
+  if (matPanel) matPanel.style.display = 'block';
+
   // Reveal the adjust panel now that we have a result to iterate on
   document.getElementById('adjustPanel').style.display = 'block';
   document.getElementById('adjustPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -957,6 +1490,114 @@ function showCADResult(data, _silent) {
   // Boot Three.js viewer if GLB available
   if (glbUrl) {
     setTimeout(() => initThreeViewer(glbUrl, thumb), 200);
+  }
+
+  // Auto-run validation against the 3D thumbnail when available
+  if (thumb && !_silent) {
+    setTimeout(() => runValidationAgainstUrl(thumb), 800);
+  }
+
+  // Auto-run 2D→3D comparison if we have a source image
+  if (thumb && !_silent) {
+    setTimeout(() => runComparison(thumb), 1500);
+  }
+}
+
+// ── 2D → 3D Fidelity Comparison ──────────────────────────────────────────────
+async function runComparison(thumbUrl) {
+  const panel = document.getElementById('comparePanel');
+  const body  = document.getElementById('compareBody');
+  if (!panel || !body) return;
+
+  // Get source sketch / image data URL
+  const previewSrc = document.getElementById('cadPreviewImg').src;
+  if (!previewSrc || previewSrc === window.location.href) return;
+
+  // Convert previewSrc to base64 if it's an external URL
+  let sketchData = previewSrc;
+  if (!previewSrc.startsWith('data:')) {
+    try {
+      const r   = await fetch(previewSrc);
+      const b   = await r.blob();
+      sketchData = await new Promise((res, rej) => {
+        const rd = new FileReader(); rd.onload = e => res(e.target.result); rd.onerror = rej;
+        rd.readAsDataURL(b);
+      });
+    } catch(e) { return; } // can't fetch image, skip
+  }
+
+  const thumbSrc = thumbUrl || (document.querySelector('#cadOutputBody img') || {}).src;
+  if (!thumbSrc) return;
+
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  body.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:8px 0"><div class="spinner" style="width:18px;height:18px;border-width:2px"></div><span style="font-size:12px;color:var(--ink-3)">Comparing 2D design vs 3D output…</span></div>';
+
+  try {
+    const res  = await fetch('/api/compare-cad', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sketch_data:   sketchData,
+        thumbnail_url: thumbSrc,
+        category:      document.getElementById('cadCategory').value || 'Jewellery',
+      }),
+    });
+    const data = await res.json();
+    if (!data.success || data.error) {
+      body.innerHTML = `<p style="font-size:12px;color:var(--error)">Comparison failed: ${data.error}</p>`;
+      return;
+    }
+
+    const score   = data.similarity_score || 0;
+    const verdict = data.verdict || 'WARN';
+    const vColour = verdict === 'PASS' ? 'var(--success)' : verdict === 'FAIL' ? 'var(--error)' : 'var(--gold)';
+    const fillPct = Math.min(100, Math.max(0, score));
+    const barColor = score >= 80 ? 'var(--success)' : score >= 55 ? 'var(--gold)' : 'var(--error)';
+
+    const tagHtml = (items, cls) => (items || []).map(t =>
+      `<span class="tag ${cls}" style="font-size:10px">${t}</span>`).join('');
+
+    body.innerHTML = `
+      <div class="compare-grid">
+        <div class="compare-side">
+          <div class="compare-label">Source (2D)</div>
+          <img src="${previewSrc}" class="compare-img" alt="source" />
+        </div>
+        <div class="compare-side">
+          <div class="compare-label">Generated (3D)</div>
+          <img src="${thumbSrc}" class="compare-img" alt="3D output" />
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:11px;color:var(--ink-3)">Design Fidelity</span>
+            <span style="font-size:12px;font-weight:700;color:${barColor}">${score}%</span>
+          </div>
+          <div class="compare-score-bar"><div class="compare-score-fill" style="width:${fillPct}%;background:${barColor}"></div></div>
+        </div>
+        <span style="padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.07em;background:${vColour}18;color:${vColour}">${verdict}</span>
+      </div>
+
+      <p style="font-size:12px;color:var(--ink-3);margin-bottom:12px;line-height:1.65">${data.summary || ''}</p>
+
+      <div class="compare-tags">
+        ${(data.design_preserved||[]).length ? `<div class="compare-tag-row"><span class="compare-tag-label">Preserved</span>${tagHtml(data.design_preserved,'ctag-preserved')}</div>` : ''}
+        ${(data.design_lost||[]).length     ? `<div class="compare-tag-row"><span class="compare-tag-label">Missing</span>${tagHtml(data.design_lost,'ctag-lost')}</div>` : ''}
+        ${(data.design_changed||[]).length  ? `<div class="compare-tag-row"><span class="compare-tag-label">Changed</span>${tagHtml(data.design_changed,'ctag-changed')}</div>` : ''}
+      </div>
+
+      ${(data.recommendations||[]).length ? `
+        <div style="margin-top:14px;padding:12px 14px;background:var(--gold-bg);border-radius:var(--radius);border:1px solid rgba(184,146,74,.2)">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--gold-dk);margin-bottom:8px">Recommendations to improve fidelity</div>
+          ${data.recommendations.map(r=>`<div style="font-size:11px;color:var(--ink-3);margin-bottom:5px;padding-left:12px;position:relative">
+            <span style="position:absolute;left:0;top:0;color:var(--gold)">›</span>${r}</div>`).join('')}
+        </div>` : ''}
+    `;
+  } catch(e) {
+    body.innerHTML = `<p style="font-size:12px;color:var(--error)">Comparison error: ${e.message}</p>`;
   }
 }
 
@@ -978,8 +1619,18 @@ function showCADError(msg, details) {
 }
 
 document.getElementById('cadPrompt').addEventListener('input', saveState);
-document.getElementById('cadStyle').addEventListener('change', saveState);
+document.getElementById('cadCategory').addEventListener('change', saveState);
+document.getElementById('cadMetal').addEventListener('change', saveState);
 document.getElementById('cadTarget').addEventListener('change', saveState);
+
+// Live scale: update Three.js model scale in real-time as slider moves
+document.getElementById('scaleSlider').addEventListener('input', function() {
+  document.getElementById('scaleVal').textContent = this.value + '%';
+  if (threeModel) {
+    const factor = parseFloat(this.value) / 100;
+    threeModel.scale.setScalar(threeModel.userData.baseScale * factor);
+  }
+});
 
 // ── Adjust & Regenerate ───────────────────────────────────────────────────────
 
@@ -990,7 +1641,7 @@ function selectDetail(el) {
 
 async function regenerateWithAdjustments() {
   const previewSrc = document.getElementById('cadPreviewImg').src;
-  if (!previewSrc || (!previewSrc.startsWith('data:') && !previewSrc.includes('/static'))) {
+  if (!previewSrc || (!previewSrc.startsWith('data:') && !previewSrc.includes('/static') && !previewSrc.startsWith('http'))) {
     showToast('No source image to regenerate from.', 'error'); return;
   }
 
@@ -1129,6 +1780,8 @@ function _bootThree(container, glbUrl) {
       const scale  = 2.5 / maxDim;
       threeModel.scale.setScalar(scale);
       threeModel.position.sub(centre.multiplyScalar(scale));
+      // Store the normalised base scale so the live slider can apply % offsets
+      threeModel.userData.baseScale = scale;
 
       // Enable shadows on all meshes
       threeModel.traverse(n => {
@@ -1194,26 +1847,227 @@ function toggleWireframe() {
   });
 }
 
+// ── Feature Extraction ───────────────────────────────────────────────────────
+
+let _lastGeometryHint = '';  // injected into Meshy prompt when generate runs
+
+async function extractFeatures(silent) {
+  const previewSrc = document.getElementById('cadPreviewImg').src;
+  if (!previewSrc || (!previewSrc.startsWith('data:') && !previewSrc.includes('/static') && !previewSrc.startsWith('http'))) {
+    if (!silent) showToast('Upload an image first.', 'error');
+    return;
+  }
+
+  const panel = document.getElementById('featuresPanel');
+  const body  = document.getElementById('featuresBody');
+  if (panel) panel.style.display = 'block';
+  if (body)  body.innerHTML = '<div style="padding:16px 18px;font-size:12px;color:var(--ink-3);display:flex;align-items:center;gap:8px"><div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Analysing design…</div>';
+
+  // Convert to base64 if needed
+  let imageData = previewSrc;
+  if (!previewSrc.startsWith('data:')) {
+    try {
+      const r = await fetch(previewSrc);
+      const b = await r.blob();
+      imageData = await new Promise(res => {
+        const rd = new FileReader(); rd.onload = e => res(e.target.result); rd.readAsDataURL(b);
+      });
+    } catch(e) { return; }
+  }
+
+  const fd = new FormData();
+  fd.append('image_data', imageData);
+  fd.append('category', document.getElementById('cadCategory')?.value || 'Jewellery');
+
+  try {
+    const res  = await fetch('/api/extract-design-features', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) {
+      if (body) body.innerHTML = `<div style="padding:14px 18px;font-size:11px;color:var(--error)">${data.error}</div>`;
+      return;
+    }
+
+    // Store geometry_hint so generateCAD() can use it
+    _lastGeometryHint = data.geometry_hint || '';
+
+    if (!body) return;
+
+    const rows = [
+      ['Category',    data.category],
+      ['Stones',      data.stone_count != null ? `${data.stone_count} × ${data.stone_type || '—'}` : 'None detected'],
+      ['Symmetry',    data.symmetry],
+      ['Setting',     data.setting_type],
+      ['Prongs',      data.prong_count != null ? data.prong_count : '—'],
+      ['Shank',       data.shank_style],
+      ['Metal',       data.metal_finish],
+      ['Sketch',      data.sketch_quality ? `${data.sketch_quality} quality` : '—'],
+    ];
+
+    const cellsHtml = rows.filter(([,v]) => v && v !== 'null').map(([label, val]) => `
+      <div class="feat-cell">
+        <div class="feat-label">${label}</div>
+        <div class="feat-val">${val}</div>
+      </div>`).join('');
+
+    const hintHtml = data.geometry_hint ? `
+      <div class="feat-hint">
+        <strong>Geometry hint injected into generation:</strong> ${data.geometry_hint}
+      </div>` : '';
+
+    const warnHtml = (data.warnings || []).length ? `
+      <div class="feat-warnings">
+        ${data.warnings.map(w => `<div class="feat-warning-item">${w}</div>`).join('')}
+      </div>` : '';
+
+    body.innerHTML = `<div class="features-grid">${cellsHtml}</div>${hintHtml}${warnHtml}`;
+
+    if (!silent) showToast('Design features extracted.', 'success');
+  } catch(e) {
+    if (body) body.innerHTML = `<div style="padding:14px 18px;font-size:11px;color:var(--error)">Extraction error: ${e.message}</div>`;
+  }
+}
+
+// Auto-extract when an image is dropped/selected (non-blocking, silent)
+function _autoExtract() {
+  setTimeout(() => extractFeatures(true), 400);
+}
+
+// ── PBR Material Switcher ─────────────────────────────────────────────────────
+
+const MATERIAL_CONFIGS = {
+  gold:      { color: 0xd4a843, roughness: 0.15, metalness: 0.95 },
+  rose:      { color: 0xc97b5a, roughness: 0.18, metalness: 0.92 },
+  white:     { color: 0xd8d8d8, roughness: 0.10, metalness: 0.96 },
+  silver:    { color: 0xb0b8c0, roughness: 0.25, metalness: 0.88 },
+  platinum:  { color: 0x9aa0aa, roughness: 0.08, metalness: 0.98 },
+  original:  null,  // restore original materials
+};
+
+let _originalMaterials = new Map();  // mesh uuid → original material
+
+function applyMaterial(chipEl) {
+  document.querySelectorAll('.mat-chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+
+  const mat = chipEl.dataset.mat;
+  if (!threeModel || !window.THREE) return;
+
+  const cfg = MATERIAL_CONFIGS[mat];
+
+  threeModel.traverse(node => {
+    if (!node.isMesh) return;
+    if (cfg === null) {
+      // Restore original material
+      if (_originalMaterials.has(node.uuid)) {
+        node.material = _originalMaterials.get(node.uuid);
+      }
+    } else {
+      // Save original if not already saved
+      if (!_originalMaterials.has(node.uuid)) {
+        _originalMaterials.set(node.uuid, node.material);
+      }
+      node.material = new THREE.MeshStandardMaterial({
+        color:     cfg.color,
+        roughness: cfg.roughness,
+        metalness: cfg.metalness,
+        envMapIntensity: 1.4,
+      });
+    }
+  });
+
+  showToast(`Material: ${chipEl.textContent.trim()}`, 'success');
+}
+
+// ── Render Export (screenshot of Three.js viewer as PNG) ─────────────────────
+
+function exportRender() {
+  if (!threeRenderer || !threeScene || !threeCamera) {
+    showToast('3D viewer not active.', 'error'); return;
+  }
+  // Render one extra frame at full resolution
+  threeRenderer.render(threeScene, threeCamera);
+  const dataUrl = threeRenderer.domElement.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = 'jewellery_render.png';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast('Render saved as PNG.', 'success');
+}
+
+// ── STEP / CAD Download ───────────────────────────────────────────────────────
+
+async function downloadSTEP() {
+  const btn = document.getElementById('stepDownloadBtn');
+  if (!btn) return;
+  const objUrl = btn.dataset.objUrl;
+  const title  = btn.dataset.title || 'jewellery_model';
+  if (!objUrl) { showToast('OBJ URL not available.', 'error'); return; }
+
+  const origLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;border-width:2px"></div> Converting…';
+
+  try {
+    const res  = await fetch('/api/convert-to-step', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ obj_url: objUrl, title }),
+    });
+    const data = await res.json();
+    if (data.success && data.step_url) {
+      const a = document.createElement('a');
+      a.href = data.step_url;
+      a.download = data.filename || 'model.step';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('STEP file downloading.', 'success');
+    } else {
+      // Show friendly note if FreeCAD not installed
+      const note = data.note || data.error || 'STEP conversion unavailable on this server.';
+      showToast(note, 'error');
+    }
+  } catch(e) {
+    showToast('STEP conversion error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origLabel;
+  }
+}
+
 // ── Design Validation ─────────────────────────────────────────────────────────
 
 async function runValidation() {
   const previewSrc = document.getElementById('cadPreviewImg').src;
-  if (!previewSrc || (!previewSrc.startsWith('data:') && !previewSrc.includes('/static'))) {
+  if (!previewSrc || (!previewSrc.startsWith('data:') && !previewSrc.includes('/static') && !previewSrc.startsWith('http'))) {
     showToast('Upload a jewellery image first.', 'error'); return;
   }
+  await _doValidation(previewSrc);
+}
 
+// Validate against the 3D thumbnail after model generation
+async function runValidationAgainstUrl(imageUrl) {
+  await _doValidation(imageUrl, /*fromThumb=*/true);
+}
+
+async function _doValidation(imageSrc, fromThumb) {
   const vBtn = document.getElementById('validateBtn');
   const origLabel = vBtn.innerHTML;
   vBtn.disabled = true;
   vBtn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Validating…';
 
-  renderValidationLoading();
+  renderValidationLoading(fromThumb
+    ? 'Analysing 3D render for manufacturability…'
+    : 'Analysing design for manufacturing feasibility…');
 
-  // Convert image to base64 if it's a static URL
-  let imageData = previewSrc;
-  if (previewSrc.startsWith('/static')) {
+  // Convert image to base64 if it's a remote or static URL
+  let imageData = imageSrc;
+  if (!imageSrc.startsWith('data:')) {
     try {
-      const resp = await fetch(previewSrc);
+      const resp = await fetch(imageSrc);
       const blob = await resp.blob();
       imageData  = await new Promise(res => {
         const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(blob);
@@ -1226,8 +2080,9 @@ async function runValidation() {
 
   const fd = new FormData();
   fd.append('image_data', imageData);
-  fd.append('category',   document.getElementById('cadStyle')?.value  || 'Jewellery');
-  fd.append('target_use', document.getElementById('cadTarget')?.value || 'visualization');
+  fd.append('category',   document.getElementById('cadCategory')?.value || 'Jewellery');
+  fd.append('target_use', document.getElementById('cadTarget')?.value   || 'visualization');
+  fd.append('metal',      document.getElementById('cadMetal')?.value    || '');
 
   try {
     const res  = await fetch('/api/validate-cad', { method: 'POST', body: fd });
@@ -1237,7 +2092,7 @@ async function runValidation() {
       showToast('Validation failed.', 'error');
     } else {
       renderValidationResult(data);
-      showToast('Validation complete.', 'success');
+      showToast(fromThumb ? 'Manufacturability check complete.' : 'Validation complete.', 'success');
     }
   } catch(err) {
     renderValidationError('Network error: ' + err.message);
@@ -1247,12 +2102,12 @@ async function runValidation() {
   }
 }
 
-function renderValidationLoading() {
+function renderValidationLoading(msg) {
   document.getElementById('valBody').innerHTML = `
     <div class="val-placeholder">
       <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
         <div class="spinner"></div>
-        <span style="font-size:12px;font-family:var(--font-mono);color:var(--ink-3)">Analysing design for manufacturing feasibility…</span>
+        <span style="font-size:12px;font-family:var(--font-mono);color:var(--ink-3)">${msg || 'Analysing design for manufacturing feasibility…'}</span>
       </div>
     </div>`;
 }
@@ -1357,6 +2212,9 @@ async function saveModelToGallery(glbUrl, thumbnailUrl, modelUrls) {
       showToast('Saved to Gallery!', 'success');
       btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Saved';
       btn.disabled = true;
+      // Reveal BOM + manufacturer export panels now that a model is saved
+      document.getElementById('bomPanel')?.removeAttribute('style');
+      document.getElementById('mfrExportPanel')?.removeAttribute('style');
     } else {
       showToast(data.error || 'Could not save.', 'error');
       btn.disabled = false;
@@ -1368,5 +2226,170 @@ async function saveModelToGallery(glbUrl, thumbnailUrl, modelUrls) {
     btn.innerHTML = origLabel;
   }
 }
+
+// ── Dimension Guide & Ring-Size Scale ─────────────────────────────────────────
+
+let _dimScaleFactor = null;  // set after lookup, applied on applyDimScale()
+
+async function lookupDimGuide() {
+  const cat    = document.getElementById('cadCategory')?.value || 'Ring';
+  const size   = document.getElementById('ringSizeSelect')?.value || '';
+  const region = document.getElementById('ringSizeRegion')?.value || 'IN';
+  const resultEl = document.getElementById('dimGuideResult');
+  resultEl.textContent = 'Looking up…';
+
+  try {
+    const params = new URLSearchParams({ category: cat, ring_size: size, region });
+    const res  = await fetch('/api/dimension-guide?' + params);
+    const data = await res.json();
+
+    let html = '';
+    if (data.standard_dims_mm && Object.keys(data.standard_dims_mm).length) {
+      html += Object.entries(data.standard_dims_mm)
+        .map(([k,v]) => `${k.replace(/_/g,' ')}: <strong>${v}mm</strong>`)
+        .join(' · ');
+    }
+    if (data.diameter_mm) {
+      html += `<br><span style="color:var(--gold-dk)">Size ${size} ${region} → ⌀${data.diameter_mm}mm (${data.circumference_mm}mm circ.)</span>`;
+      _dimScaleFactor = data.diameter_mm;
+      document.getElementById('applyScaleBtn').style.display = 'block';
+    }
+    resultEl.innerHTML = html || 'No data for this category.';
+  } catch(e) {
+    resultEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function applyDimScale() {
+  if (!_dimScaleFactor) return;
+  const saved = JSON.parse(sessionStorage.getItem('cadStudioState') || '{}');
+  const taskId = saved?.task_id || '';
+
+  try {
+    const cat  = document.getElementById('cadCategory')?.value || 'Ring';
+    const size = document.getElementById('ringSizeSelect')?.value || '';
+    const reg  = document.getElementById('ringSizeRegion')?.value || 'IN';
+    const res  = await fetch('/api/scale-model', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: taskId, category: cat, ring_size: size, region: reg }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      // Apply to Three.js model live
+      if (threeModel) {
+        threeModel.scale.setScalar(threeModel.userData.baseScale * (data.scale_factor || 1));
+        document.getElementById('scaleSlider').value = Math.round(data.scale_pct);
+        document.getElementById('scaleVal').textContent = Math.round(data.scale_pct) + '%';
+      }
+      showToast(`Scale set to ${data.scale_pct}% → ${data.target_mm}mm`, 'success');
+      document.getElementById('dimGuideResult').innerHTML +=
+        `<br><span style="color:var(--success)">✓ Scale applied: ×${data.scale_factor} (${data.target_mm}mm)</span>`;
+    }
+  } catch(e) {
+    showToast('Scale error: ' + e.message, 'error');
+  }
+}
+
+// ── BOM / Costing ────────────────────────────────────────────────────────────
+
+let _lastBomData = null;
+
+async function generateBOM() {
+  const btn    = document.getElementById('bomBtn');
+  const body   = document.getElementById('bomBody');
+  const prevLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;border-width:2px"></div> Estimating…';
+
+  const previewSrc = document.getElementById('cadPreviewImg')?.src || '';
+  let imgData = previewSrc;
+  if (previewSrc && !previewSrc.startsWith('data:')) {
+    try {
+      const r = await fetch(previewSrc);
+      const b = await r.blob();
+      imgData = await new Promise(res => { const rd = new FileReader(); rd.onload = e => res(e.target.result); rd.readAsDataURL(b); });
+    } catch(e) {}
+  }
+
+  const fd = new FormData();
+  fd.append('image_data', imgData);
+  fd.append('category', document.getElementById('cadCategory')?.value || 'Jewellery');
+  fd.append('metal',    document.getElementById('cadMetal')?.value    || '22K Yellow Gold');
+  if (_lastGeometryHint) fd.append('features', JSON.stringify({ geometry_hint: _lastGeometryHint }));
+
+  try {
+    const res  = await fetch('/api/generate-bom', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) { body.innerHTML = `<p style="font-size:12px;color:var(--error)">${data.error}</p>`; btn.innerHTML = prevLabel; btn.disabled = false; return; }
+
+    _lastBomData = data;
+    const fmt = n => '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:5px;font-size:12px">
+        ${[['Metal ('+data.metal_weight_g+'g)', fmt(data.metal_cost_inr)],['Stones', fmt(data.stone_cost_inr)],['Labour ('+data.labour_hrs+'hrs)', fmt(data.labour_cost_inr)],['Making charges', fmt(data.making_charges_inr)],['GST 3%', fmt(data.gst_inr)]].map(([l,v]) => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--paper-2)"><span style="color:var(--ink-3)">${l}</span><span style="font-weight:600">${v}</span></div>`).join('')}
+        <div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:4px"><span style="font-weight:700;color:var(--ink)">Total</span><span style="font-weight:700;color:var(--gold-dk);font-size:15px">${fmt(data.total_inr)}</span></div>
+      </div>
+      <p style="font-size:9px;color:var(--ink-4);font-family:var(--font-mono);margin-top:6px;line-height:1.5">${data.disclaimer}</p>`;
+    showToast('BOM generated.', 'success');
+    // Reveal manufacturer export panel
+    document.getElementById('mfrExportPanel').style.display = 'block';
+  } catch(e) {
+    body.innerHTML = `<p style="font-size:12px;color:var(--error)">Error: ${e.message}</p>`;
+  } finally {
+    btn.disabled = false; btn.innerHTML = prevLabel;
+  }
+}
+
+// ── Manufacturer Export ───────────────────────────────────────────────────────
+
+async function exportManufacturerPackage() {
+  const btn  = document.getElementById('mfrExportBtn');
+  const prev = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;border-width:2px"></div> Preparing…';
+
+  const saved  = JSON.parse(sessionStorage.getItem('cadStudioState') || '{}');
+  const taskId = saved?.task_id || '';
+
+  try {
+    const res  = await fetch('/api/export-manufacturer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task_id:     taskId,
+        category:    document.getElementById('cadCategory')?.value || 'Jewellery',
+        metal:       document.getElementById('cadMetal')?.value    || '22K Yellow Gold',
+        description: document.getElementById('cadPrompt')?.value   || '',
+        ring_size:   document.getElementById('mfrRingSize')?.value || '',
+        region:      document.getElementById('ringSizeRegion')?.value || 'IN',
+        bom_data:    _lastBomData || {},
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) { showToast(data.error || 'Export failed.', 'error'); btn.disabled = false; btn.innerHTML = prev; return; }
+
+    // Download as JSON spec sheet
+    const blob = new Blob([JSON.stringify(data.spec, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `manufacturer_spec_${Date.now()}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Manufacturer spec sheet downloaded.', 'success');
+  } catch(e) {
+    showToast('Export error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = prev;
+  }
+}
+
+// Show BOM + mfr panels when a model result is restored from session
+document.addEventListener('DOMContentLoaded', () => {
+  const saved = JSON.parse(sessionStorage.getItem('cadStudioState') || '{}');
+  if (saved?.modelResult?.model_urls) {
+    document.getElementById('bomPanel')?.style && (document.getElementById('bomPanel').style.display = 'block');
+    document.getElementById('mfrExportPanel')?.style && (document.getElementById('mfrExportPanel').style.display = 'block');
+  }
+});
 </script>
 {% endblock %}
