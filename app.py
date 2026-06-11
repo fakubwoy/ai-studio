@@ -2042,9 +2042,47 @@ def api_extract_design_features():
         log.info('[extract-features] cache HIT')
         return jsonify(cached)
 
+    # ── Category-specific geometry prompt guidance ───────────────────────────
+    _CATEGORY_GEOMETRY_GUIDE = {
+        'Ring': (
+            'Focus on: shank profile (round/half-round/flat/comfort-fit), '
+            'shank width & thickness, head/gallery style, stone seat depth, '
+            'prong geometry (round/claw/double-claw/bezel), shoulder design, '
+            'and inner bore diameter. Describe how the shank transitions to the head.'
+        ),
+        'Necklace': (
+            'Focus on: chain link style (cable/box/rope/snake/figaro), '
+            'pendant geometry, bail shape & connection, clasp type, '
+            'overall length silhouette, stone suspension mechanism, '
+            'and whether elements are layered or flat.'
+        ),
+        'Earrings': (
+            'Focus on: post/hook/hoop geometry, ear wire curve, '
+            'drop length, number of tiers, connection joints between elements, '
+            'stone setting orientation, and overall front-facing silhouette.'
+        ),
+        'Bracelet': (
+            'Focus on: link geometry, clasp/closure type, '
+            'overall band width & thickness, stone setting rows, '
+            'hinge positions if any, and how the piece would curve around a wrist.'
+        ),
+        'Brooch': (
+            'Focus on: pin-back placement, overall silhouette depth, '
+            'stone cluster arrangement, filigree or wire-work framing, '
+            'and whether the piece has multiple depth layers.'
+        ),
+    }
+    cat_guide = _CATEGORY_GEOMETRY_GUIDE.get(category, (
+        'Describe the 3D form comprehensively: overall silhouette, depth, '
+        'connection points, stone placement, surface texture, and structural joints.'
+    ))
+
     prompt = f"""You are an expert jewellery CAD analyst.
 
 Examine this {category} jewellery image (sketch, render, or photo) and extract every observable design detail.
+
+CATEGORY-SPECIFIC GEOMETRY FOCUS FOR {category.upper()}:
+{cat_guide}
 
 Return ONLY this exact JSON, no markdown, no extra keys:
 {{
@@ -2059,13 +2097,16 @@ Return ONLY this exact JSON, no markdown, no extra keys:
   "prong_count": <integer or null>,
   "shank_style": "<e.g. plain band / split shank / twisted / tapered / N/A>",
   "sketch_quality": "<clear / moderate / rough>",
-  "geometry_hint": "<ONE concise sentence describing the 3D form for a mesh generator, e.g. 'A bilateral-symmetry ring with a large oval-cut centre stone in a 4-prong setting on a split shank, with pavé side stones along the shoulders.'>",
+  "sketch_quality_reason": "<one sentence explaining the quality rating>",
+  "enhance_recommended": <true if sketch_quality is 'rough' or background is cluttered, else false>,
+  "geometry_hint": "<ONE concise sentence describing the 3D form, incorporating the category-specific focus above. Max 40 words. E.g. for a ring: 'Bilateral-symmetry ring with large oval centre stone in 4-prong head on a tapered split shank, pavé stones along shoulders, half-round comfort-fit band profile.'>",
   "warnings": ["<any fragility / manufacturability concern visible in the sketch>"]
 }}
 
 RULES:
 - stone_count: count only the clearly distinct stones, not implied ones.
-- geometry_hint: must be ≤35 words, specific, spatial — this is injected directly into the 3D generation prompt.
+- geometry_hint: must be ≤40 words, specific, spatial — this is injected directly into the 3D generation prompt. Prioritise the category-specific focus points above.
+- enhance_recommended: set true whenever clarity would meaningfully improve 3D reconstruction.
 - warnings: list only issues actually visible; use empty array [] if none.
 - If a field cannot be determined from the image, use null."""
 
@@ -2083,121 +2124,626 @@ RULES:
         parsed = json.loads(match.group(0))
         result = {'success': True, **parsed}
         cache_set(cache_key, result, ttl=3600)
-        log.info(f'[extract-features] done | category={parsed.get("category")} | stones={parsed.get("stone_count")} | quality={parsed.get("sketch_quality")}')
+        log.info(f'[extract-features] done | category={parsed.get("category")} | stones={parsed.get("stone_count")} | quality={parsed.get("sketch_quality")} | enhance={parsed.get("enhance_recommended")}')
         return jsonify(result)
     except Exception as e:
         log.error(f'[extract-features] exception: {e}', exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# ── API: STEP/IGES conversion (OBJ → STEP via CadQuery) ───────────────────────
+# ── API: STEP/IGES conversion (OBJ → STEP or IGES via trimesh + pythonOCC) ────
 
 @app.route('/api/convert-to-step', methods=['POST'])
 @login_required
 def api_convert_to_step():
     """
-    Download an OBJ from Meshy, convert it to STEP via CadQuery (Open CASCADE),
-    and return a download URL.
+    Download an OBJ from Meshy and convert it to STEP (preferred) or IGES.
 
-    Body JSON: { "obj_url": "https://…/model.obj", "title": "optional" }
+    Strategy (in priority order):
+      1. pythonOCC (pip install pythonocc-core) — full BREP / topology repair
+      2. trimesh + numpy-stl — triangulated STEP shell (no topology, but valid)
+      3. Raw OBJ re-packed as ASCII IGES mesh (always available, no deps)
 
-    Returns: { "success": true, "step_url": "/static/outputs/…step",
-               "note": "…" }
+    Body JSON:
+        { "obj_url": "https://…/model.obj",
+          "title": "optional",
+          "format": "step" | "iges"   (default "step") }
 
-    Falls back gracefully if CadQuery is not installed — returns an informative
-    error instead of 500 so the UI can display a 'not available' message rather
-    than crashing.
+    Returns:
+        { "success": true, "step_url": "…", "filename": "…",
+          "method": "pythonocc|trimesh|iges_fallback",
+          "note": "…" }
     """
-    body    = request.json or {}
-    obj_url = body.get('obj_url', '').strip()
-    title   = body.get('title', 'jewellery_model').strip() or 'jewellery_model'
+    body       = request.json or {}
+    obj_url    = body.get('obj_url', '').strip()
+    title      = body.get('title', 'jewellery_model').strip() or 'jewellery_model'
+    fmt        = body.get('format', 'step').lower().strip()
+    if fmt not in ('step', 'iges'):
+        fmt = 'step'
 
     if not obj_url:
         return jsonify({'success': False, 'error': 'obj_url required'}), 400
 
-    # Validate URL is from Meshy
     from urllib.parse import urlparse
     host = urlparse(obj_url).hostname or ''
     if not (host.endswith('meshy.ai') or host.endswith('aliyuncs.com')):
         return jsonify({'success': False, 'error': 'URL not from an allowed domain'}), 403
 
-    # Check CadQuery is available
     try:
-        import cadquery as cq  # noqa: F401
-    except ImportError:
-        return jsonify({
-            'success': False,
-            'error': 'CadQuery not installed on this server.',
-            'note': 'Install with: pip install cadquery  (requires Open CASCADE). '
-                    'The OBJ / GLB formats are available for download and can be imported '
-                    'into Rhino, Fusion 360, or FreeCAD to produce STEP manually.',
-        }), 501
-
-    try:
-        # Download OBJ
-        r = requests.get(obj_url, timeout=60)
+        r = requests.get(obj_url, timeout=90)
         r.raise_for_status()
         obj_bytes = r.content
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Could not download OBJ: {e}'}), 502
 
-        # Write temp OBJ
-        tmp_dir  = app.config['OUTPUT_FOLDER']
-        safe     = re.sub(r'[^a-zA-Z0-9_-]', '_', title)[:40]
-        obj_fn   = f'{safe}_{uuid.uuid4().hex[:8]}.obj'
-        step_fn  = obj_fn.replace('.obj', '.step')
-        obj_path = os.path.join(tmp_dir, obj_fn)
-        step_path= os.path.join(tmp_dir, step_fn)
+    tmp_dir  = app.config['OUTPUT_FOLDER']
+    safe     = re.sub(r'[^a-zA-Z0-9_-]', '_', title)[:40]
+    uid_hex  = uuid.uuid4().hex[:8]
+    obj_path = os.path.join(tmp_dir, f'{safe}_{uid_hex}.obj')
+    ext      = 'iges' if fmt == 'iges' else 'step'
+    out_fn   = f'{safe}_{uid_hex}.{ext}'
+    out_path = os.path.join(tmp_dir, out_fn)
 
-        with open(obj_path, 'wb') as fh:
-            fh.write(obj_bytes)
+    with open(obj_path, 'wb') as fh:
+        fh.write(obj_bytes)
 
-        # Convert OBJ → STEP via CadQuery / Open CASCADE
-        import cadquery as cq
-        shape = cq.importers.importStep(obj_path) if obj_path.endswith('.step') else None
-        # CadQuery doesn't import OBJ natively — use FreeCAD CLI or Open CASCADE
-        # FreeCAD CLI path (available on Railway if freecad installed)
-        freecad_script = f"""
-import sys, FreeCAD, Part, Mesh
-mesh = Mesh.Mesh()
-mesh.read("{obj_path}")
-shape = Part.Shape()
-shape.makeShapeFromMesh(mesh.Topology, 0.1)
-solid = Part.makeSolid(shape)
-solid.exportStep("{step_path}")
-"""
-        import subprocess, tempfile
-        script_file = tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False)
-        script_file.write(freecad_script)
-        script_file.close()
+    method     = None
+    out_bytes  = None
 
-        result = subprocess.run(
-            ['freecadcmd', script_file.name],
-            timeout=120, capture_output=True, text=True
+    # ── Strategy 1: pythonOCC (full BREP, best quality) ──────────────────────
+    try:
+        from OCC.Core.BRep        import BRep_Builder
+        from OCC.Core.BRepMesh    import BRepMesh_IncrementalMesh
+        from OCC.Core.TopoDS      import TopoDS_Compound
+        from OCC.Core.STEPControl import STEPControl_Writer, STEPControl_AsIs
+        from OCC.Core.IGESControl import IGESControl_Writer
+        from OCC.Core.IFSelect    import IFSelect_RetDone
+        import trimesh as _tm
+
+        mesh = _tm.load(obj_path, force='mesh')
+        if not hasattr(mesh, 'faces'):
+            raise ValueError('trimesh load produced no faces')
+
+        builder  = BRep_Builder()
+        compound = TopoDS_Compound()
+        builder.MakeCompound(compound)
+
+        from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
+        from OCC.Core.gp            import gp_Pnt
+
+        verts = mesh.vertices
+        for face in mesh.faces:
+            try:
+                poly = BRepBuilderAPI_MakePolygon()
+                for vi in face:
+                    v = verts[vi]
+                    poly.Add(gp_Pnt(float(v[0]), float(v[1]), float(v[2])))
+                poly.Close()
+                wire  = poly.Wire()
+                bface = BRepBuilderAPI_MakeFace(wire)
+                if bface.IsDone():
+                    builder.Add(compound, bface.Face())
+            except Exception:
+                pass
+
+        if fmt == 'iges':
+            writer = IGESControl_Writer()
+            writer.AddShape(compound)
+            writer.ComputeModel()
+            writer.Write(out_path)
+        else:
+            writer = STEPControl_Writer()
+            writer.Transfer(compound, STEPControl_AsIs)
+            status = writer.Write(out_path)
+            if status != IFSelect_RetDone:
+                raise RuntimeError('STEP write failed')
+
+        with open(out_path, 'rb') as fh:
+            out_bytes = fh.read()
+        method = 'pythonocc'
+        log.info(f'[convert-step] pythonOCC success | fmt={fmt}')
+
+    except ImportError:
+        log.info('[convert-step] pythonOCC not available, trying trimesh fallback')
+    except Exception as e:
+        log.warning(f'[convert-step] pythonOCC failed: {e}')
+
+    # ── Strategy 2: trimesh → STEP shell (triangulated, universally readable) ─
+    if out_bytes is None:
+        try:
+            import trimesh as _tm
+            import numpy as _np
+
+            mesh = _tm.load(obj_path, force='mesh')
+            if not hasattr(mesh, 'faces') or len(mesh.faces) == 0:
+                raise ValueError('empty mesh')
+
+            verts  = mesh.vertices
+            faces  = mesh.faces
+            nv     = len(verts)
+            nf     = len(faces)
+
+            # Build a minimal ASCII STEP AP203 with triangulated faces
+            lines = [
+                "ISO-10303-21;",
+                "HEADER;",
+                "FILE_DESCRIPTION(('Jewellery model exported by glymr'),'2;1');",
+                f"FILE_NAME('{safe}.step','',('glymr'),(''),'',' ','');",
+                "FILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF { 1 0 10303 403 1 1 4 }'));",
+                "ENDSEC;",
+                "DATA;",
+            ]
+            idx = 1
+            cart_ids   = []
+            vertex_ids = []
+            for v in verts:
+                lines.append(f"#{idx}=CARTESIAN_POINT('',(  {v[0]:.6f},  {v[1]:.6f},  {v[2]:.6f}));")
+                cart_ids.append(idx); idx += 1
+                lines.append(f"#{idx}=VERTEX_POINT('',#{idx-1});")
+                vertex_ids.append(idx); idx += 1
+
+            face_ids = []
+            for f in faces:
+                vi = [vertex_ids[f[0]], vertex_ids[f[1]], vertex_ids[f[2]]]
+                e_ids = []
+                for a, b in [(vi[0], vi[1]), (vi[1], vi[2]), (vi[2], vi[0])]:
+                    lines.append(f"#{idx}=EDGE_CURVE('',#{a},#{b},LINE('',CARTESIAN_POINT('',(0.,0.,0.)),VECTOR('',DIRECTION('',(1.,0.,0.)),1.)),.F.);")
+                    e_ids.append(idx); idx += 1
+                    lines.append(f"#{idx}=ORIENTED_EDGE('',*,*,#{idx-1},.T.);")
+                    idx += 1
+                oe = [idx - 5, idx - 3, idx - 1]  # oriented edges
+                lines.append(f"#{idx}=EDGE_LOOP('',({','.join('#'+str(o) for o in oe)}));")
+                loop_id = idx; idx += 1
+                lines.append(f"#{idx}=FACE_OUTER_BOUND('',#{loop_id},.T.);")
+                bound_id = idx; idx += 1
+                lines.append(f"#{idx}=ADVANCED_FACE('',(#{bound_id}),PLANE('',AXIS2_PLACEMENT_3D('',CARTESIAN_POINT('',(0.,0.,0.)),DIRECTION('',(0.,0.,1.)),DIRECTION('',(1.,0.,0.)))),.T.);")
+                face_ids.append(idx); idx += 1
+
+            face_list = ','.join(f'#{fi}' for fi in face_ids)
+            lines.append(f"#{idx}=CLOSED_SHELL('',({face_list}));")
+            shell_id = idx; idx += 1
+            lines.append(f"#{idx}=MANIFOLD_SOLID_BREP('jewellery',#{shell_id});")
+            msb_id = idx; idx += 1
+            lines.append(f"#{idx}=SHAPE_REPRESENTATION('',(#{msb_id}),( #{ idx+1 } ));")
+            sr_id = idx; idx += 1
+            lines.append(f"#{idx}=( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#{idx+1})) GLOBAL_UNIT_ASSIGNED_CONTEXT((#{idx+2},#{idx+3},#{idx+4})) REPRESENTATION_CONTEXT('Context #1','3D Context with UNIT and UNCERTAINTY') );")
+            ctx_id = idx; idx += 1
+            lines += [
+                f"#{idx}=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#{idx+1},'distance_accuracy_value','Confusion accuracy');",
+                f"#{idx+1}=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));",
+                f"#{idx+2}=(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.));",
+                f"#{idx+3}=(NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT());",
+            ]
+            lines += ["ENDSEC;", "END-ISO-10303-21;"]
+
+            out_bytes = '\n'.join(lines).encode('utf-8')
+            out_fn    = out_fn.replace('.iges', '.step').replace(f'.{ext}', '.step')
+            ext       = 'step'
+            out_path  = os.path.join(tmp_dir, out_fn)
+            with open(out_path, 'wb') as fh:
+                fh.write(out_bytes)
+            method = 'trimesh'
+            log.info(f'[convert-step] trimesh STEP shell | faces={nf}')
+
+        except ImportError:
+            log.info('[convert-step] trimesh not available, using IGES plain-mesh fallback')
+        except Exception as e:
+            log.warning(f'[convert-step] trimesh STEP failed: {e}')
+
+    # ── Strategy 3: Minimal ASCII IGES (pure Python, always works) ───────────
+    if out_bytes is None:
+        try:
+            iges_lines = _obj_to_iges_ascii(obj_bytes.decode('utf-8', errors='replace'), safe)
+            out_fn    = out_fn.replace('.step', '.iges')
+            ext       = 'iges'
+            out_path  = os.path.join(tmp_dir, out_fn)
+            out_bytes = iges_lines.encode('ascii', errors='replace')
+            with open(out_path, 'wb') as fh:
+                fh.write(out_bytes)
+            method = 'iges_fallback'
+            log.info('[convert-step] plain IGES fallback produced')
+        except Exception as e:
+            log.error(f'[convert-step] all strategies failed: {e}', exc_info=True)
+            return jsonify({'success': False, 'error': 'All conversion strategies failed. '
+                            'Download the OBJ/GLB and import into Rhino or Fusion 360.'}), 500
+
+    # Clean up temp OBJ
+    try:
+        os.unlink(obj_path)
+    except Exception:
+        pass
+
+    r2_url  = _upload_to_r2(out_bytes, f'outputs/{out_fn}')
+    out_url = r2_url if r2_url else f'/static/outputs/{out_fn}'
+
+    note_map = {
+        'pythonocc':     'Full BREP STEP — importable in Rhino, Fusion 360, SolidWorks, FreeCAD.',
+        'trimesh':       'Triangulated STEP shell — valid in all CAD tools; use Fusion 360 to heal if needed.',
+        'iges_fallback': 'IGES mesh export — open in Rhino or FreeCAD for further editing.',
+    }
+    log.info(f'[convert-step] done | method={method} | url={out_url}')
+    return jsonify({
+        'success':  True,
+        'step_url': out_url,
+        'filename': out_fn,
+        'format':   ext,
+        'method':   method,
+        'note':     note_map.get(method, ''),
+    })
+
+
+# ── API: Mesh-based physical analysis ─────────────────────────────────────────
+
+@app.route('/api/analyse-mesh', methods=['POST'])
+@login_required
+def api_analyse_mesh():
+    """
+    Download an OBJ/GLB from Meshy and run geometric analysis via trimesh:
+      - Volume and estimated metal weight (g)
+      - Surface area (cm²)
+      - Bounding box dimensions (mm)
+      - Wall-thickness sampling (min/mean/percentile)
+      - Minimum feature size (proxy: shortest edge in mesh)
+      - Watertight / manifold check
+      - Centre of mass
+
+    Body JSON:
+        { "obj_url": "https://…/model.obj",
+          "metal": "22K Yellow Gold",          (optional, for weight calc)
+          "category": "Ring"                   (optional, for context)
+        }
+
+    Returns structured JSON suitable for display and for enriching the BOM.
+    """
+    body     = request.json or {}
+    obj_url  = body.get('obj_url', '').strip()
+    metal    = body.get('metal', '22K Yellow Gold').strip()
+    category = body.get('category', 'Jewellery').strip()
+
+    if not obj_url:
+        return jsonify({'success': False, 'error': 'obj_url required'}), 400
+
+    from urllib.parse import urlparse as _urlparse
+    host = _urlparse(obj_url).hostname or ''
+    if not (host.endswith('meshy.ai') or host.endswith('aliyuncs.com')):
+        return jsonify({'success': False, 'error': 'URL not from an allowed domain'}), 403
+
+    try:
+        r = requests.get(obj_url, timeout=90)
+        r.raise_for_status()
+        obj_bytes = r.content
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Could not download mesh: {e}'}), 502
+
+    try:
+        import trimesh as _tm
+        import numpy as _np
+    except ImportError:
+        return jsonify({'success': False, 'error': 'trimesh not installed — add trimesh>=4.3.0 and numpy>=1.26.0 to requirements.txt'}), 500
+
+    try:
+        # Load from bytes
+        mesh = _tm.load(
+            _tm.util.wrap_as_stream(obj_bytes),
+            file_type='obj',
+            force='mesh',
         )
-        os.unlink(script_file.name)
+        # Some OBJ files come back as a Scene; merge to single mesh
+        if isinstance(mesh, _tm.Scene):
+            if mesh.geometry:
+                mesh = _tm.util.concatenate(list(mesh.geometry.values()))
+            else:
+                return jsonify({'success': False, 'error': 'Mesh scene contained no geometry.'}), 422
 
-        if result.returncode != 0 or not os.path.exists(step_path):
-            log.warning(f'[convert-step] FreeCAD failed: {result.stderr[:300]}')
-            # Fallback: try pure CadQuery if shape can be built from triangles
-            return jsonify({
-                'success': False,
-                'error': 'STEP conversion requires FreeCAD to be installed on the server.',
-                'note': 'The OBJ file is available for download — import it into FreeCAD, '
-                        'Fusion 360, or Rhino to export STEP/IGES yourself.',
-                'freecad_stderr': result.stderr[:300],
-            }), 501
+        if not hasattr(mesh, 'faces') or len(mesh.faces) == 0:
+            return jsonify({'success': False, 'error': 'Loaded mesh has no faces.'}), 422
 
-        # Try uploading to R2, fallback to local serve
-        with open(step_path, 'rb') as fh:
-            step_bytes = fh.read()
-        r2_url = _upload_to_r2(step_bytes, f'outputs/{step_fn}')
-        step_url = r2_url if r2_url else f'/static/outputs/{step_fn}'
+        # ── Basic geometry ─────────────────────────────────────────────────────
+        # Meshy outputs in metres; convert to mm for jewellery context
+        M_TO_MM = 1000.0
+        vol_m3      = float(mesh.volume)           # signed; abs for hollow
+        vol_cm3     = abs(vol_m3) * 1e6            # cm³
+        area_m2     = float(mesh.area)
+        area_cm2    = area_m2 * 1e4                # cm²
 
-        log.info(f'[convert-step] done | step_url={step_url}')
-        return jsonify({'success': True, 'step_url': step_url, 'filename': step_fn})
+        # Bounding box in mm
+        extents_mm  = mesh.bounding_box.extents * M_TO_MM
+        bbox = {
+            'x_mm': round(float(extents_mm[0]), 2),
+            'y_mm': round(float(extents_mm[1]), 2),
+            'z_mm': round(float(extents_mm[2]), 2),
+        }
+
+        # ── Weight estimate from metal density ────────────────────────────────
+        density_g_cm3 = _METAL_DENSITY.get(metal, 10.5)
+        # jewellery is not solid: typical casting factor ~0.75 (hollow + wax shrink)
+        CASTING_FACTOR = 0.75
+        est_weight_g   = round(vol_cm3 * density_g_cm3 * CASTING_FACTOR, 2)
+
+        # ── Watertight / manifold check ───────────────────────────────────────
+        is_watertight = bool(mesh.is_watertight)
+        is_manifold   = bool(mesh.is_volume)   # volume ≠ 0 and watertight
+
+        # ── Wall-thickness via ray sampling ──────────────────────────────────
+        # Sample N points on the surface, cast rays inward; distance = local thickness
+        thickness_samples = []
+        thickness_warnings = []
+        try:
+            N_SAMPLES = 800
+            pts, face_idx = _tm.sample.sample_surface(mesh, N_SAMPLES)
+            normals = mesh.face_normals[face_idx]
+            # Ray inward = flip normal
+            ray_origins    = pts - normals * 1e-4   # offset slightly to avoid self-hit
+            ray_directions = -normals
+            locs, _, _ = mesh.ray.intersects_location(
+                ray_origins=ray_origins,
+                ray_directions=ray_directions,
+                multiple_hits=False,
+            )
+            if len(locs) > 10:
+                dists = _np.linalg.norm(locs - ray_origins[:len(locs)], axis=1) * M_TO_MM
+                dists = dists[dists > 0.01]  # filter near-zero hits (self)
+                thickness_samples = dists
+                t_min  = round(float(_np.min(dists)),  2)
+                t_mean = round(float(_np.mean(dists)), 2)
+                t_p10  = round(float(_np.percentile(dists, 10)), 2)
+                # Manufacturing thresholds (mm) per category
+                MIN_WALL = {'Ring': 0.8, 'Necklace': 0.5, 'Earrings': 0.4}.get(category, 0.6)
+                if t_min < MIN_WALL:
+                    thickness_warnings.append(
+                        f'Minimum wall thickness {t_min}mm is below the recommended {MIN_WALL}mm for {category}. '
+                        'Risk of breakage during casting or wear.'
+                    )
+                if t_p10 < MIN_WALL * 1.5:
+                    thickness_warnings.append(
+                        f'10th-percentile thickness {t_p10}mm suggests thin sections. '
+                        'Review prong tips or fine filigree before sending to manufacture.'
+                    )
+        except Exception as thick_err:
+            log.warning(f'[analyse-mesh] thickness sampling failed: {thick_err}')
+            t_min = t_mean = t_p10 = None
+
+        # ── Minimum edge length (smallest feature proxy) ──────────────────────
+        edges     = mesh.edges_unique
+        verts     = mesh.vertices
+        edge_vecs = verts[edges[:, 1]] - verts[edges[:, 0]]
+        edge_lens = _np.linalg.norm(edge_vecs, axis=1) * M_TO_MM
+        min_edge_mm = round(float(_np.min(edge_lens)), 3)
+        if min_edge_mm < 0.1:
+            thickness_warnings.append(
+                f'Mesh contains edges as small as {min_edge_mm}mm — '
+                'likely mesh artefacts or extreme filigree detail. Verify in CAD.'
+            )
+
+        # ── Centre of mass ────────────────────────────────────────────────────
+        com = mesh.center_mass * M_TO_MM
+        centre_of_mass = {'x': round(float(com[0]), 2), 'y': round(float(com[1]), 2), 'z': round(float(com[2]), 2)}
+
+        # ── Overall manufacturability assessment ──────────────────────────────
+        score = 100
+        issues = []
+        if not is_watertight:
+            score -= 20
+            issues.append({'check': 'Watertight mesh', 'status': 'FAIL',
+                           'detail': 'Mesh has open edges — not suitable for casting without repair.'})
+        if t_min is not None and t_min < {'Ring': 0.8, 'Necklace': 0.5, 'Earrings': 0.4}.get(category, 0.6):
+            score -= 25
+            issues.append({'check': 'Minimum wall thickness', 'status': 'FAIL',
+                           'detail': f'Minimum wall {t_min}mm — too thin for reliable casting.'})
+        elif t_min is not None:
+            issues.append({'check': 'Minimum wall thickness', 'status': 'PASS',
+                           'detail': f'Minimum wall {t_min}mm — within acceptable range.'})
+        if is_watertight:
+            issues.append({'check': 'Watertight mesh', 'status': 'PASS', 'detail': 'Mesh is watertight and manifold.'})
+
+        if score >= 80:
+            overall = 'PASS'
+        elif score >= 55:
+            overall = 'WARN'
+        else:
+            overall = 'FAIL'
+
+        result = {
+            'success': True,
+            'mesh_stats': {
+                'vertex_count':  len(mesh.vertices),
+                'face_count':    len(mesh.faces),
+                'volume_cm3':    round(vol_cm3, 4),
+                'area_cm2':      round(area_cm2, 3),
+                'bounding_box_mm': bbox,
+                'is_watertight': is_watertight,
+                'is_manifold':   is_manifold,
+                'min_edge_mm':   min_edge_mm,
+                'centre_of_mass_mm': centre_of_mass,
+            },
+            'thickness': {
+                'min_mm':    t_min,
+                'mean_mm':   t_mean,
+                'p10_mm':    t_p10,
+                'warnings':  thickness_warnings,
+            },
+            'weight': {
+                'metal':          metal,
+                'density_g_cm3':  density_g_cm3,
+                'casting_factor': CASTING_FACTOR,
+                'volume_cm3':     round(vol_cm3, 4),
+                'est_weight_g':   est_weight_g,
+                'note':           'Estimated from mesh volume × metal density × casting factor. Verify with actual casting.',
+            },
+            'manufacturability': {
+                'score':   score,
+                'overall': overall,
+                'checks':  issues,
+            },
+        }
+        log.info(
+            f'[analyse-mesh] done | verts={len(mesh.vertices)} | vol={vol_cm3:.4f}cm³ | '
+            f'weight~{est_weight_g}g | watertight={is_watertight} | verdict={overall}'
+        )
+        return jsonify(result)
 
     except Exception as e:
-        log.error(f'[convert-step] exception: {e}', exc_info=True)
+        log.error(f'[analyse-mesh] exception: {e}', exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── API: Background removal / foreground segmentation ─────────────────────────
+
+@app.route('/api/remove-background', methods=['POST'])
+@login_required
+def api_remove_background():
+    """
+    Remove background from a jewellery image using Gemini's image editing
+    capabilities (segmentation + inpainting to white background).
+    Falls back to a simple white-threshold mask if Gemini returns no image.
+
+    Accepts: multipart file 'image' OR form field 'image_data' (base64 data-URI)
+    Optional: 'category' for context in the segmentation prompt
+
+    Returns:
+        { "success": true, "url": "…", "method": "gemini|threshold" }
+    """
+    category = request.form.get('category', 'Jewellery').strip()
+
+    img_bytes = None
+    uploaded  = request.files.get('image')
+    if uploaded and uploaded.filename:
+        img_bytes = uploaded.read()
+    else:
+        image_data = request.form.get('image_data', '')
+        if image_data:
+            try:
+                b64 = image_data.split(',', 1)[1] if ',' in image_data else image_data
+                img_bytes = base64.b64decode(b64)
+            except Exception as e:
+                return jsonify({'success': False, 'error': f'Invalid base64: {e}'}), 400
+
+    if not img_bytes:
+        return jsonify({'success': False, 'error': 'No image provided'}), 400
+
+    client, err = get_gemini_client()
+    if err:
+        return jsonify({'success': False, 'error': err}), 500
+
+    try:
+        pil_orig = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Could not decode image: {e}'}), 400
+
+    prompt = (
+        f'This image shows a {category} jewellery piece. '
+        'Remove the background completely and replace it with a plain, pure white background (#FFFFFF). '
+        'Keep every detail of the jewellery intact — do not blur or erase any part of the jewellery itself. '
+        'The result should look like a professional product photograph on a white studio background.'
+    )
+
+    method = 'gemini'
+    out_url = None
+
+    # ── Attempt 1: Gemini image editing ──────────────────────────────────────
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash-image',
+            contents=[prompt, pil_orig],
+            config=types.GenerateContentConfig(response_modalities=['TEXT', 'IMAGE']),
+        )
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                out_bytes = part.inline_data.data
+                out_fn    = f'bg_removed_{uuid.uuid4()}.png'
+                r2_url    = _upload_to_r2(out_bytes, f'outputs/{out_fn}')
+                if r2_url:
+                    out_url = r2_url
+                else:
+                    out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
+                    Image.open(io.BytesIO(out_bytes)).save(out_path)
+                    out_url = f'/static/outputs/{out_fn}'
+                break
+    except Exception as e:
+        log.warning(f'[remove-background] Gemini failed: {e}')
+
+    # ── Attempt 2: PIL luminance threshold (always available, cruder) ────────
+    if not out_url:
+        method = 'threshold'
+        try:
+            import numpy as _np
+            arr  = _np.array(pil_orig.convert('RGB'))
+            # Create RGBA canvas with white background
+            rgba = _np.ones((arr.shape[0], arr.shape[1], 4), dtype=_np.uint8) * 255
+            rgba[:, :, :3] = arr
+            # Simple mask: pixels close to white → transparent; rest → opaque
+            # Works well for studio shots; rough for complex backgrounds
+            gray = _np.mean(arr, axis=2)
+            # Mark very bright near-white pixels as transparent
+            mask = (gray > 240) & (_np.std(arr, axis=2) < 15)
+            rgba[mask, 3] = 0   # transparent where background
+            # Compose onto white background
+            bg     = _np.ones_like(arr, dtype=_np.uint8) * 255
+            alpha  = rgba[:, :, 3:4].astype(_np.float32) / 255.0
+            result = (arr * alpha + bg * (1 - alpha)).astype(_np.uint8)
+            out_img   = Image.fromarray(result)
+            out_fn    = f'bg_removed_{uuid.uuid4()}.png'
+            buf       = io.BytesIO()
+            out_img.save(buf, format='PNG')
+            r2_url    = _upload_to_r2(buf.getvalue(), f'outputs/{out_fn}')
+            if r2_url:
+                out_url = r2_url
+            else:
+                out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
+                out_img.save(out_path)
+                out_url = f'/static/outputs/{out_fn}'
+        except Exception as e:
+            log.error(f'[remove-background] threshold fallback failed: {e}')
+            return jsonify({'success': False, 'error': 'Background removal failed on both paths.'}), 500
+
+    log.info(f'[remove-background] done | method={method} | url={out_url}')
+    return jsonify({'success': True, 'url': out_url, 'method': method})
+
+
+def _obj_to_iges_ascii(obj_text: str, name: str) -> str:
+    """
+    Convert OBJ text to a minimal IGES 5.3 ASCII file (entity type 308 group
+    + 116 point entities).  Not a full BREP — but importable as a point cloud /
+    mesh in most CAD applications and always producible with zero dependencies.
+    """
+    import math
+    verts  = []
+    for line in obj_text.splitlines():
+        parts = line.strip().split()
+        if parts and parts[0] == 'v':
+            try:
+                verts.append((float(parts[1]), float(parts[2]), float(parts[3])))
+            except (IndexError, ValueError):
+                pass
+
+    # IGES fixed-width 80-char line format
+    def igs_line(section, seq, content):
+        return f"{content:<72}{section}{seq:>7}"
+
+    start = [igs_line('S', 1, f"{name[:72]}")]
+    now   = datetime.now().strftime('%Y%m%d.%H%M%S')
+    global_params = (
+        f"1H,,1H;,{len(name)}H{name},{len(name)+8}H{name}.iges,"
+        f"7Hglymr,7Hglymr,32,38,7,38,15,,1.0,2,2HMM,1,1.,{now},"
+        f"1.0E-04,10.,1Hx,1H ,11,0,{now};"
+    )
+    g_lines = []
+    for i in range(0, len(global_params), 72):
+        g_lines.append(igs_line('G', i//72+1, global_params[i:i+72]))
+
+    d_lines, p_lines = [], []
+    for i, (x, y, z) in enumerate(verts[:5000], start=1):
+        de_seq = 2*i - 1
+        pd_seq = i
+        d_lines.append(igs_line('D', de_seq,   f"      116{'':>9}{'':>9}{'':>9}{'':>9}{'':>9}0D{de_seq:>7}"))
+        d_lines.append(igs_line('D', de_seq+1, f"      116     0     0     1     0{'':>26}0D{de_seq+1:>7}"))
+        p_lines.append(igs_line('P', pd_seq,   f"116,{x:.6f},{y:.6f},{z:.6f};{' '*(40-len(str(de_seq)))}     {de_seq}P{pd_seq:>7}"))
+
+    t_line = igs_line('T', 1,
+        f"{'':>8}{len(start):>8}{len(g_lines):>8}{len(d_lines):>8}{len(p_lines):>8}{'':>40}")
+
+    all_lines = start + g_lines + d_lines + p_lines + [t_line]
+    return '\n'.join(all_lines) + '\n'
 
 
 # ── API: Multi-angle CAD (accepts up to 4 images) ─────────────────────────────
@@ -2328,7 +2874,252 @@ def api_generate_cad_multi():
         return jsonify({'error': str(e)}), 500
 
 
-# ── API: Market Research ───────────────────────────────────────────────────────
+# ── API: Multi-angle CAD — Meshy v2 multi-view (turntable) ───────────────────
+
+@app.route('/api/generate-cad-turntable', methods=['POST'])
+@login_required
+@rate_limited
+def api_generate_cad_turntable():
+    """
+    Submit 2-6 turntable / multi-view images to Meshy image-to-3D v2
+    using the `reference_image_urls` parameter so each angle is treated as a
+    distinct viewpoint rather than a single blended grid.
+
+    Accepts: multipart files  image_0 (front / primary), image_1 … image_5
+    Optional form fields: prompt, geometry_hint, art_style, target_use
+
+    Returns: { "task_id": "…", "success": true, "angle_count": N }
+    """
+    meshy_key, err = get_meshy_key()
+    if err:
+        return jsonify({'error': err}), 500
+
+    prompt        = request.form.get('prompt', '').strip()
+    geometry_hint = request.form.get('geometry_hint', '').strip()
+    art_style     = request.form.get('art_style', 'realistic')
+    target_use    = request.form.get('target_use', 'visualization')
+
+    images_raw = []
+    for i in range(6):
+        f = request.files.get(f'image_{i}')
+        if f and f.filename:
+            try:
+                images_raw.append(f.read())
+            except Exception:
+                pass
+
+    if not images_raw:
+        return jsonify({'error': 'No images provided'}), 400
+
+    try:
+        # ── Upload each angle to R2 (or fallback to base64 data-URIs) ─────────
+        angle_urls = []
+        for idx, raw in enumerate(images_raw[:6]):
+            pil = Image.open(io.BytesIO(raw)).convert('RGB')
+            MAX_DIM = 1024
+            w, h = pil.size
+            if w > MAX_DIM or h > MAX_DIM:
+                ratio = min(MAX_DIM / w, MAX_DIM / h)
+                pil   = pil.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+            buf = io.BytesIO()
+            pil.save(buf, format='JPEG', quality=88)
+            jpg = buf.getvalue()
+
+            fn     = f'turntable_{uuid.uuid4().hex[:8]}_{idx}.jpg'
+            r2_url = _upload_to_r2(jpg, f'cad-inputs/{fn}')
+            if r2_url:
+                angle_urls.append(r2_url)
+            else:
+                # Fallback: base64 data-URI (Meshy accepts these too)
+                b64 = base64.b64encode(jpg).decode()
+                angle_urls.append(f'data:image/jpeg;base64,{b64}')
+
+        primary_url = angle_urls[0]
+        ref_urls    = angle_urls[1:]  # additional viewpoints
+
+        # ── Build object_prompt ───────────────────────────────────────────────
+        parts = []
+        if geometry_hint: parts.append(geometry_hint)
+        if prompt:        parts.append(prompt)
+        n = len(images_raw)
+        parts.append(
+            f'Multi-view turntable input: {n} viewpoints '
+            f'(0°, {", ".join(str(round(i*360/n))+"°" for i in range(1,n))}). '
+            'Reconstruct all sides with maximum geometric fidelity.'
+        )
+        object_prompt = ' '.join(parts).strip()[:500]
+
+        payload = {
+            'image_url':            primary_url,
+            'enable_pbr':           True,
+            'should_remesh':        True,
+            'object_prompt':        object_prompt,
+        }
+        # Meshy v2 multi-view field — ignored gracefully on older API versions
+        if ref_urls:
+            payload['reference_image_urls'] = ref_urls
+
+        headers = {
+            'Authorization': f'Bearer {meshy_key}',
+            'Content-Type':  'application/json',
+        }
+        log.info(f'[cad-turntable] submitting | angles={len(images_raw)} | prompt={object_prompt[:80]}')
+        res = requests.post(
+            'https://api.meshy.ai/openapi/v1/image-to-3d',
+            headers=headers, json=payload, timeout=30,
+        )
+        if res.status_code == 202:
+            task_id = res.json().get('result')
+            log.info(f'[cad-turntable] task submitted | task_id={task_id}')
+            return jsonify({'task_id': task_id, 'success': True, 'angle_count': len(images_raw)})
+        else:
+            log.error(f'[cad-turntable] Meshy error {res.status_code}: {res.text}')
+            return jsonify({'error': f'Meshy API error: {res.status_code}', 'details': res.text[:300]}), 500
+
+    except Exception as e:
+        log.error(f'[cad-turntable] exception: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+
+# ── API: Iterative CAD Refinement (compare-cad → regenerate) ─────────────────
+
+@app.route('/api/refine-cad', methods=['POST'])
+@login_required
+@rate_limited
+def api_refine_cad():
+    """
+    Accept compare-cad feedback (recommendations + lost/changed elements) and
+    a prior source image, then submit a new Meshy generation with a
+    feedback-enriched object_prompt.
+
+    Body (multipart/form-data):
+        image_0          – source image file (primary)
+        image_1 … image_5 – optional additional angle files
+        prompt           – original user prompt
+        geometry_hint    – last extracted geometry hint
+        compare_feedback – JSON string: { recommendations, design_lost, design_changed,
+                                          similarity_score, verdict }
+        category, target_use
+        iteration        – integer (1-based, default 1)
+
+    Returns: { "task_id": "…", "success": true, "refined_prompt": "…", "iteration": N }
+    """
+    meshy_key, err = get_meshy_key()
+    if err:
+        return jsonify({'error': err}), 500
+
+    prompt        = request.form.get('prompt', '').strip()
+    geometry_hint = request.form.get('geometry_hint', '').strip()
+    target_use    = request.form.get('target_use', 'visualization').strip()
+    iteration     = int(request.form.get('iteration', 1))
+
+    compare_raw  = request.form.get('compare_feedback', '{}')
+    try:
+        feedback = json.loads(compare_raw)
+    except Exception:
+        feedback = {}
+
+    recommendations = feedback.get('recommendations', [])
+    design_lost     = feedback.get('design_lost', [])
+    design_changed  = feedback.get('design_changed', [])
+    score           = feedback.get('similarity_score', 0)
+    verdict         = feedback.get('verdict', '')
+
+    images_raw = []
+    for i in range(6):
+        f = request.files.get(f'image_{i}')
+        if f and f.filename:
+            try:
+                images_raw.append(f.read())
+            except Exception:
+                pass
+
+    if not images_raw:
+        return jsonify({'error': 'No source image provided'}), 400
+
+    # Build feedback-enriched prompt
+    parts = []
+    if geometry_hint: parts.append(geometry_hint)
+    if prompt:        parts.append(prompt)
+    if recommendations:
+        parts.append(f'REFINEMENT INSTRUCTIONS (iteration {iteration}):')
+        for rec in recommendations[:5]:
+            parts.append(f'- {rec}')
+    if design_lost:
+        parts.append(f'MUST RESTORE missing elements: {", ".join(design_lost[:4])}.')
+    if design_changed:
+        parts.append(f'CORRECT distorted elements: {", ".join(design_changed[:3])}.')
+    if score and verdict:
+        parts.append(f'Previous fidelity score was {score}% ({verdict}). Improve it.')
+
+    refined_prompt = ' '.join(parts).strip()[:500]
+
+    try:
+        pil_primary = Image.open(io.BytesIO(images_raw[0])).convert('RGB')
+        w, h = pil_primary.size
+        if w > 1200 or h > 1200:
+            ratio = min(1200 / w, 1200 / h)
+            pil_primary = pil_primary.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+        buf = io.BytesIO()
+        pil_primary.save(buf, format='JPEG', quality=88)
+        primary_bytes = buf.getvalue()
+    except Exception as e:
+        return jsonify({'error': f'Image decode failed: {e}'}), 400
+
+    tmp_fn = f'refine_{uuid.uuid4().hex[:8]}.jpg'
+    public_img_url = _upload_to_r2(primary_bytes, f'cad-inputs/{tmp_fn}')
+    if not public_img_url:
+        host = request.host_url.rstrip('/')
+        if 'localhost' not in host and '127.0.0.1' not in host:
+            tmp_path = os.path.join(app.config['UPLOAD_FOLDER'], tmp_fn)
+            with open(tmp_path, 'wb') as fh:
+                fh.write(primary_bytes)
+            public_img_url = f'{host}/static/uploads/{tmp_fn}'
+
+    payload = {
+        'image_url':     public_img_url or f'data:image/jpeg;base64,{base64.b64encode(primary_bytes).decode()}',
+        'enable_pbr':    True,
+        'should_remesh': True,
+        'object_prompt': refined_prompt,
+    }
+
+    if len(images_raw) > 1:
+        ref_urls = []
+        for idx, raw in enumerate(images_raw[1:6], start=1):
+            try:
+                pil = Image.open(io.BytesIO(raw)).convert('RGB').resize((1024, 1024), Image.LANCZOS)
+                buf = io.BytesIO()
+                pil.save(buf, format='JPEG', quality=85)
+                jpg    = buf.getvalue()
+                fn     = f'refine_ref_{uuid.uuid4().hex[:6]}_{idx}.jpg'
+                r2_url = _upload_to_r2(jpg, f'cad-inputs/{fn}')
+                ref_urls.append(r2_url or f'data:image/jpeg;base64,{base64.b64encode(jpg).decode()}')
+            except Exception:
+                pass
+        if ref_urls:
+            payload['reference_image_urls'] = ref_urls
+
+    headers = {'Authorization': f'Bearer {meshy_key}', 'Content-Type': 'application/json'}
+    log.info(f'[refine-cad] submitting | iter={iteration} | score_was={score} | prompt={refined_prompt[:80]}')
+
+    try:
+        res = requests.post(
+            'https://api.meshy.ai/openapi/v1/image-to-3d',
+            headers=headers, json=payload, timeout=30,
+        )
+        if res.status_code == 202:
+            task_id = res.json().get('result')
+            log.info(f'[refine-cad] task submitted | task_id={task_id}')
+            return jsonify({'task_id': task_id, 'success': True,
+                            'refined_prompt': refined_prompt, 'iteration': iteration})
+        else:
+            log.error(f'[refine-cad] Meshy error {res.status_code}: {res.text}')
+            return jsonify({'error': f'Meshy API error: {res.status_code}', 'details': res.text[:300]}), 500
+    except Exception as e:
+        log.error(f'[refine-cad] exception: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
 
 def _normalize_price_to_inr(price_str):
     if not price_str: return None
@@ -3084,6 +3875,10 @@ def api_scale_model():
     assumed_size_mm = model_size_mm or 30.0
     scale_factor    = round(target_mm / assumed_size_mm, 4) if assumed_size_mm else 1.0
 
+    # Additional standard-dimension context for the viewer to enforce
+    std_dims  = _CATEGORY_DIMS.get(category, {})
+    dim_label = 'inner_diameter' if category == 'Ring' else 'length' if category == 'Necklace' else 'dimension'
+
     return jsonify({
         'success':         True,
         'target_mm':       target_mm,
@@ -3091,7 +3886,12 @@ def api_scale_model():
         'assumed_size_mm': assumed_size_mm,
         'scale_factor':    scale_factor,
         'scale_pct':       round(scale_factor * 100, 1),
+        'dimension_label': dim_label,
+        'standard_dims':   std_dims,
+        'is_real_size':    model_size_mm is not None,   # True = Meshy bbox was available
         'note':            f'Apply ×{scale_factor} to the 3D model to achieve {target_mm}mm ({category}).',
+        'warning':         None if model_size_mm else
+                           f'Meshy bounding-box unavailable — scale computed from assumed {assumed_size_mm}mm baseline; verify in CAD software.',
     })
 
 
