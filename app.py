@@ -3211,7 +3211,6 @@ RULES:
                 tools=[types.Tool(google_search=types.GoogleSearch())],
                 temperature=0.1,
             ),
-            http_options=types.HttpOptions(timeout=180_000),  # 180 s — Google Search grounding is slow
         )
 
         raw = response.text.strip().replace('```json', '').replace('```', '').strip()
