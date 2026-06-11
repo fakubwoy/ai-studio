@@ -1,7 +1,11 @@
 {% extends "base.html" %}
-{% block title %}glymr — AI-Powered Jewellery Studio{% endblock %}
+{% block title %}glymr · AI-Powered Jewellery Studio{% endblock %}
 
 {% block head %}
+{# ── Preload above-the-fold images so the browser fetches them immediately ── #}
+<link rel="preload" as="image" href="{{ url_for('static', filename='images/init/sketch.webp') }}" fetchpriority="high">
+<link rel="preload" as="image" href="{{ url_for('static', filename='images/init/concept.webp') }}" fetchpriority="high">
+<link rel="preload" as="image" href="{{ url_for('static', filename='images/init/model.webp') }}" fetchpriority="high">
 <style>
 
   /* ═══ RESET & SHARED ══════════════════════════════════════════════════════ */
@@ -68,7 +72,9 @@
   /* ═══ HERO ════════════════════════════════════════════════════════════════ */
 
   .hero {
-    min-height: calc(100vh - var(--nav-h));
+    height: calc(100vh - var(--nav-h));
+    height: calc(100svh - var(--nav-h));
+    min-height: 0;
     display: grid;
     grid-template-columns: 1fr 1fr;
     position: relative;
@@ -77,8 +83,9 @@
 
   .hero-left {
     display: flex; flex-direction: column; justify-content: center;
-    padding: 100px 72px 80px 80px;
+    padding: 60px 72px 60px 80px;
     position: relative; z-index: 2;
+    overflow: hidden;
   }
 
   .hero-kicker {
@@ -189,182 +196,243 @@
     50%      { transform: translateY(-20px) scale(1.04); }
   }
 
-  /* Mock card */
-  .hero-mockup {
+  /* ——— Jewellery Journey Panel ——— */
+  .hero-journey {
     position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    padding: 56px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 10px;
+    padding: 28px 36px;
+    overflow: hidden;
   }
 
-  .mock-card {
-    background: rgba(250,247,242,.04);
+  /* Top row: large jewellery image + sketch side by side */
+  .jrny-top {
+    display: contents;
+  }
+
+  .jrny-frame {
+    border-radius: 12px;
     border: 1px solid rgba(184,146,74,.18);
-    border-radius: 16px; padding: 24px;
-    width: 100%; max-width: 340px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: rgba(250,247,242,.03);
+    position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition: border-color .3s, box-shadow .3s;
+    min-height: 0;
   }
 
-  .mock-label {
-    font-family: var(--font-mono);
-    font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
-    color: rgba(184,146,74,.75); margin-bottom: 14px; min-height: 14px;
+  .jrny-frame:hover {
+    border-color: rgba(184,146,74,.4);
+    box-shadow: 0 0 24px rgba(184,146,74,.12);
   }
 
-  .mock-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .jrny-frame-tall { max-height: 100%; }
+  .jrny-frame-sq   { max-height: 100%; }
+  .jrny-frame-wide { max-height: 100%; }
 
-  .mock-chip {
-    padding: 3px 9px; border-radius: 20px;
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em;
-    border: 1px solid rgba(184,146,74,.22); color: rgba(184,146,74,.75);
+  /* Jewellery SVG artwork inside frames */
+  .jrny-art {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; z-index: 1;
   }
 
-  .mock-bar {
-    height: 3px; border-radius: 2px;
-    background: rgba(250,247,242,.07); margin-top: 12px; overflow: hidden;
-  }
-
-  .mock-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--gold-dk), var(--gold-lt));
-    border-radius: 2px; width: 0%; transition: width .1s linear;
-  }
-
-  .mock-screens { position: relative; min-height: 200px; }
-
-  .mock-screen {
+  /* Sketch frame — hand-drawn style lines */
+  .jrny-sketch-lines {
     position: absolute; inset: 0;
-    opacity: 0; transform: translateY(6px);
-    transition: opacity .35s var(--ease), transform .35s var(--ease);
-    pointer-events: none;
+    background-image:
+      repeating-linear-gradient(
+        -30deg,
+        transparent,
+        transparent 8px,
+        rgba(184,146,74,.07) 8px,
+        rgba(184,146,74,.07) 9px
+      );
   }
 
-  .mock-screen.active {
-    opacity: 1; transform: translateY(0);
-    position: relative; pointer-events: auto;
+  /* Glow pulse on the "generated" frame */
+  .jrny-frame.glow {
+    animation: jrny-glow 3s ease-in-out infinite;
   }
 
-  .mock-dots {
-    display: flex; gap: 6px; justify-content: center; margin-top: 14px;
+  @keyframes jrny-glow {
+    0%,100% { box-shadow: 0 0 0 0 rgba(184,146,74,0); border-color: rgba(184,146,74,.22); }
+    50%      { box-shadow: 0 0 28px 4px rgba(184,146,74,.2); border-color: rgba(184,146,74,.55); }
   }
 
-  .mock-dot {
-    width: 5px; height: 5px; border-radius: 50%;
-    background: rgba(184,146,74,.2);
-    transition: background .25s, transform .25s; cursor: pointer;
-  }
-
-  .mock-dot.active { background: var(--gold); transform: scale(1.5); }
-
-  .mock-line {
-    height: 6px; border-radius: 3px;
-    background: rgba(250,247,242,.09); margin-bottom: 5px;
-  }
-
-  .mock-line.gold { background: rgba(184,146,74,.28); }
-  .mock-line.w80 { width: 80%; }
-  .mock-line.w55 { width: 55%; }
-  .mock-line.w65 { width: 65%; }
-  .mock-line.w40 { width: 40%; }
-  .mock-line.w90 { width: 90%; }
-
-  .mock-concept-row { display: flex; gap: 8px; margin-bottom: 10px; }
-
-  .mock-concept-thumb {
-    flex: 1; height: 72px; border-radius: 7px;
-    border: 1px solid rgba(184,146,74,.18);
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(184,146,74,.05);
-  }
-
-  .mock-concept-thumb svg { opacity: .4; }
-
-  .mock-concept-thumb.generated {
-    background: rgba(184,146,74,.12); border-color: rgba(184,146,74,.38);
-    animation: gentle-glow 2.5s ease-in-out infinite;
-  }
-
-  .mock-concept-thumb.generated svg { opacity: .7; }
-
-  @keyframes gentle-glow {
-    0%,100% { box-shadow: 0 0 0 0 rgba(184,146,74,0); }
-    50%      { box-shadow: 0 0 14px 2px rgba(184,146,74,.18); }
-  }
-
-  .mock-listing {
+  .jrny-badge {
+    position: absolute; bottom: 10px; left: 10px; right: 10px;
     display: flex; align-items: center; justify-content: space-between;
-    padding: 6px 9px; border-radius: 7px;
-    background: rgba(250,247,242,.04); border: 1px solid rgba(184,146,74,.1);
-    margin-bottom: 6px; gap: 8px;
+    background: rgba(10,8,6,.72);
+    border: 1px solid rgba(184,146,74,.35);
+    border-radius: 7px;
+    padding: 5px 9px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 2;
   }
 
-  .mock-listing-lines { flex: 1; }
-  .mock-listing-lines .mock-line { margin-bottom: 3px; }
-
-  .mock-price {
-    font-family: var(--font-mono); font-size: 10px;
-    color: rgba(184,146,74,.85); letter-spacing: .04em; white-space: nowrap;
+  .jrny-badge-label {
+    font-family: var(--font-mono); font-size: 9px;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: var(--gold-lt); font-weight: 500;
   }
 
-  .mock-step {
+  .jrny-badge-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--gold);
+    animation: blink-pulse 1.8s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  /* Bottom row: model try-on + market listing */
+  .jrny-bottom {
+    display: contents;
+  }
+
+  .jrny-market {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 14px; width: 100%;
+  }
+
+  .jrny-market-row {
     display: flex; align-items: center; gap: 8px;
-    padding: 6px 10px; border-radius: 6px;
-    background: rgba(250,247,242,.04); margin-bottom: 6px;
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em;
-  }
-
-  .mock-step-dot {
-    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
-    transition: background .35s;
-  }
-
-  .mock-step-dot.done  { background: #3cb879; }
-  .mock-step-dot.spin  { background: var(--gold); animation: blink-pulse 1s ease-in-out infinite; }
-  .mock-step-dot.idle  { background: rgba(250,247,242,.14); }
-  .mock-step-label { color: rgba(250,247,242,.45); }
-  .mock-step.cur .mock-step-label { color: rgba(250,247,242,.88); font-weight: 500; }
-
-  .mock-model-out {
+    padding: 6px 8px; border-radius: 6px;
     background: rgba(250,247,242,.04);
-    border: 1px solid rgba(184,146,74,.14);
-    border-radius: 8px; height: 90px;
+    border: 1px solid rgba(184,146,74,.1);
+  }
+
+  .jrny-market-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .jrny-market-lines { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+
+  .jrny-mline {
+    height: 5px; border-radius: 3px;
+    background: rgba(250,247,242,.1);
+  }
+  .jrny-mline.gold { background: rgba(184,146,74,.3); }
+  .jrny-mline.w80 { width: 80%; }
+  .jrny-mline.w55 { width: 55%; }
+  .jrny-mline.w65 { width: 65%; }
+
+  .jrny-price {
+    font-family: var(--font-mono); font-size: 10px;
+    color: rgba(184,146,74,.9); letter-spacing: .04em;
+    white-space: nowrap;
+  }
+
+  /* Model frame inner decoration */
+  .jrny-model-inner {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 8px; width: 100%; padding: 16px;
+  }
+
+  .jrny-model-fig {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: rgba(184,146,74,.1);
+    border: 1.5px solid rgba(184,146,74,.25);
     display: flex; align-items: center; justify-content: center;
-    margin-bottom: 10px;
+    position: relative;
+  }
+
+  /* Jewellery accent on model */
+  .jrny-model-fig::after {
+    content: '';
+    position: absolute; bottom: -3px;
+    width: 28px; height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--gold-dk), var(--gold-lt));
+    opacity: .7;
+  }
+
+  .jrny-model-lines { width: 100%; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+
+  /* Sketch SVG decoration */
+  .jrny-sketch-svg {
+    width: 70%; height: 70%; opacity: .55;
   }
 
   /* ═══ LOGOS / TRUST BAR ═══════════════════════════════════════════════════ */
 
   .trust-bar {
-    padding: 28px 80px;
+    padding: 0 0;
     border-top: 1px solid var(--paper-3);
     border-bottom: 1px solid var(--paper-3);
-    display: flex; align-items: center; gap: 0;
+    display: flex; align-items: stretch; gap: 0;
     background: var(--surface);
     overflow: hidden;
+    height: 64px;
   }
 
   .trust-bar-label {
     font-family: var(--font-mono); font-size: 9px;
     letter-spacing: .16em; text-transform: uppercase;
     color: var(--ink-4); white-space: nowrap;
-    margin-right: 40px; padding-right: 40px;
+    padding: 0 36px;
     border-right: 1px solid var(--paper-3);
     flex-shrink: 0;
+    display: flex; align-items: center;
+    background: var(--surface);
+    position: relative; z-index: 2;
   }
 
-  .trust-logos {
-    display: flex; align-items: center; gap: 48px;
-    flex-wrap: wrap;
+  /* Marquee wrapper — clips and fades the scroll track */
+  .trust-marquee-wrap {
+    flex: 1; overflow: hidden; position: relative;
+    display: flex; align-items: center;
+  }
+  .trust-marquee-wrap::before,
+  .trust-marquee-wrap::after {
+    content: '';
+    position: absolute; top: 0; bottom: 0; width: 80px;
+    pointer-events: none; z-index: 1;
+  }
+  .trust-marquee-wrap::before {
+    left: 0;
+    background: linear-gradient(to right, var(--surface), transparent);
+  }
+  .trust-marquee-wrap::after {
+    right: 0;
+    background: linear-gradient(to left, var(--surface), transparent);
+  }
+
+  .trust-marquee-track {
+    display: flex; align-items: center;
+    width: max-content;
+    animation: marquee-scroll 28s linear infinite;
+  }
+
+  .trust-marquee-track:hover { animation-play-state: paused; }
+
+  @keyframes marquee-scroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
   }
 
   .trust-logo {
     font-family: var(--font-serif);
-    font-size: 14px; font-weight: 600;
-    color: var(--ink-4); letter-spacing: .04em;
-    opacity: .5; transition: opacity .2s;
+    font-size: 15px; font-weight: 600;
+    color: var(--ink-2); letter-spacing: .04em;
+    opacity: .75; transition: opacity .2s;
+    white-space: nowrap;
+    padding: 0 36px;
+    flex-shrink: 0;
   }
 
   .trust-logo:hover { opacity: .85; }
+
+  /* Divider dot between items */
+  .trust-sep {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--gold); opacity: .2;
+    flex-shrink: 0;
+  }
 
   /* ═══ STATS BAND ══════════════════════════════════════════════════════════ */
 
@@ -822,7 +890,7 @@
     flex-shrink: 0;
   }
 
-  /* ═══ TESTIMONIALS ════════════════════════════════════════════════════════ */
+  /* ===== TESTIMONIALS ===================================================== */
 
   .testimonials-section {
     background: var(--surface);
@@ -842,20 +910,37 @@
     background: var(--paper);
     border: 1px solid var(--paper-3);
     border-radius: var(--radius-xl);
-    padding: 36px 32px;
-    transition: border-color var(--t-slow), box-shadow var(--t-slow);
+    padding: 40px 32px 32px;
+    transition: border-color var(--t-slow), box-shadow var(--t-slow),
+                opacity .6s var(--ease-out), transform .6s var(--ease-out);
     display: flex; flex-direction: column;
+    opacity: 0;
+    transform: translateY(28px);
   }
+
+  .testimonial-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .testimonial-card:nth-child(1) { transition-delay: 0s; }
+  .testimonial-card:nth-child(2) { transition-delay: .12s; }
+  .testimonial-card:nth-child(3) { transition-delay: .24s; }
 
   .testimonial-card:hover {
     border-color: rgba(184,146,74,.25);
     box-shadow: var(--shadow-lg);
   }
 
-  .testi-quote {
-    font-size: 11px; color: var(--gold);
-    letter-spacing: .06em; font-family: var(--font-mono);
-    margin-bottom: 16px; opacity: .7;
+  .testimonial-card::before {
+    content: '\201C';
+    font-family: var(--font-serif);
+    font-size: 72px; line-height: 1;
+    color: var(--gold); opacity: .25;
+    display: block;
+    margin-bottom: 4px;
+    margin-top: -12px;
+    margin-left: -4px;
   }
 
   .testi-text {
@@ -867,20 +952,9 @@
   }
 
   .testi-author {
-    display: flex; align-items: center; gap: 12px;
+    display: flex; align-items: center;
     padding-top: 20px;
     border-top: 1px solid var(--paper-3);
-  }
-
-  .testi-avatar {
-    width: 36px; height: 36px; border-radius: 50%;
-    background: var(--gold-bg);
-    border: 1px solid rgba(184,146,74,.2);
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-    font-family: var(--font-serif);
-    font-size: 14px; color: var(--gold-dk);
-    font-weight: 600;
   }
 
   .testi-name {
@@ -1095,6 +1169,97 @@
   .reveal-delay-3 { transition-delay: .3s; }
   .reveal-delay-4 { transition-delay: .4s; }
 
+  /* ═══ IMAGE MODAL ═════════════════════════════════════════════════════════ */
+
+  .img-modal-backdrop {
+    position: fixed; inset: 0; z-index: 900;
+    background: rgba(10,8,6,.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s var(--ease);
+  }
+
+  .img-modal-backdrop.open {
+    opacity: 1; pointer-events: auto;
+  }
+
+  .img-modal-inner {
+    position: relative;
+    max-width: min(90vw, 720px);
+    max-height: 85vh;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: 0 40px 80px rgba(0,0,0,.5);
+    border: 1px solid rgba(184,146,74,.2);
+    transform: scale(.94) translateY(8px);
+    transition: transform .3s var(--ease-out);
+  }
+
+  .img-modal-backdrop.open .img-modal-inner {
+    transform: scale(1) translateY(0);
+  }
+
+  .img-modal-inner img {
+    display: block;
+    width: 100%; height: 100%;
+    object-fit: contain;
+    max-height: 85vh;
+  }
+
+  .img-modal-close {
+    position: absolute; top: 12px; right: 12px;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(10,8,6,.72);
+    border: 1px solid rgba(184,146,74,.25);
+    backdrop-filter: blur(8px);
+    color: rgba(250,247,242,.75);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 2;
+    transition: background .2s, border-color .2s;
+  }
+
+  .img-modal-close:hover {
+    background: rgba(10,8,6,.95);
+    border-color: rgba(184,146,74,.5);
+    color: #fff;
+  }
+
+  .img-modal-label {
+    position: absolute; bottom: 14px; left: 14px;
+    font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: .1em; text-transform: uppercase;
+    padding: 5px 10px; border-radius: 6px;
+    background: rgba(10,8,6,.72);
+    color: var(--gold-lt);
+    border: 1px solid rgba(184,146,74,.35);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* ── Image-fill helper: replaces CSS background-image with a real <img> ── */
+  .img-fill {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    object-position: center;
+    z-index: 0;
+    display: block;
+  }
+  .jrny-badge { z-index: 2; }
+  .showcase-img-placeholder { position: relative; overflow: hidden; }
+
+
+  .jrny-frame[data-modal-src] {
+    cursor: zoom-in;
+  }
+
+  .jrny-frame[data-modal-src]:hover {
+    border-color: rgba(184,146,74,.55);
+    box-shadow: 0 0 28px rgba(184,146,74,.18);
+  }
+
   /* ═══ RESPONSIVE ══════════════════════════════════════════════════════════ */
 
   @media (max-width: 1200px) {
@@ -1138,8 +1303,9 @@
     .features-section, .how-section, .showcase-section,
     .compare-section, .testimonials-section, .faq-section,
     .cta-strip { padding: 60px 24px; }
-    .trust-bar { flex-direction: column; align-items: flex-start; gap: 16px; }
-    .trust-bar-label { border-right: none; padding-right: 0; margin-right: 0; }
+    .trust-bar { height: auto; flex-direction: column; align-items: flex-start; gap: 0; }
+    .trust-bar-label { border-right: none; border-bottom: 1px solid var(--paper-3); width: 100%; padding: 12px 24px; }
+    .trust-marquee-wrap { width: 100%; padding: 14px 0; }
     .footer-top { grid-template-columns: 1fr; padding: 40px 24px; }
     .footer-bottom { flex-direction: column; gap: 8px; text-align: center; padding: 16px 24px; }
     .ai-strip { padding: 40px 24px; }
@@ -1167,7 +1333,7 @@
     </h1>
 
     <p class="hero-sub">
-      From rough sketch to catalogue-ready image, production 3D model, and real-time competitive pricing — glymr is the full design pipeline built for jewellery makers.
+      From rough sketch to catalogue-ready image, production 3D model, and real-time competitive pricing. glymr is the full design pipeline built for jewellery makers.
     </p>
 
     <div class="hero-ctas">
@@ -1204,107 +1370,168 @@
       <div class="orb orb-2"></div>
       <div class="orb orb-3"></div>
     </div>
-    <div class="hero-mockup">
-      <div class="mock-card">
-        <div class="mock-label" id="mockLabel">Sketch Conceptualiser — Active</div>
-        <div class="mock-chips">
-          <span class="mock-chip">Kundan</span>
-          <span class="mock-chip">22K Gold</span>
-          <span class="mock-chip">Bridal</span>
-        </div>
 
-        <div class="mock-screens" id="mockScreens">
-          <!-- Screen 0: Sketch Studio -->
-          <div class="mock-screen active" id="screen-0">
-            <div class="mock-concept-row">
-              <div class="mock-concept-thumb">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(184,146,74,.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-              </div>
-              <div class="mock-concept-thumb generated">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(184,146,74,.8)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                </svg>
-              </div>
-              <div class="mock-concept-thumb">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(184,146,74,.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/>
-                </svg>
-              </div>
-            </div>
-            <div class="mock-line w90 gold"></div>
-            <div class="mock-line w65"></div>
-            <div class="mock-line w80 gold"></div>
-            <div class="mock-line w55"></div>
-          </div>
+    <!-- Jewellery Journey Panel -->
+    <div class="hero-journey">
 
-          <!-- Screen 1: Model Try-On -->
-          <div class="mock-screen" id="screen-1">
-            <div class="mock-model-out">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(184,146,74,.55)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-              </svg>
-            </div>
-            <div class="mock-line w80 gold"></div>
-            <div class="mock-line w55"></div>
-            <div class="mock-line w65 gold"></div>
-          </div>
+      <!-- Top row: sketch input + rendered jewellery output -->
+      <div class="jrny-top">
 
-          <!-- Screen 2: 3D CAD -->
-          <div class="mock-screen" id="screen-2">
-            <div id="cadStep2" class="mock-step">
-              <div class="mock-step-dot spin"></div>
-              <span class="mock-step-label">Analysing geometry</span>
-            </div>
-            <div id="cadStep3" class="mock-step">
-              <div class="mock-step-dot idle"></div>
-              <span class="mock-step-label">Generating mesh</span>
-            </div>
-            <div id="cadStep4" class="mock-step">
-              <div class="mock-step-dot idle"></div>
-              <span class="mock-step-label">Preparing export files</span>
-            </div>
-            <div class="mock-line w65 gold" style="margin-top:10px"></div>
-            <div class="mock-line w40"></div>
-          </div>
-
-          <!-- Screen 3: Market Trends -->
-          <div class="mock-screen" id="screen-3">
-            <div class="mock-listing">
-              <div class="mock-listing-lines">
-                <div class="mock-line w80 gold"></div>
-                <div class="mock-line w55"></div>
-              </div>
-              <span class="mock-price">₹4,299</span>
-            </div>
-            <div class="mock-listing">
-              <div class="mock-listing-lines">
-                <div class="mock-line w65 gold"></div>
-                <div class="mock-line w40"></div>
-              </div>
-              <span class="mock-price">₹6,850</span>
-            </div>
-            <div class="mock-listing">
-              <div class="mock-listing-lines">
-                <div class="mock-line w90 gold"></div>
-                <div class="mock-line w55"></div>
-              </div>
-              <span class="mock-price">₹3,120</span>
-            </div>
+        <!-- Sketch / input frame -->
+        <div class="jrny-frame jrny-frame-tall"
+             data-modal-src="{{ url_for('static', filename='images/init/sketch.webp') }}"
+             data-modal-label="Sketch Input">
+          <img class="img-fill"
+               src="{{ url_for('static', filename='images/init/sketch.webp') }}"
+               alt="Sketch input"
+               fetchpriority="high"
+               decoding="async">
+          <div class="jrny-badge">
+            <span class="jrny-badge-label">Sketch Input</span>
+            <span class="jrny-badge-dot"></span>
           </div>
         </div>
 
-        <div class="mock-bar"><div class="mock-bar-fill" id="mockProgress"></div></div>
-        <div class="mock-dots" id="mockDots">
-          <div class="mock-dot active" onclick="goScreen(0)"></div>
-          <div class="mock-dot" onclick="goScreen(1)"></div>
-          <div class="mock-dot" onclick="goScreen(2)"></div>
-          <div class="mock-dot" onclick="goScreen(3)"></div>
+        <!-- Rendered jewellery output frame -->
+        <div class="jrny-frame jrny-frame-tall glow"
+             data-modal-src="{{ url_for('static', filename='images/init/concept.webp') }}"
+             data-modal-label="AI Render">
+          <img class="img-fill"
+               src="{{ url_for('static', filename='images/init/concept.webp') }}"
+               alt="AI render"
+               fetchpriority="high"
+               decoding="async">
+          <div class="jrny-badge">
+            <span class="jrny-badge-label">AI Render</span>
+            <span class="jrny-badge-dot"></span>
+          </div>
         </div>
+
+      </div>
+
+      <!-- Bottom row: model try-on + market pricing -->
+      <div class="jrny-bottom">
+
+        <!-- Model try-on frame -->
+        <div class="jrny-frame"
+             data-modal-src="{{ url_for('static', filename='images/init/model.webp') }}"
+             data-modal-label="Model Try-On">
+          <img class="img-fill"
+               src="{{ url_for('static', filename='images/init/model.webp') }}"
+               alt="Model try-on"
+               style="object-position:center 15%;"
+               fetchpriority="high"
+               decoding="async">
+          <div class="jrny-badge">
+            <span class="jrny-badge-label">Model Try-On</span>
+            <span class="jrny-badge-dot"></span>
+          </div>
+        </div>
+
+        <!-- Market pricing listing frame -->
+        <div class="jrny-frame" style="">
+          <div class="jrny-market">
+            <div class="jrny-market-row">
+              <div class="jrny-market-dot" style="background:rgba(184,146,74,.8)"></div>
+              <div class="jrny-market-lines">
+                <div class="jrny-mline gold w80"></div>
+                <div class="jrny-mline w55"></div>
+              </div>
+              <span class="jrny-price">₹4,299</span>
+            </div>
+            <div class="jrny-market-row">
+              <div class="jrny-market-dot" style="background:rgba(184,146,74,.55)"></div>
+              <div class="jrny-market-lines">
+                <div class="jrny-mline gold w65"></div>
+                <div class="jrny-mline w80"></div>
+              </div>
+              <span class="jrny-price">₹6,850</span>
+            </div>
+            <div class="jrny-market-row">
+              <div class="jrny-market-dot" style="background:rgba(184,146,74,.4)"></div>
+              <div class="jrny-market-lines">
+                <div class="jrny-mline gold w55"></div>
+                <div class="jrny-mline w65"></div>
+              </div>
+              <span class="jrny-price">₹3,120</span>
+            </div>
+          </div>
+          <div class="jrny-badge">
+            <span class="jrny-badge-label">Market Analysis</span>
+            <span class="jrny-badge-dot"></span>
+          </div>
+        </div>
+
       </div>
     </div>
+  </div>
+</section>
+
+<!-- ═══ IMAGE MODAL ═════════════════════════════════════════════════════════ -->
+
+<div class="img-modal-backdrop" id="imgModal" role="dialog" aria-modal="true" aria-label="Image preview">
+  <div class="img-modal-inner">
+    <button class="img-modal-close" id="imgModalClose" aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+    <img id="imgModalImg" src="" alt="Preview" />
+    <span class="img-modal-label" id="imgModalLabel"></span>
+  </div>
+</div>
+
+<!-- ═══ SHOWCASE / GALLERY PREVIEW ════════════════════════════════════════ -->
+
+<section class="showcase-section">
+  <div class="showcase-header reveal">
+    <h2 class="section-h2" style="color:var(--paper)">What glymr<br><em>creates.</em></h2>
+    <p class="section-sub">Every image below was generated entirely inside the glymr studio, from text descriptions, uploaded sketches, and model try-on sessions.</p>
+  </div>
+
+  <div class="showcase-grid reveal">
+    <div class="showcase-img-placeholder sip-tall">
+      <img class="img-fill" src="{{ url_for('static', filename='images/gallery/bridal-necklace.webp') }}" alt="Bridal necklace" loading="lazy" decoding="async" fetchpriority="low">
+      <span class="sip-tag">Sketch Studio</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="showcase-img-placeholder sip-sq" style="flex:1;">
+        <img class="img-fill" src="{{ url_for('static', filename='images/gallery/solitaire-ring.webp') }}" alt="Solitaire ring" loading="lazy" decoding="async" fetchpriority="low">
+        <span class="sip-tag">Model Try-On</span>
+      </div>
+      <div class="showcase-img-placeholder sip-sq" style="flex:1;">
+        <img class="img-fill" src="{{ url_for('static', filename='images/gallery/cad-mesh.webp') }}" alt="CAD mesh" loading="lazy" decoding="async" fetchpriority="low">
+        <span class="sip-tag">CAD Export</span>
+      </div>
+    </div>
+    <div class="showcase-img-placeholder sip-tall">
+      <img class="img-fill" src="{{ url_for('static', filename='images/gallery/earring-model.webp') }}" alt="Earring model" loading="lazy" decoding="async" fetchpriority="low">
+      <span class="sip-tag">Model Try-On</span>
+    </div>
+  </div>
+
+  <div class="showcase-grid-2 reveal" style="margin-top:0">
+    <div class="showcase-img-placeholder sip-sq">
+      <img class="img-fill" src="{{ url_for('static', filename='images/gallery/kundan-bangles.webp') }}" alt="Kundan bangles" loading="lazy" decoding="async" fetchpriority="low">
+      <span class="sip-tag">Sketch Studio</span>
+    </div>
+    <div class="showcase-img-placeholder sip-sq">
+      <img class="img-fill" src="{{ url_for('static', filename='images/gallery/pendant.webp') }}" alt="Pendant" loading="lazy" decoding="async" fetchpriority="low">
+      <span class="sip-tag">Sketch Studio</span>
+    </div>
+    <div class="showcase-img-placeholder" style="aspect-ratio:16/7;">
+      <img class="img-fill" src="{{ url_for('static', filename='images/gallery/market-trends.webp') }}" alt="Market trends" loading="lazy" decoding="async" fetchpriority="low">
+      <span class="sip-tag">Market Analysis</span>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:48px;position:relative">
+    <a href="/studio/gallery" class="btn btn-outline" style="border-color:rgba(184,146,74,.3);color:rgba(250,247,242,.7)">
+      Browse full gallery
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:6px">
+        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+      </svg>
+    </a>
   </div>
 </section>
 
@@ -1312,13 +1539,35 @@
 
 <div class="trust-bar">
   <div class="trust-bar-label">Designed for</div>
-  <div class="trust-logos">
-    <span class="trust-logo">Independent Designers</span>
-    <span class="trust-logo">Jewellery Brands</span>
-    <span class="trust-logo">Wholesale Studios</span>
-    <span class="trust-logo">Export Houses</span>
-    <span class="trust-logo">Retail Chains</span>
-    <span class="trust-logo">CAD/CAM Workshops</span>
+  <div class="trust-marquee-wrap">
+    <div class="trust-marquee-track">
+      <!-- Set A -->
+      <span class="trust-logo">Independent Designers</span><span class="trust-sep"></span>
+      <span class="trust-logo">Jewellery Brands</span><span class="trust-sep"></span>
+      <span class="trust-logo">Wholesale Studios</span><span class="trust-sep"></span>
+      <span class="trust-logo">Export Houses</span><span class="trust-sep"></span>
+      <span class="trust-logo">Retail Chains</span><span class="trust-sep"></span>
+      <span class="trust-logo">CAD/CAM Workshops</span><span class="trust-sep"></span>
+      <span class="trust-logo">Bridal Ateliers</span><span class="trust-sep"></span>
+      <span class="trust-logo">Gem Traders</span><span class="trust-sep"></span>
+      <span class="trust-logo">Fashion Houses</span><span class="trust-sep"></span>
+      <span class="trust-logo">Custom Jewellers</span><span class="trust-sep"></span>
+      <span class="trust-logo">Studio Artisans</span><span class="trust-sep"></span>
+      <span class="trust-logo">E-commerce Sellers</span><span class="trust-sep"></span>
+      <!-- Set B — exact duplicate for seamless loop -->
+      <span class="trust-logo">Independent Designers</span><span class="trust-sep"></span>
+      <span class="trust-logo">Jewellery Brands</span><span class="trust-sep"></span>
+      <span class="trust-logo">Wholesale Studios</span><span class="trust-sep"></span>
+      <span class="trust-logo">Export Houses</span><span class="trust-sep"></span>
+      <span class="trust-logo">Retail Chains</span><span class="trust-sep"></span>
+      <span class="trust-logo">CAD/CAM Workshops</span><span class="trust-sep"></span>
+      <span class="trust-logo">Bridal Ateliers</span><span class="trust-sep"></span>
+      <span class="trust-logo">Gem Traders</span><span class="trust-sep"></span>
+      <span class="trust-logo">Fashion Houses</span><span class="trust-sep"></span>
+      <span class="trust-logo">Custom Jewellers</span><span class="trust-sep"></span>
+      <span class="trust-logo">Studio Artisans</span><span class="trust-sep"></span>
+      <span class="trust-logo">E-commerce Sellers</span><span class="trust-sep"></span>
+    </div>
   </div>
 </div>
 
@@ -1343,7 +1592,7 @@
   <div class="stat-item reveal reveal-delay-4">
     <div class="stat-bar"></div>
     <div class="stat-num">∞<span>ideas</span></div>
-    <div class="stat-label">Unlimited concept variations per design — iterate without cost</div>
+    <div class="stat-label">Unlimited concept variations per design. Iterate without cost.</div>
   </div>
 </div>
 
@@ -1355,7 +1604,7 @@
       <h2 class="section-h2">Four tools.<br><em>One workflow.</em></h2>
     </div>
     <div>
-      <p class="section-sub" style="max-width:400px;margin-top:0">Every step of the jewellery design pipeline — from raw idea to catalogue and manufacturing — handled inside a single, connected workspace.</p>
+      <p class="section-sub" style="max-width:400px;margin-top:0">Every step of the jewellery design pipeline, from raw idea to catalogue and manufacturing, handled inside a single, connected workspace.</p>
       <a href="/studio/sketch" class="btn btn-outline" style="margin-top:24px;display:inline-flex">
         Explore the studio
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:6px">
@@ -1376,7 +1625,7 @@
         </svg>
       </div>
       <div class="feat-title">Sketch Studio</div>
-      <p class="feat-desc">Upload a rough sketch or type a description. Gemini Flash generates multiple photorealistic concept variations — choosing material, stone, finish, and setting options you'd normally spend days iterating through.</p>
+      <p class="feat-desc">Upload a rough sketch or type a description. Gemini Flash generates multiple photorealistic concept variations, choosing material, stone, finish, and setting options you'd normally spend days iterating through.</p>
       <div class="feat-tags">
         <span class="feat-tag">Text-to-image</span>
         <span class="feat-tag">Sketch-to-render</span>
@@ -1398,7 +1647,7 @@
         </svg>
       </div>
       <div class="feat-title">Model Try-On</div>
-      <p class="feat-desc">Place your finished design on a photorealistic model — choosing skin tone, pose, and studio lighting. Produce catalogue-quality shots for e-commerce, lookbooks, or client presentations instantly.</p>
+      <p class="feat-desc">Place your finished design on a photorealistic model. Choose skin tone, pose, and studio lighting. Produce catalogue-quality shots for e-commerce, lookbooks, or client presentations instantly.</p>
       <div class="feat-tags">
         <span class="feat-tag">Catalogue shots</span>
         <span class="feat-tag">Skin tone options</span>
@@ -1420,7 +1669,7 @@
         </svg>
       </div>
       <div class="feat-title">3D CAD Export</div>
-      <p class="feat-desc">Generate production-ready 3D geometry via Meshy AI directly from your render. Export GLB, OBJ, or STL — ready for CNC casting, wax printing, or manufacturing. No CAD software required.</p>
+      <p class="feat-desc">Generate production-ready 3D geometry via Meshy AI directly from your render. Export GLB, OBJ, or STL, ready for CNC casting, wax printing, or manufacturing. No CAD software required.</p>
       <div class="feat-tags">
         <span class="feat-tag">GLB · OBJ · STL</span>
         <span class="feat-tag">Manufacturing-ready</span>
@@ -1464,7 +1713,7 @@
 <section class="how-section">
   <div class="how-header reveal">
     <h2 class="section-h2">From <em>idea</em> to<br>market-ready.</h2>
-    <p class="section-sub">A four-step pipeline that takes your design from imagination to a commercial product — without jumping between tools, agencies, or software.</p>
+    <p class="section-sub">A four-step pipeline that takes your design from imagination to a commercial product, without jumping between tools, agencies, or software.</p>
   </div>
 
   <div class="how-grid">
@@ -1510,55 +1759,8 @@
       </div>
       <div class="how-step-num">Step 04</div>
       <div class="how-step-title">Analyse the Market</div>
-      <p class="how-step-desc">Before you commit to production, research live pricing, competitors, and trends. Know your price point and positioning with real data — not guesswork.</p>
+      <p class="how-step-desc">Before you commit to production, research live pricing, competitors, and trends. Know your price point and positioning with real data, not guesswork..</p>
     </div>
-  </div>
-</section>
-
-<!-- ═══ SHOWCASE / GALLERY PREVIEW ════════════════════════════════════════ -->
-
-<section class="showcase-section">
-  <div class="showcase-header reveal">
-    <h2 class="section-h2" style="color:var(--paper)">What glymr<br><em>creates.</em></h2>
-    <p class="section-sub">Every image below was generated entirely inside the glymr studio — from text descriptions, uploaded sketches, and model try-on sessions.</p>
-  </div>
-
-  <div class="showcase-grid reveal">
-    <div class="showcase-img-placeholder sip-tall" style="background-image:url('{{ url_for('static', filename='images/gallery/bridal-necklace.png') }}');background-size:cover;background-position:center;">
-      <span class="sip-tag">Sketch Studio</span>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:16px">
-      <div class="showcase-img-placeholder sip-sq" style="flex:1;background-image:url('{{ url_for('static', filename='images/gallery/solitaire-ring.png') }}');background-size:cover;background-position:center;">
-        <span class="sip-tag">Model Try-On</span>
-      </div>
-      <div class="showcase-img-placeholder sip-sq" style="flex:1;background-image:url('{{ url_for('static', filename='images/gallery/cad-mesh.png') }}');background-size:cover;background-position:center;">
-        <span class="sip-tag">CAD Export</span>
-      </div>
-    </div>
-    <div class="showcase-img-placeholder sip-tall" style="background-image:url('{{ url_for('static', filename='images/gallery/earring-model.png') }}');background-size:cover;background-position:center;">
-      <span class="sip-tag">Model Try-On</span>
-    </div>
-  </div>
-
-  <div class="showcase-grid-2 reveal" style="margin-top:0">
-    <div class="showcase-img-placeholder sip-sq" style="background-image:url('{{ url_for('static', filename='images/gallery/kundan-bangles.png') }}');background-size:cover;background-position:center;">
-      <span class="sip-tag">Sketch Studio</span>
-    </div>
-    <div class="showcase-img-placeholder sip-sq" style="background-image:url('{{ url_for('static', filename='images/gallery/pendant.png') }}');background-size:cover;background-position:center;">
-      <span class="sip-tag">Sketch Studio</span>
-    </div>
-    <div class="showcase-img-placeholder" style="aspect-ratio:16/7;background-image:url('{{ url_for('static', filename='images/gallery/market-trends.png') }}');background-size:cover;background-position:center;">
-      <span class="sip-tag">Market Analysis</span>
-    </div>
-  </div>
-
-  <div style="text-align:center;margin-top:48px;position:relative">
-    <a href="/studio/gallery" class="btn btn-outline" style="border-color:rgba(184,146,74,.3);color:rgba(250,247,242,.7)">
-      Browse full gallery
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:6px">
-        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-      </svg>
-    </a>
   </div>
 </section>
 
@@ -1567,7 +1769,7 @@
 <div class="ai-strip reveal">
   <div class="ai-strip-left">
     <div class="ai-strip-title">Best-in-class AI, under the hood.</div>
-    <p class="ai-strip-sub">glymr connects the most capable AI models to each task — so you're never limited by the technology, only by your imagination.</p>
+    <p class="ai-strip-sub">glymr connects the most capable AI models to each task, so you're never limited by the technology, only by your imagination.</p>
   </div>
   <div class="ai-models">
     <div class="ai-model-card">
@@ -1647,33 +1849,27 @@
   </div>
 
   <div class="testimonials-grid">
-    <div class="testimonial-card reveal">
-      <div class="testi-quote">— Review</div>
+    <div class="testimonial-card">
       <p class="testi-text">"I used to spend 3 days back-and-forth with a freelancer on concepts. With glymr I have 10 options in front of my client within an hour of the first call."</p>
       <div class="testi-author">
-        <div class="testi-avatar">P</div>
         <div>
           <div class="testi-name">Priya Mehta</div>
           <div class="testi-role">Independent jewellery designer · Mumbai</div>
         </div>
       </div>
     </div>
-    <div class="testimonial-card reveal reveal-delay-1">
-      <div class="testi-quote">— Review</div>
+    <div class="testimonial-card">
       <p class="testi-text">"The 3D export has cut our sampling cost by almost 60%. We generate the geometry here, send it for wax printing, and skip an entire round of CAD revisions."</p>
       <div class="testi-author">
-        <div class="testi-avatar">R</div>
         <div>
           <div class="testi-name">Rajan Sethia</div>
           <div class="testi-role">Export house owner · Jaipur</div>
         </div>
       </div>
     </div>
-    <div class="testimonial-card reveal reveal-delay-2">
-      <div class="testi-quote">— Review</div>
-      <p class="testi-text">"The market trends module alone is worth it. I check competitor pricing on every new piece before I set my price — it's changed how I think about positioning."</p>
+    <div class="testimonial-card">
+      <p class="testi-text">"The market trends module alone is worth it. I check competitor pricing on every new piece before I set my price. It's changed how I think about positioning."</p>
       <div class="testi-author">
-        <div class="testi-avatar">A</div>
         <div>
           <div class="testi-name">Aisha Nair</div>
           <div class="testi-role">Brand founder · Bangalore</div>
@@ -1698,7 +1894,7 @@
           Do I need design or CAD experience to use glymr?
           <svg class="faq-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
-        <div class="faq-a">No. glymr is designed for jewellery makers, not software engineers. You describe what you want — in words or by uploading a rough sketch — and the AI handles the technical execution. The 3D export and model try-on work the same way.</div>
+        <div class="faq-a">No. glymr is designed for jewellery makers, not software engineers. You describe what you want, in words or by uploading a rough sketch, and the AI handles the technical execution. The 3D export and model try-on work the same way.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q" onclick="toggleFAQ(this)">
@@ -1712,7 +1908,7 @@
           How accurate is the market pricing data?
           <svg class="faq-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
-        <div class="faq-a">Market data is pulled live via Google Search grounding at the time you run the analysis — so prices reflect current listings on platforms like Amazon, Flipkart, CaratLane, and BlueStone. The data is as fresh as the last time you refresh the query.</div>
+        <div class="faq-a">Market data is pulled live via Google Search grounding at the time you run the analysis, so prices reflect current listings on platforms like Amazon, Flipkart, CaratLane, and BlueStone. The data is as fresh as the last time you refresh the query.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q" onclick="toggleFAQ(this)">
@@ -1726,7 +1922,7 @@
           Does glymr work for all jewellery styles?
           <svg class="faq-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
-        <div class="faq-a">Yes — from Kundan and Polki bridal sets to contemporary minimalist fine jewellery, silver fashion jewellery, and everything in between. Just describe the style, material, and stones you want and the AI adapts accordingly.</div>
+        <div class="faq-a">Yes, from Kundan and Polki bridal sets to contemporary minimalist fine jewellery, silver fashion jewellery, and everything in between. Just describe the style, material, and stones you want and the AI adapts accordingly.</div>
       </div>
     </div>
   </div>
@@ -1736,7 +1932,7 @@
 
 <section class="cta-strip">
   <h2>Design your next<br><em>masterpiece</em> today.</h2>
-  <p>Join jewellery designers, export houses, and brands using glymr to go from concept to catalogue — faster than a client call.</p>
+  <p>Join jewellery designers, export houses, and brands using glymr to go from concept to catalogue, faster than a client call.</p>
   <div class="cta-btns">
     <a href="/studio/sketch" class="btn btn-gold btn-lg">
       Start designing free
@@ -1770,7 +1966,7 @@
         </svg>
         glymr
       </div>
-      <p class="footer-brand-desc">The AI-powered jewellery design studio — from concept sketch to catalogue-ready image, production 3D model, and market intelligence.</p>
+      <p class="footer-brand-desc">The AI-powered jewellery design studio. From concept sketch to catalogue-ready image, production 3D model, and market intelligence.</p>
       <div class="footer-powered">
         Powered by <span>Gemini</span> &middot; <span>Meshy AI</span> &middot; <span>Google Search</span>
       </div>
@@ -1822,99 +2018,47 @@
 
 {% block scripts %}
 <script>
-/* ── Hero mock-card animation ─────────────────────────────────────────────── */
-const MODULES = [
-  { label: 'Sketch Conceptualiser — Active', dur: 4200 },
-  { label: 'Model Try-On — Generating',       dur: 4000 },
-  { label: '3D CAD Generator — Processing',   dur: 5000 },
-  { label: 'Market Trends — Researching',     dur: 4000 },
-];
 
-let currentScreen = 0;
-let progressTimer = null;
-let cadStepTimer1 = null;
-let cadStepTimer2 = null;
-let autoTimer     = null;
-let paused        = false;
+/* ── Image Modal ──────────────────────────────────────────────────────────── */
+(function () {
+  const backdrop = document.getElementById('imgModal');
+  const img      = document.getElementById('imgModalImg');
+  const label    = document.getElementById('imgModalLabel');
+  const closeBtn = document.getElementById('imgModalClose');
 
-const label    = document.getElementById('mockLabel');
-const progress = document.getElementById('mockProgress');
-const dots     = document.querySelectorAll('.mock-dot');
-const screens  = document.querySelectorAll('.mock-screen');
-const card     = document.querySelector('.mock-card');
-
-function goScreen(idx) {
-  clearInterval(progressTimer);
-  clearTimeout(cadStepTimer1);
-  clearTimeout(cadStepTimer2);
-  clearTimeout(autoTimer);
-  paused = false;
-
-  screens.forEach((s, i) => s.classList.toggle('active', i === idx));
-  dots.forEach((d, i) => d.classList.toggle('active', i === idx));
-  label.textContent = MODULES[idx].label;
-  currentScreen = idx;
-
-  progress.style.transition = 'none';
-  progress.style.width = '0%';
-  requestAnimationFrame(() => requestAnimationFrame(() => runProgress(idx)));
-
-  if (idx === 2) runCADSteps();
-}
-
-function runProgress(idx) {
-  const dur      = MODULES[idx].dur;
-  const interval = 1000 / 60;
-  const increment = 100 / (dur / interval);
-  let pct = 0;
-
-  progressTimer = setInterval(() => {
-    if (paused) return;
-    pct = Math.min(pct + increment, 98);
-    progress.style.width = pct + '%';
-    if (pct >= 98) {
-      clearInterval(progressTimer);
-      setTimeout(() => {
-        progress.style.transition = 'width .2s ease';
-        progress.style.width = '100%';
-        autoTimer = setTimeout(() => goScreen((idx + 1) % MODULES.length), 450);
-      }, 80);
-    }
-  }, interval);
-}
-
-function runCADSteps() {
-  const stepEls = [
-    document.getElementById('cadStep2'),
-    document.getElementById('cadStep3'),
-    document.getElementById('cadStep4'),
-  ];
-
-  function setStep(doneUpTo, activeIdx) {
-    stepEls.forEach((el, i) => {
-      const dot = el.querySelector('.mock-step-dot');
-      const stepNum = i + 2;
-      el.classList.remove('cur');
-      if (stepNum <= doneUpTo) {
-        dot.className = 'mock-step-dot done';
-      } else if (stepNum === activeIdx) {
-        el.classList.add('cur');
-        dot.className = 'mock-step-dot spin';
-      } else {
-        dot.className = 'mock-step-dot idle';
-      }
-    });
+  function openModal(src, lbl) {
+    img.src = src;
+    label.textContent = lbl || '';
+    backdrop.classList.add('open');
+    document.body.style.overflow = 'hidden';
   }
 
-  setStep(1, 2);
-  cadStepTimer1 = setTimeout(() => setStep(2, 3), 1600);
-  cadStepTimer2 = setTimeout(() => setStep(3, 4), 3300);
-}
+  function closeModal() {
+    backdrop.classList.remove('open');
+    document.body.style.overflow = '';
+    // Clear src after transition so there's no flash on next open
+    setTimeout(() => { img.src = ''; }, 300);
+  }
 
-card.addEventListener('mouseenter', () => { paused = true; });
-card.addEventListener('mouseleave', () => { paused = false; });
+  // Wire up all frames with data-modal-src
+  document.querySelectorAll('.jrny-frame[data-modal-src]').forEach(frame => {
+    frame.addEventListener('click', () => {
+      openModal(frame.dataset.modalSrc, frame.dataset.modalLabel);
+    });
+  });
 
-goScreen(0);
+  closeBtn.addEventListener('click', closeModal);
+
+  // Close on backdrop click (but not on the inner panel)
+  backdrop.addEventListener('click', e => {
+    if (e.target === backdrop) closeModal();
+  });
+
+  // Close on Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && backdrop.classList.contains('open')) closeModal();
+  });
+}());
 
 /* ── FAQ accordion ────────────────────────────────────────────────────────── */
 function toggleFAQ(qEl) {
@@ -1939,5 +2083,18 @@ const io = new IntersectionObserver((entries) => {
 }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
 
 revealEls.forEach(el => io.observe(el));
+
+/* -- Testimonial cards - staggered fade-up --------------------------------- */
+const testiCards = document.querySelectorAll('.testimonial-card');
+const testiObserver = new IntersectionObserver((entries) => {
+  if (entries[0].isIntersecting) {
+    testiCards.forEach((card, i) => {
+      setTimeout(() => card.classList.add('visible'), i * 120);
+    });
+    testiObserver.disconnect();
+  }
+}, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+const testiGrid = document.querySelector('.testimonials-grid');
+if (testiGrid) testiObserver.observe(testiGrid);
 </script>
 {% endblock %}
