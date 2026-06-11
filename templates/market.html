@@ -2,6 +2,7 @@
 {% block title %}Market Trends — glymr{% endblock %}
 
 {% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 
   .market-layout {
@@ -43,198 +44,180 @@
     border: none; cursor: pointer;
     transition: background var(--t) var(--ease);
   }
-
   .preview-remove:hover { background: var(--error); }
 
   /* Keyword tags */
   .kw-cloud { display: flex; flex-wrap: wrap; gap: 7px; }
-
   .kw-tag {
     padding: 5px 12px; border-radius: 20px;
     border: 1.5px solid var(--paper-3);
     font-size: 12px; cursor: pointer;
     transition: all var(--t) var(--ease); color: var(--ink-3); font-weight: 500;
   }
-
-  .kw-tag.active {
-    border-color: var(--gold); color: var(--gold-dk); background: var(--gold-bg);
-  }
+  .kw-tag.active { border-color: var(--gold); color: var(--gold-dk); background: var(--gold-bg); }
 
   /* Price range */
   .price-range-bar {
-    background: var(--surface);
-    border: 1px solid var(--paper-3);
+    background: var(--surface); border: 1px solid var(--paper-3);
     border-radius: var(--radius-lg); padding: 20px 24px;
-    margin-bottom: 20px;
-    box-shadow: var(--shadow-sm);
+    margin-bottom: 20px; box-shadow: var(--shadow-sm);
   }
-
-  .pr-label {
-    font-family: var(--font-mono); font-size: 10px; color: var(--ink-3);
-    letter-spacing: .1em; margin-bottom: 14px; text-transform: uppercase;
-  }
-
-  .pr-track {
-    height: 5px; background: var(--paper-3); border-radius: 3px;
-    position: relative; margin-bottom: 12px;
-  }
-
-  .pr-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--gold-dk), var(--gold), var(--gold-lt));
-    border-radius: 3px;
-  }
-
-  .pr-vals { display: flex; justify-content: space-between; }
-
-  .pr-val {
-    font-family: var(--font-serif);
-    font-size: 20px; font-weight: 600; color: var(--ink);
-    line-height: 1.1;
-  }
-
-  .pr-val small {
-    display: block; font-family: var(--font-sans);
-    font-size: 10px; color: var(--ink-3); font-weight: 400;
-    letter-spacing: .04em; margin-top: 2px;
-  }
+  .pr-label { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); letter-spacing: .1em; margin-bottom: 14px; text-transform: uppercase; }
+  .pr-track { height: 5px; background: var(--paper-3); border-radius: 3px; position: relative; margin-bottom: 12px; }
+  .pr-fill  { height: 100%; background: linear-gradient(90deg, var(--gold-dk), var(--gold), var(--gold-lt)); border-radius: 3px; }
+  .pr-vals  { display: flex; justify-content: space-between; }
+  .pr-val   { font-family: var(--font-serif); font-size: 20px; font-weight: 600; color: var(--ink); line-height: 1.1; }
+  .pr-val small { display: block; font-family: var(--font-sans); font-size: 10px; color: var(--ink-3); font-weight: 400; letter-spacing: .04em; margin-top: 2px; }
 
   /* AI Summary */
-  .summary-card {
-    background: var(--ink);
-    border-radius: var(--radius-lg); padding: 22px 24px;
-    margin-bottom: 20px; position: relative; overflow: hidden;
-  }
-
-  .summary-card::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: radial-gradient(ellipse at 80% 20%, rgba(184,146,74,.12) 0%, transparent 60%);
-  }
-
-  .summary-card .sc-label {
-    font-family: var(--font-mono); font-size: 10px;
-    color: rgba(184,146,74,.7);
-    letter-spacing: .12em; text-transform: uppercase; margin-bottom: 10px;
-    position: relative;
-  }
-
-  .summary-card p {
-    font-size: 13px; line-height: 1.7;
-    color: rgba(250,247,242,.75);
-    position: relative;
-  }
+  .summary-card { background: var(--ink); border-radius: var(--radius-lg); padding: 22px 24px; margin-bottom: 20px; position: relative; overflow: hidden; }
+  .summary-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 80% 20%, rgba(184,146,74,.12) 0%, transparent 60%); }
+  .summary-card .sc-label { font-family: var(--font-mono); font-size: 10px; color: rgba(184,146,74,.7); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 10px; position: relative; }
+  .summary-card p { font-size: 13px; line-height: 1.7; color: rgba(250,247,242,.75); position: relative; }
 
   /* Keywords section */
   .kw-section { margin-bottom: 20px; }
-
-  .kw-section-title {
-    font-size: 11px; font-weight: 600; letter-spacing: .08em;
-    text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px;
-  }
+  .kw-section-title { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px; }
 
   /* Listings grid */
-  .listings-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 14px;
-  }
-
-  .listing-card {
-    background: var(--surface); border: 1px solid var(--paper-3);
-    border-radius: var(--radius-lg); overflow: hidden;
-    transition: transform var(--t-slow) var(--ease), box-shadow var(--t-slow) var(--ease), border-color var(--t-slow) var(--ease);
-    text-decoration: none; color: inherit;
-    display: flex; flex-direction: column;
-  }
-
-  .listing-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-lg);
-    border-color: rgba(184,146,74,.25);
-  }
-
-  .listing-thumb {
-    width: 100%; height: 150px;
-    background: var(--paper-2);
-    display: flex; align-items: center; justify-content: center;
-    overflow: hidden;
-  }
-
+  .listings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .listing-card { background: var(--surface); border: 1px solid var(--paper-3); border-radius: var(--radius-lg); overflow: hidden; transition: transform var(--t-slow) var(--ease), box-shadow var(--t-slow) var(--ease), border-color var(--t-slow) var(--ease); text-decoration: none; color: inherit; display: flex; flex-direction: column; }
+  .listing-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: rgba(184,146,74,.25); }
+  .listing-thumb { width: 100%; height: 150px; background: var(--paper-2); display: flex; align-items: center; justify-content: center; overflow: hidden; }
   .listing-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
   .listing-body { padding: 14px 16px; flex: 1; display: flex; flex-direction: column; gap: 5px; }
-
-  .listing-source {
-    font-family: var(--font-mono); font-size: 10px; color: var(--gold);
-    letter-spacing: .08em; text-transform: uppercase;
-  }
-
-  .listing-title { font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.4; }
-
-  .listing-price {
-    margin-top: auto; padding-top: 8px;
-    font-family: var(--font-serif);
-    font-size: 18px; font-weight: 600; color: var(--gold-dk);
-  }
+  .listing-source { font-family: var(--font-mono); font-size: 10px; color: var(--gold); letter-spacing: .08em; text-transform: uppercase; }
+  .listing-title  { font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+  .listing-price  { margin-top: auto; padding-top: 8px; font-family: var(--font-serif); font-size: 18px; font-weight: 600; color: var(--gold-dk); }
 
   /* Empty / Loading */
-  .market-empty {
-    grid-column: 1 / -1; text-align: center; padding: 80px 40px; color: var(--ink-3);
-  }
-
-  .market-empty-icon {
-    width: 72px; height: 72px;
-    border-radius: var(--radius-lg);
-    background: var(--paper-2);
-    display: flex; align-items: center; justify-content: center;
-    margin: 0 auto 20px; opacity: .6;
-  }
-
-  .market-empty h3 {
-    font-family: var(--font-serif); font-size: 22px; color: var(--ink); margin-bottom: 8px;
-  }
-
-  .market-loading {
-    grid-column: 1 / -1; text-align: center; padding: 80px 40px;
-  }
-
-  .market-loading p { font-size: 12px; color: var(--ink-3); font-family: var(--font-mono); margin-top: 16px; }
-
-  .loading-steps {
-    display: flex; flex-direction: column; gap: 8px;
-    max-width: 300px; margin: 18px auto 0;
-  }
-
-  .ls-item { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-3); }
-
-  .ls-dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--paper-3);
-    animation: ls-blink 1.5s ease infinite; flex-shrink: 0;
-  }
-
+  .market-empty { grid-column: 1 / -1; text-align: center; padding: 80px 40px; color: var(--ink-3); }
+  .market-empty-icon { width: 72px; height: 72px; border-radius: var(--radius-lg); background: var(--paper-2); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; opacity: .6; }
+  .market-empty h3   { font-family: var(--font-serif); font-size: 22px; color: var(--ink); margin-bottom: 8px; }
+  .market-loading    { grid-column: 1 / -1; text-align: center; padding: 80px 40px; }
+  .market-loading p  { font-size: 12px; color: var(--ink-3); font-family: var(--font-mono); margin-top: 16px; }
+  .loading-steps     { display: flex; flex-direction: column; gap: 8px; max-width: 300px; margin: 18px auto 0; }
+  .ls-item           { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-3); }
+  .ls-dot            { width: 7px; height: 7px; border-radius: 50%; background: var(--paper-3); animation: ls-blink 1.5s ease infinite; flex-shrink: 0; }
   .ls-item:nth-child(2) .ls-dot { animation-delay: .3s; }
   .ls-item:nth-child(3) .ls-dot { animation-delay: .6s; }
+  @keyframes ls-blink { 0%, 100% { background: var(--paper-3); } 50% { background: var(--gold); } }
 
-  @keyframes ls-blink {
-    0%, 100% { background: var(--paper-3); }
-    50%       { background: var(--gold); }
+  /* ── Tab bar ──────────────────────────────────────────────────────────── */
+  .market-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1.5px solid var(--paper-3);
+    margin-bottom: 24px;
+  }
+  .market-tab {
+    padding: 10px 20px; font-size: 13px; font-weight: 600;
+    color: var(--ink-4); cursor: pointer; border: none; background: none;
+    border-bottom: 2px solid transparent; margin-bottom: -1.5px;
+    transition: color var(--t) var(--ease), border-color var(--t) var(--ease);
+    letter-spacing: .02em; display: flex; align-items: center; gap: 7px;
+  }
+  .market-tab:hover { color: var(--ink); }
+  .market-tab.active { color: var(--gold-dk); border-bottom-color: var(--gold); }
+  .market-panel { display: none; }
+  .market-panel.active { display: block; }
+
+  /* ── Trends sidebar section ───────────────────────────────────────────── */
+  .trends-kw-row {
+    display: flex; align-items: center; gap: 7px; margin-bottom: 7px;
+  }
+  .trends-kw-dot {
+    width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+  }
+  .trends-kw-row input { flex: 1; font-size: 13px; padding: 8px 12px; }
+  .trends-kw-remove {
+    flex-shrink: 0; width: 26px; height: 26px;
+    border: 1px solid var(--paper-3); border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-4); cursor: pointer; background: none;
+    transition: color var(--t) var(--ease), border-color var(--t) var(--ease);
+  }
+  .trends-kw-remove:hover { color: var(--error); border-color: var(--error); }
+  .trends-add-btn {
+    font-size: 12px; color: var(--gold-dk); font-weight: 600;
+    cursor: pointer; background: none; border: none;
+    padding: 4px 0; letter-spacing: .02em;
+    display: flex; align-items: center; gap: 5px; margin-top: 4px;
+  }
+  .trends-add-btn:hover { color: var(--gold); }
+  .trends-add-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+  .timeframe-pills { display: flex; gap: 5px; flex-wrap: wrap; }
+  .tf-pill {
+    padding: 5px 11px; border-radius: 20px; font-size: 11px; font-weight: 600;
+    border: 1.5px solid var(--paper-3); color: var(--ink-4); cursor: pointer;
+    transition: all var(--t) var(--ease); font-family: var(--font-mono); letter-spacing: .04em;
+    background: none;
+  }
+  .tf-pill.active { border-color: var(--gold); color: var(--gold-dk); background: var(--gold-bg); }
+
+  /* ── Trends charts ────────────────────────────────────────────────────── */
+  .trends-empty { text-align: center; padding: 80px 40px; color: var(--ink-3); }
+  .trends-empty-icon { width: 72px; height: 72px; border-radius: var(--radius-lg); background: var(--paper-2); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; opacity: .6; }
+  .trends-empty h3 { font-family: var(--font-serif); font-size: 22px; color: var(--ink); margin-bottom: 8px; }
+  .trends-empty p  { font-size: 13px; }
+
+  .trends-loading { text-align: center; padding: 80px 40px; }
+  .trends-loading p { font-size: 12px; color: var(--ink-3); font-family: var(--font-mono); margin-top: 16px; }
+
+  .trends-source-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: .07em;
+    padding: 3px 10px; border-radius: 20px; margin-bottom: 20px;
+  }
+  .trends-source-badge.live  { color: var(--success); background: rgba(45,106,79,.08); border: 1px solid rgba(45,106,79,.2); }
+  .trends-source-badge.model { color: var(--gold-dk); background: var(--gold-bg); border: 1px solid rgba(184,146,74,.2); }
+
+  /* Comparison overview card */
+  .trends-compare-card {
+    background: var(--ink); border-radius: var(--radius-lg);
+    padding: 22px 24px; margin-bottom: 22px; position: relative; overflow: hidden;
+  }
+  .trends-compare-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 85% 15%, rgba(184,146,74,.1) 0%, transparent 55%); }
+  .trends-compare-label { font-family: var(--font-mono); font-size: 10px; color: rgba(184,146,74,.75); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 14px; position: relative; }
+  .trends-compare-canvas { position: relative; height: 200px; }
+
+  /* Per-keyword chart card */
+  .trend-chart-card {
+    background: var(--surface); border: 1px solid var(--paper-3);
+    border-radius: var(--radius-lg); padding: 20px 22px; margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .trend-chart-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .trend-chart-dot    { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .trend-chart-title  { font-weight: 600; font-size: 14px; color: var(--ink); flex: 1; }
+
+  .trend-stats-row { display: flex; gap: 10px; margin-top: 14px; }
+  .trend-stat { flex: 1; background: var(--paper); border-radius: var(--radius); padding: 10px 12px; text-align: center; }
+  .trend-stat-val { font-family: var(--font-serif); font-size: 20px; font-weight: 600; color: var(--ink); line-height: 1.1; }
+  .trend-stat-lbl { font-size: 10px; color: var(--ink-4); font-family: var(--font-mono); letter-spacing: .06em; text-transform: uppercase; margin-top: 2px; }
+  .trend-stat-val.up   { color: var(--success); }
+  .trend-stat-val.down { color: var(--error); }
+
+  .trend-related { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .trend-related-tag {
+    padding: 4px 10px; border-radius: 20px; font-size: 11px;
+    border: 1px solid var(--paper-3); color: var(--ink-3); font-weight: 500;
   }
 
-  @media (max-width: 900px) {
-    .market-layout { grid-template-columns: 1fr; padding: 20px; }
-    .market-sidebar { position: static; }
-  }
+  .trend-chart-canvas { position: relative; height: 140px; }
+
+  @media (max-width: 900px) { .market-layout { grid-template-columns: 1fr; padding: 20px; } .market-sidebar { position: static; } }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="market-layout">
 
-  <!-- SIDEBAR -->
+  <!-- ═══ SIDEBAR ═══════════════════════════════════════════════════════════ -->
   <aside class="market-sidebar">
-    <div class="panel">
+
+    <!-- Market Research panel -->
+    <div class="panel" id="sidebarResearch">
       <div class="panel-title"><span class="step">Input</span>Jewellery Image</div>
       <div class="upload-zone" id="marketUploadZone">
         <input type="file" id="marketFile" accept="image/*" />
@@ -254,11 +237,8 @@
           </button>
         </div>
       </div>
-    </div>
 
-    <div class="panel">
-      <div class="panel-title"><span class="step">Configure</span>Research Options</div>
-
+      <div class="panel-title" style="margin-top:16px"><span class="step">Configure</span>Research Options</div>
       <div class="form-row">
         <label>Category</label>
         <select id="marketCategory">
@@ -268,12 +248,10 @@
           {% endfor %}
         </select>
       </div>
-
       <div class="form-row">
         <label>Keyword Filter (optional)</label>
         <input type="text" id="marketKeyword" placeholder="e.g. Kundan, temple jewellery…" />
       </div>
-
       <button class="btn btn-gold" style="width:100%;margin-top:4px" id="marketBtn" onclick="runMarketResearch()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -281,11 +259,37 @@
         Research Market
       </button>
     </div>
+
+    <!-- Google Trends panel (shown when Trends tab active) -->
+    <div class="panel" id="sidebarTrends" style="display:none">
+      <div class="panel-title"><span class="step">Queries</span>Search Terms</div>
+      <div id="trendsKwList"></div>
+      <button class="trends-add-btn" id="trendsAddBtn" onclick="addTrendsKeyword()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add keyword (max 5)
+      </button>
+
+      <div class="panel-title" style="margin-top:18px"><span class="step">Range</span>Timeframe</div>
+      <div class="timeframe-pills">
+        <button class="tf-pill" data-tf="today 1-m">1 Month</button>
+        <button class="tf-pill active" data-tf="today 3-m">3 Months</button>
+        <button class="tf-pill" data-tf="today 12-m">12 Months</button>
+        <button class="tf-pill" data-tf="today 5-y">5 Years</button>
+      </div>
+
+      <button class="btn btn-gold" style="width:100%;margin-top:18px" id="trendsBtn" onclick="runTrends()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Fetch Trends
+      </button>
+    </div>
+
   </aside>
 
-  <!-- MAIN -->
+  <!-- ═══ MAIN ══════════════════════════════════════════════════════════════ -->
   <div>
-    <div style="margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
       <div>
         <div class="eyebrow" style="margin-bottom:4px">Live Competitive Intelligence</div>
         <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink)">Market Trends</h1>
@@ -295,57 +299,99 @@
       </div>
     </div>
 
-    <!-- Price range -->
-    <div id="priceRangeSection" style="display:none">
-      <div class="price-range-bar">
-        <div class="pr-label">Price Range Found in Market</div>
-        <div class="pr-track"><div class="pr-fill" id="prFill" style="width:100%"></div></div>
-        <div class="pr-vals">
-          <div class="pr-val" id="prMin">—<small>Min</small></div>
-          <div class="pr-val" id="prMax">—<small>Max</small></div>
+    <!-- Tab bar -->
+    <div class="market-tabs">
+      <button class="market-tab active" id="tabResearch" onclick="switchTab('research')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Listings Research
+      </button>
+      <button class="market-tab" id="tabTrends" onclick="switchTab('trends')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Google Trends
+      </button>
+    </div>
+
+    <!-- ── RESEARCH PANEL ── -->
+    <div class="market-panel active" id="panelResearch">
+      <div id="priceRangeSection" style="display:none">
+        <div class="price-range-bar">
+          <div class="pr-label">Price Range Found in Market</div>
+          <div class="pr-track"><div class="pr-fill" id="prFill" style="width:100%"></div></div>
+          <div class="pr-vals">
+            <div class="pr-val" id="prMin">—<small>Min</small></div>
+            <div class="pr-val" id="prMax">—<small>Max</small></div>
+          </div>
+        </div>
+      </div>
+      <div id="summarySection" style="display:none">
+        <div class="summary-card">
+          <div class="sc-label">AI Market Analysis</div>
+          <p id="summaryText"></p>
+        </div>
+      </div>
+      <div id="keywordsSection" style="display:none" class="kw-section">
+        <div class="kw-section-title">Trending Keywords</div>
+        <div class="kw-cloud" id="kwCloud"></div>
+      </div>
+      <div id="listingsHeader" style="display:none;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">Similar Listings</div>
+      </div>
+      <div class="listings-grid" id="listingsGrid">
+        <div class="market-empty">
+          <div class="market-empty-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+          </div>
+          <h3>Market data will appear here</h3>
+          <p>Upload a jewellery image and click Research Market.<br>We'll search live listings across major Indian platforms.</p>
         </div>
       </div>
     </div>
 
-    <!-- AI Summary -->
-    <div id="summarySection" style="display:none">
-      <div class="summary-card">
-        <div class="sc-label">AI Market Analysis</div>
-        <p id="summaryText"></p>
-      </div>
-    </div>
-
-    <!-- Keywords -->
-    <div id="keywordsSection" style="display:none" class="kw-section">
-      <div class="kw-section-title">Trending Keywords</div>
-      <div class="kw-cloud" id="kwCloud"></div>
-    </div>
-
-    <!-- Listings header -->
-    <div id="listingsHeader" style="display:none;margin-bottom:14px">
-      <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">Similar Listings</div>
-    </div>
-
-    <!-- Listings grid -->
-    <div class="listings-grid" id="listingsGrid">
-      <div class="market-empty">
-        <div class="market-empty-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-          </svg>
+    <!-- ── TRENDS PANEL ── -->
+    <div class="market-panel" id="panelTrends">
+      <div id="trendsContent">
+        <div class="trends-empty">
+          <div class="trends-empty-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+          </div>
+          <h3>Search interest over time</h3>
+          <p>Enter up to 5 jewellery search terms on the left<br>and click Fetch Trends to compare them.</p>
         </div>
-        <h3>Market data will appear here</h3>
-        <p>Upload a jewellery image and click Research Market.<br>We'll search live listings across major Indian platforms.</p>
       </div>
     </div>
+
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   COLOUR PALETTE — must match Python _TREND_COLORS
+═══════════════════════════════════════════════════════════════════════════ */
+const TREND_COLORS = ['#b8924a','#7a9e8e','#c9786a','#6b8cba','#a37abf'];
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAB SWITCHING
+═══════════════════════════════════════════════════════════════════════════ */
+function switchTab(name) {
+  ['research','trends'].forEach(t => {
+    document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === name);
+    document.getElementById('panel'   + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === name);
+    document.getElementById('sidebar' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = (t === name) ? '' : 'none';
+  });
+  document.getElementById('sellerCountBadge').style.display = 'none';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MARKET RESEARCH (existing logic, unchanged)
+═══════════════════════════════════════════════════════════════════════════ */
 let marketImageFile = null;
-let marketPreviewSrcOnLoad = null;  // tracks URL set via sessionStorage handoff
+let marketPreviewSrcOnLoad = null;
 
 window.addEventListener('DOMContentLoaded', () => {
   const pending    = sessionStorage.getItem('pendingMarketImage');
@@ -361,14 +407,14 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('marketCategory').value = pendingCat;
     sessionStorage.removeItem('pendingMarketCategory');
   }
+  initTrendsKeywords();
 });
 
-const marketFile = document.getElementById('marketFile');
-marketFile.addEventListener('change', e => {
+document.getElementById('marketFile').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
   marketImageFile = file;
-  marketPreviewSrcOnLoad = null;  // fresh upload — no longer a URL handoff
+  marketPreviewSrcOnLoad = null;
   const reader = new FileReader();
   reader.onload = ev => {
     document.getElementById('marketPreviewImg').src = ev.target.result;
@@ -380,7 +426,8 @@ marketFile.addEventListener('change', e => {
 
 function clearMarketUpload(e) {
   e.stopPropagation();
-  marketImageFile = null; marketPreviewSrcOnLoad = null; marketFile.value = '';
+  marketImageFile = null; marketPreviewSrcOnLoad = null;
+  document.getElementById('marketFile').value = '';
   document.getElementById('marketPlaceholder').style.display = 'flex';
   document.getElementById('marketPreview').style.display = 'none';
 }
@@ -390,11 +437,9 @@ async function runMarketResearch() {
   if (!marketImageFile && !previewSrc.startsWith('data:') && !previewSrc.includes('/static') && !marketPreviewSrcOnLoad) {
     showToast('Please upload a jewellery image.', 'error'); return;
   }
-
   const btn = document.getElementById('marketBtn');
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner"></div> Researching…';
-
   hideResults();
   showLoadingState();
 
@@ -405,17 +450,11 @@ async function runMarketResearch() {
   fd.append('keyword', keyword);
 
   if (marketImageFile) {
-    // Fresh file upload — send directly
     fd.append('image', marketImageFile);
   } else {
-    // Image came from cross-module handoff (data-URI or /static/... URL)
-    // Fetch and re-send as a blob so the backend always gets a proper file
     try {
       let fetchUrl = previewSrc;
-      // For relative /static/... paths, make them absolute so fetch works in all contexts
-      if (fetchUrl.startsWith('/static')) {
-        fetchUrl = window.location.origin + fetchUrl;
-      }
+      if (fetchUrl.startsWith('/static')) fetchUrl = window.location.origin + fetchUrl;
       const resp = await fetch(fetchUrl);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const blob = await resp.blob();
@@ -424,7 +463,7 @@ async function runMarketResearch() {
     } catch(e) {
       showToast('Could not load image — please upload it again.', 'error');
       btn.disabled = false;
-      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Research Market';
+      btn.innerHTML = _researchBtnHTML();
       return;
     }
   }
@@ -432,19 +471,18 @@ async function runMarketResearch() {
   try {
     const res  = await fetch('/api/market-research', { method: 'POST', body: fd });
     const data = await res.json();
-    if (!data.success) {
-      showToast(data.error || 'Research failed.', 'error');
-      showEmptyState();
-    } else {
-      renderResults(data);
-    }
+    if (!data.success) { showToast(data.error || 'Research failed.', 'error'); showEmptyState(); }
+    else { renderResults(data); }
   } catch(err) {
-    showToast('Network error: ' + err.message, 'error');
-    showEmptyState();
+    showToast('Network error: ' + err.message, 'error'); showEmptyState();
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Research Market';
+    btn.innerHTML = _researchBtnHTML();
   }
+}
+
+function _researchBtnHTML() {
+  return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Research Market';
 }
 
 function showLoadingState() {
@@ -459,26 +497,20 @@ function showLoadingState() {
       </div>
     </div>`;
 }
-
 function hideResults() {
-  ['priceRangeSection','summarySection','keywordsSection','listingsHeader','sellerCountBadge'].forEach(id => {
-    document.getElementById(id).style.display = 'none';
-  });
+  ['priceRangeSection','summarySection','keywordsSection','listingsHeader','sellerCountBadge'].forEach(id =>
+    document.getElementById(id).style.display = 'none');
 }
-
 function showEmptyState() {
   document.getElementById('listingsGrid').innerHTML = `
     <div class="market-empty">
       <div class="market-empty-icon">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       </div>
       <h3>No results found</h3>
       <p>Try uploading a clearer image or adding a keyword filter.</p>
     </div>`;
 }
-
 function renderResults(data) {
   if (data.price_range) {
     document.getElementById('priceRangeSection').style.display = 'block';
@@ -491,9 +523,7 @@ function renderResults(data) {
   }
   if (data.keywords && data.keywords.length) {
     document.getElementById('keywordsSection').style.display = 'block';
-    document.getElementById('kwCloud').innerHTML = data.keywords.map(k =>
-      `<span class="kw-tag tag-gold">${k}</span>`
-    ).join('');
+    document.getElementById('kwCloud').innerHTML = data.keywords.map(k => `<span class="kw-tag tag-gold">${k}</span>`).join('');
   }
   if (data.seller_count) {
     document.getElementById('sellerCountBadge').style.display = 'block';
@@ -506,20 +536,290 @@ function renderResults(data) {
       <a class="listing-card" href="${l.url || '#'}" target="_blank" rel="noopener">
         <div class="listing-thumb">
           ${l.thumbnail
-            ? `<img src="${l.thumbnail}" alt="${l.title}" onerror="this.parentElement.innerHTML='<svg width=\'32\' height=\'32\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'var(--paper-4)\' stroke-width=\'1.2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'><path d=\'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z\'/><line x1=\'3\' y1=\'6\' x2=\'21\' y2=\'6\'/><path d=\'M16 10a4 4 0 0 1-8 0\'/></svg>'" />`
-            : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--paper-4)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
-              </svg>`}
+            ? `<img src="${l.thumbnail}" alt="${esc(l.title)}" onerror="this.parentElement.innerHTML='<svg width=\'28\' height=\'28\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'var(--paper-4)\' stroke-width=\'1.2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'><path d=\'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z\'/></svg>'" />`
+            : `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--paper-4)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/></svg>`}
         </div>
         <div class="listing-body">
-          <div class="listing-source">${l.source || ''}</div>
-          <div class="listing-title">${l.title || 'Listing'}</div>
-          <div class="listing-price">${l.price || '—'}</div>
+          <div class="listing-source">${esc(l.source || '')}</div>
+          <div class="listing-title">${esc(l.title || 'Listing')}</div>
+          <div class="listing-price">${esc(l.price || '—')}</div>
         </div>
       </a>`).join('');
-  } else {
-    showEmptyState();
+  } else { showEmptyState(); }
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GOOGLE TRENDS
+═══════════════════════════════════════════════════════════════════════════ */
+let trendsKeywords = ['kundan jewellery', 'temple jewellery'];
+let trendsChartInstances = {};   // id → Chart.js instance (for destroy on re-render)
+let selectedTimeframe = 'today 3-m';
+
+/* ── Keyword list UI ─────────────────────────────────────────────────────── */
+function initTrendsKeywords() {
+  renderTrendsKwList();
+  document.querySelectorAll('.tf-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.tf-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      selectedTimeframe = pill.dataset.tf;
+    });
+  });
+}
+
+function renderTrendsKwList() {
+  const container = document.getElementById('trendsKwList');
+  container.innerHTML = trendsKeywords.map((kw, i) => `
+    <div class="trends-kw-row">
+      <span class="trends-kw-dot" style="background:${TREND_COLORS[i % TREND_COLORS.length]}"></span>
+      <input type="text" value="${esc(kw)}" placeholder="e.g. polki rings"
+             oninput="trendsKeywords[${i}] = this.value"
+             onkeydown="if(event.key==='Enter') runTrends()" />
+      ${trendsKeywords.length > 1
+        ? `<button class="trends-kw-remove" onclick="removeTrendsKeyword(${i})" title="Remove">
+             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+           </button>`
+        : '<span style="width:26px"></span>'}
+    </div>`).join('');
+  document.getElementById('trendsAddBtn').disabled = trendsKeywords.length >= 5;
+}
+
+function addTrendsKeyword() {
+  if (trendsKeywords.length >= 5) return;
+  trendsKeywords.push('');
+  renderTrendsKwList();
+  // Focus the new input
+  const inputs = document.querySelectorAll('#trendsKwList input');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+
+function removeTrendsKeyword(i) {
+  trendsKeywords.splice(i, 1);
+  renderTrendsKwList();
+}
+
+/* ── Fetch & render ──────────────────────────────────────────────────────── */
+async function runTrends() {
+  // Collect latest values from inputs
+  document.querySelectorAll('#trendsKwList input').forEach((inp, i) => {
+    trendsKeywords[i] = inp.value.trim();
+  });
+  const keywords = trendsKeywords.filter(k => k.length > 0);
+  if (!keywords.length) { showToast('Enter at least one search term.', 'error'); return; }
+
+  const btn = document.getElementById('trendsBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Fetching…';
+
+  document.getElementById('trendsContent').innerHTML = `
+    <div class="trends-loading">
+      <div class="spinner" style="width:36px;height:36px;border-width:3px;margin:0 auto"></div>
+      <p>Querying Google Trends for India…</p>
+      <div class="loading-steps">
+        <div class="ls-item"><div class="ls-dot"></div><span>Fetching interest-over-time data</span></div>
+        <div class="ls-item"><div class="ls-dot"></div><span>Computing seasonal patterns</span></div>
+        <div class="ls-item"><div class="ls-dot"></div><span>Pulling related queries</span></div>
+      </div>
+    </div>`;
+
+  // Destroy any existing Chart.js instances
+  Object.values(trendsChartInstances).forEach(c => c.destroy());
+  trendsChartInstances = {};
+
+  try {
+    const res  = await fetch('/api/trends', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keywords, timeframe: selectedTimeframe, geo: 'IN' }),
+    });
+    const data = await res.json();
+    if (!data.success) { showTrendsError(data.error); return; }
+    renderTrendsCharts(data);
+  } catch(err) {
+    showTrendsError(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Fetch Trends';
   }
+}
+
+function showTrendsError(msg) {
+  document.getElementById('trendsContent').innerHTML = `
+    <div class="trends-empty">
+      <div class="trends-empty-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <h3>Trends unavailable</h3>
+      <p>${esc(msg)}</p>
+    </div>`;
+}
+
+function renderTrendsCharts(data) {
+  const series = data.series || [];
+  if (!series.length) { showTrendsError('No trend data returned.'); return; }
+
+  const isLive  = data.source === 'google_trends';
+  const srcLabel = isLive
+    ? '<span class="trends-source-badge live">● Live Google Trends data</span>'
+    : '<span class="trends-source-badge model">◆ AI-estimated trend data</span>';
+
+  // ── Build HTML shell ────────────────────────────────────────────────────
+  let html = srcLabel;
+
+  // Comparison overview chart (all keywords on one chart)
+  if (series.length > 1) {
+    html += `
+      <div class="trends-compare-card">
+        <div class="trends-compare-label">Comparison — Search Interest Over Time (India)</div>
+        <div class="trends-compare-canvas"><canvas id="chartCompare"></canvas></div>
+      </div>`;
+  }
+
+  // Per-keyword cards
+  series.forEach((s, i) => {
+    const deltaClass = s.delta > 0 ? 'up' : s.delta < 0 ? 'down' : '';
+    const deltaSign  = s.delta > 0 ? '+' : '';
+    const relatedHTML = s.related && s.related.length
+      ? `<div class="trend-related">${s.related.map(r => `<span class="trend-related-tag">${esc(r)}</span>`).join('')}</div>`
+      : '';
+    html += `
+      <div class="trend-chart-card">
+        <div class="trend-chart-header">
+          <span class="trend-chart-dot" style="background:${s.color}"></span>
+          <span class="trend-chart-title">${esc(s.keyword)}</span>
+        </div>
+        <div class="trend-chart-canvas"><canvas id="chart_${i}"></canvas></div>
+        <div class="trend-stats-row">
+          <div class="trend-stat">
+            <div class="trend-stat-val">${s.peak}</div>
+            <div class="trend-stat-lbl">Peak</div>
+          </div>
+          <div class="trend-stat">
+            <div class="trend-stat-val">${s.avg}</div>
+            <div class="trend-stat-lbl">Avg</div>
+          </div>
+          <div class="trend-stat">
+            <div class="trend-stat-val ${deltaClass}">${deltaSign}${s.delta}</div>
+            <div class="trend-stat-lbl">Trend</div>
+          </div>
+        </div>
+        ${relatedHTML}
+      </div>`;
+  });
+
+  document.getElementById('trendsContent').innerHTML = html;
+
+  // ── Shared Chart.js defaults ────────────────────────────────────────────
+  Chart.defaults.font.family = "'Syne', system-ui, sans-serif";
+  Chart.defaults.font.size   = 11;
+
+  const gridColor  = 'rgba(232,223,211,.5)';
+  const tickColor  = '#9c8f88';
+
+  // Sparse labels: only show ~6 labels on x-axis regardless of data density
+  function sparseLabels(labels) {
+    const step = Math.max(1, Math.floor(labels.length / 6));
+    return labels.map((l, i) => (i % step === 0) ? l : '');
+  }
+
+  // ── Comparison chart ────────────────────────────────────────────────────
+  if (series.length > 1) {
+    const ctx = document.getElementById('chartCompare').getContext('2d');
+    trendsChartInstances['compare'] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: sparseLabels(series[0].labels),
+        datasets: series.map(s => ({
+          label:           s.keyword,
+          data:            s.values,
+          borderColor:     s.color,
+          backgroundColor: s.color + '18',
+          borderWidth:     2,
+          pointRadius:     0,
+          pointHoverRadius:4,
+          tension:         0.4,
+          fill:            true,
+        })),
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: 'rgba(250,247,242,.65)', boxWidth: 10, padding: 14, font: { size: 11 } },
+          },
+          tooltip: {
+            backgroundColor: '#1a1614',
+            titleColor: 'rgba(250,247,242,.5)',
+            bodyColor:  'rgba(250,247,242,.9)',
+            borderColor:'rgba(184,146,74,.2)',
+            borderWidth: 1,
+            padding: 10,
+            callbacks: {
+              title: items => series[0].labels[items[0].dataIndex] || '',
+            },
+          },
+        },
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,.06)' }, ticks: { color: 'rgba(250,247,242,.4)', maxRotation: 0 } },
+          y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,.06)' }, ticks: { color: 'rgba(250,247,242,.4)', stepSize: 25 } },
+        },
+      },
+    });
+  }
+
+  // ── Per-keyword charts ──────────────────────────────────────────────────
+  series.forEach((s, i) => {
+    const ctx = document.getElementById(`chart_${i}`).getContext('2d');
+    trendsChartInstances[i] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: sparseLabels(s.labels),
+        datasets: [{
+          data:            s.values,
+          borderColor:     s.color,
+          backgroundColor: s.color + '20',
+          borderWidth:     2,
+          pointRadius:     0,
+          pointHoverRadius:5,
+          tension:         0.4,
+          fill:            true,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1a1614',
+            titleColor: 'rgba(250,247,242,.5)',
+            bodyColor:  'rgba(250,247,242,.9)',
+            borderColor: s.color + '60',
+            borderWidth: 1,
+            padding: 10,
+            callbacks: {
+              title:  items => s.labels[items[0].dataIndex] || '',
+              label:  item  => `Interest: ${item.raw}/100`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { color: gridColor },
+            ticks: { color: tickColor, maxRotation: 0 },
+          },
+          y: {
+            min: 0, max: 100,
+            grid: { color: gridColor },
+            ticks: { color: tickColor, stepSize: 25 },
+          },
+        },
+      },
+    });
+  });
 }
 </script>
 {% endblock %}

@@ -1,5 +1,10 @@
 import os, json, base64, uuid, re, time, logging, hashlib, secrets, string, random
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
+try:
+    from pytrends.request import TrendReq as _TrendReq
+    _PYTRENDS_OK = True
+except ImportError:
+    _PYTRENDS_OK = False
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -613,6 +618,7 @@ _RATE_LIMITS = {
     '/api/conceptualise':       (20, 3600),
     '/api/generate-image':      (20, 3600),
     '/api/market-research':     (15, 3600),
+    '/api/trends':              (30, 3600),   # 30 trend lookups per hour
     '/api/validate-cad':        (30, 3600),
     '/api/enhance-sketch':      (20, 3600),
 }
@@ -3245,6 +3251,207 @@ RULES:
     except Exception as e:
         log.error(f"[market-research] exception: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── API: Google Trends ─────────────────────────────────────────────────────────
+
+# Chart colours matched to glymr design tokens (cycled for up to 5 queries)
+_TREND_COLORS = ['#b8924a', '#7a9e8e', '#c9786a', '#6b8cba', '#a37abf']
+
+def _build_pytrends() -> '_TrendReq | None':
+    """Return a TrendReq instance pre-loaded with the NID cookie (if set in env),
+    or None if pytrends is unavailable."""
+    if not _PYTRENDS_OK:
+        return None
+    nid = os.getenv('GOOGLE_NID_COOKIE', '')
+    if nid:
+        pt = _TrendReq(hl='en-IN', tz=330, timeout=(10, 30))
+        # Inject the pre-fetched NID cookie to bypass Google's server-IP 403
+        pt.cookies = {'NID': nid}
+    else:
+        pt = _TrendReq(hl='en-IN', tz=330, timeout=(10, 30))
+    return pt
+
+
+def _pytrends_interest(keywords: list[str], timeframe: str, geo: str) -> dict:
+    """Fetch interest-over-time from Google Trends via pytrends.
+    Returns {keyword: {labels, values, peak, avg, trend_delta}} or raises."""
+    pt = _build_pytrends()
+    if pt is None:
+        raise RuntimeError('pytrends not installed')
+
+    # Google Trends only accepts up to 5 keywords at once
+    kw_list = keywords[:5]
+    pt.build_payload(kw_list, cat=0, timeframe=timeframe, geo=geo, gprop='')
+    iot = pt.interest_over_time()
+
+    if iot.empty:
+        raise ValueError('Google Trends returned empty data')
+
+    result = {}
+    for kw in kw_list:
+        if kw not in iot.columns:
+            continue
+        series = iot[kw]
+        vals   = [int(v) for v in series.tolist()]
+        labels = [d.strftime('%b %d') for d in series.index]
+        avg    = round(sum(vals) / len(vals), 1) if vals else 0
+        peak   = max(vals) if vals else 0
+        # Trend delta: last-4-weeks avg minus first-4-weeks avg
+        delta  = round(
+            (sum(vals[-4:]) / 4) - (sum(vals[:4]) / 4), 1
+        ) if len(vals) >= 8 else 0
+        # Related queries (best-effort)
+        related = []
+        try:
+            rq  = pt.related_queries()
+            top = rq.get(kw, {}).get('top')
+            if top is not None and not top.empty:
+                related = top['query'].head(5).tolist()
+        except Exception:
+            pass
+
+        result[kw] = {
+            'labels':  labels,
+            'values':  vals,
+            'peak':    peak,
+            'avg':     avg,
+            'delta':   delta,
+            'related': related,
+        }
+    return result
+
+
+@app.route('/api/trends', methods=['POST'])
+@login_required
+@rate_limited
+def api_trends():
+    """
+    Fetch real Google Trends interest-over-time for up to 5 jewellery search queries.
+
+    Body JSON:
+        keywords  – list[str]  up to 5 search terms
+        timeframe – str        e.g. "today 12-m" (default) | "today 3-m" | "today 5-y"
+        geo       – str        ISO country code, default "IN"
+    """
+    body      = request.json or {}
+    keywords  = [k.strip() for k in (body.get('keywords') or []) if k.strip()][:5]
+    timeframe = body.get('timeframe', 'today 12-m').strip()
+    geo       = body.get('geo', 'IN').strip().upper()
+
+    if not keywords:
+        return jsonify({'success': False, 'error': 'Provide at least one keyword.'}), 400
+
+    # Cache key
+    cache_key = 'glymr:trends:' + hashlib.sha1(
+        json.dumps(sorted(keywords)).encode() + timeframe.encode() + geo.encode()
+    ).hexdigest()
+    cached = cache_get(cache_key)
+    if cached:
+        log.info(f'[trends] cache HIT | {keywords}')
+        return jsonify(cached)
+
+    # ── Attempt 1: pytrends (real Google Trends data) ──────────────────────
+    trends_data = None
+    source      = 'google_trends'
+    error_msg   = None
+
+    try:
+        trends_data = _pytrends_interest(keywords, timeframe, geo)
+        log.info(f'[trends] pytrends OK | keywords={keywords}')
+    except Exception as e:
+        error_msg = str(e)
+        log.warning(f'[trends] pytrends failed ({e}) — falling back to Gemini')
+
+    # ── Attempt 2: Gemini + Google Search grounding ────────────────────────
+    if not trends_data:
+        source = 'gemini_search'
+        try:
+            client, err = get_gemini_client()
+            if err:
+                return jsonify({'success': False, 'error': f'Trends unavailable: {error_msg or err}'}), 500
+
+            # Build 52-week label list for today (Gemini will fill in values)
+            from datetime import date, timedelta
+            today  = date.today()
+            weeks  = [(today - timedelta(weeks=51-i)).strftime('%b %d') for i in range(52)]
+
+            kw_json = json.dumps(keywords)
+            prompt  = f"""You are a Google Trends data analyst for Indian jewellery searches.
+For each keyword below, estimate the weekly Google Search interest in India over the last 12 months
+(52 weeks, ending today {today.isoformat()}).
+Use a 0-100 scale where 100 = peak popularity.
+Base your estimates on real seasonal patterns, festival cycles (Diwali, Akshaya Tritiya, Navratri,
+wedding season Oct-Feb), and known search trends for Indian jewellery.
+
+Keywords: {kw_json}
+Week labels (oldest → newest): {json.dumps(weeks)}
+
+Respond ONLY with this exact JSON — no markdown, no extra keys:
+{{"results": {{
+  "<keyword>": {{
+    "values": [<52 integers 0-100>],
+    "related": ["top related search 1", "top related search 2", "top related search 3"]
+  }}
+}}}}"""
+
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[prompt],
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    temperature=0.2,
+                ),
+            )
+            raw   = response.text.strip().replace('```json','').replace('```','').strip()
+            match = re.search(r'\{[\s\S]*\}', raw)
+            if not match:
+                raise ValueError('No JSON in Gemini response')
+
+            parsed  = json.loads(match.group(0))
+            gem_res = parsed.get('results', {})
+
+            trends_data = {}
+            for kw in keywords:
+                row = gem_res.get(kw) or gem_res.get(kw.lower(), {})
+                vals = row.get('values', [50] * 52)
+                # Pad / trim to exactly 52
+                vals = (vals + [50] * 52)[:52]
+                avg   = round(sum(vals) / len(vals), 1)
+                peak  = max(vals)
+                delta = round((sum(vals[-4:]) / 4) - (sum(vals[:4]) / 4), 1) if len(vals) >= 8 else 0
+                trends_data[kw] = {
+                    'labels':  weeks,
+                    'values':  vals,
+                    'peak':    peak,
+                    'avg':     avg,
+                    'delta':   delta,
+                    'related': row.get('related', []),
+                }
+            log.info(f'[trends] Gemini fallback OK | keywords={keywords}')
+
+        except Exception as e2:
+            log.error(f'[trends] Gemini fallback failed: {e2}', exc_info=True)
+            return jsonify({'success': False, 'error': f'Trends unavailable. pytrends: {error_msg}. Gemini: {e2}'}), 500
+
+    # ── Attach chart colours ───────────────────────────────────────────────
+    result_list = []
+    for i, kw in enumerate(keywords):
+        if kw not in trends_data:
+            continue
+        entry = {'keyword': kw, 'color': _TREND_COLORS[i % len(_TREND_COLORS)], **trends_data[kw]}
+        result_list.append(entry)
+
+    result = {
+        'success':   True,
+        'source':    source,
+        'timeframe': timeframe,
+        'geo':       geo,
+        'series':    result_list,
+    }
+    cache_set(cache_key, result, ttl=3600)
+    return jsonify(result)
+
 
 # ── API: Gallery (DB-backed, user-scoped) ─────────────────────────────────────
 
