@@ -32,6 +32,14 @@
   .upload-zone p  { font-size: 13px; color: var(--ink-3); margin: 0; }
   .upload-zone small { font-size: 11px; color: var(--ink-4); font-family: var(--font-mono); }
 
+  .upload-zone-icon {
+    width: 40px; height: 40px; border-radius: var(--radius);
+    background: var(--paper-2);
+    display: flex; align-items: center; justify-content: center;
+    transition: background var(--t) var(--ease);
+  }
+  .upload-zone:hover .upload-zone-icon { background: var(--gold-bg-2); }
+
   .upload-preview { border-radius: var(--radius); overflow: hidden; background: var(--paper-2); position: relative; }
   .upload-preview img { width: 100%; height: 180px; object-fit: cover; display: block; }
 
@@ -208,9 +216,11 @@
       <div class="upload-zone" id="modelUploadZone">
         <input type="file" id="modelFile" accept="image/*" multiple />
         <div id="modelPlaceholder">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
-          </svg>
+          <div class="upload-zone-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+            </svg>
+          </div>
           <p>Drop jewellery photos</p>
           <small>Multiple angles supported</small>
         </div>

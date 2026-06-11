@@ -888,13 +888,17 @@ async function runConceptualise() {
 
     const res  = await fetch('/api/conceptualise', { method: 'POST', body: fd });
     const data = await res.json();
-    if (data.error) { showToast(data.error, 'error'); showEmpty(); return; }
+    if (!res.ok && data.error) { showToast(data.error, 'error'); showEmpty(); return; }
     concepts = data.concepts || [];
+    if (!concepts.length) { showToast(data.error || 'No concepts were generated.', 'error'); showEmpty(); return; }
     renderConcepts(concepts);
     document.getElementById('clearConceptsBtn').style.display = 'inline-flex';
+    if (data.errors && data.errors.length) {
+      showToast(`${concepts.length} concept(s) generated. ${data.errors.length} variation(s) failed (API overload) — try again for the rest.`, 'error');
+    }
     saveState();
   } catch(err) {
-    showToast('Network error: ' + err.message, 'error'); showEmpty();
+    showToast('Request timed out or network error — the server may still be generating. Check your gallery in a moment.', 'error'); showEmpty();
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Conceptualise';
