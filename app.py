@@ -444,12 +444,12 @@ def get_gemini_client():
     api_key = os.getenv('GEMINI_API_KEY')
     if not api_key:
         return None, "GEMINI_API_KEY not set in .env file"
-    # Set an explicit 90-second timeout so slow image-generation calls raise a
-    # clean TimeoutError rather than letting Gunicorn's worker-kill (SystemExit)
-    # tear through the response mid-stream.
+    # Set an explicit 180-second timeout so slow calls (e.g. market-research
+    # with Google Search grounding) raise a clean TimeoutError rather than
+    # letting Gunicorn's worker-kill (SystemExit) tear through mid-stream.
     client = genai.Client(
         api_key=api_key,
-        http_options=types.HttpOptions(timeout=90_000),  # milliseconds
+        http_options=types.HttpOptions(timeout=180_000),  # milliseconds
     )
     return client, None
 
@@ -3211,6 +3211,7 @@ RULES:
                 tools=[types.Tool(google_search=types.GoogleSearch())],
                 temperature=0.1,
             ),
+            http_options=types.HttpOptions(timeout=180_000),  # 180 s — Google Search grounding is slow
         )
 
         raw = response.text.strip().replace('```json', '').replace('```', '').strip()
