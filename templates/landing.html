@@ -597,31 +597,16 @@
     max-width: 560px; margin-bottom: 80px;
   }
 
+  /* Flow wrapper — positions the arrow connectors between steps */
   .how-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 0;
     position: relative;
+    align-items: start;
   }
 
-  /* Connector line — sits exactly through the circle centers */
-  /* Circle h = 56px, center = 28px from top of .how-step */
-  .how-grid::before {
-    content: '';
-    position: absolute;
-    top: 28px;
-    left: calc(12.5% + 28px);
-    right: calc(12.5% + 28px);
-    height: 1px;
-    transform: translateY(-50%);
-    background: linear-gradient(90deg,
-      transparent 0%, var(--gold-lt) 10%,
-      var(--gold-lt) 90%, transparent 100%);
-    opacity: .3;
-    pointer-events: none;
-    z-index: -1;
-  }
-
+  /* Arrow connectors rendered as pseudo-elements on each step except the last */
   .how-step {
     padding: 0 28px;
     text-align: center;
@@ -629,29 +614,76 @@
     z-index: 1;
   }
 
-  .how-step-icon {
-    width: 56px; height: 56px;
-    border-radius: 50%;
-    background: var(--gold-bg);
-    border: 1.5px solid rgba(184,146,74,.25);
+  /* Arrowhead connector sitting between step circles */
+  .how-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    /* Circle center: 64px radius from top (circle is 64px tall, margin-bottom 24px) */
+    top: 32px;
+    right: -4px;
+    transform: translateY(-50%);
+    width: calc(100% - 120px); /* gap between circle edges */
+    height: 0;
+    left: calc(50% + 44px); /* start after the circle's right edge */
+    right: 0;
+    border-top: 1.5px dashed rgba(139,90,43,.35);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Arrowhead tip — a small right-pointing triangle at the end of each connector */
+  .how-step:not(:last-child) .how-step-arrow {
+    position: absolute;
+    top: 32px;
+    /* sits right at the midpoint between this step's right edge and next step's left edge */
+    right: -14px;
+    transform: translateY(-50%);
+    z-index: 2;
     display: flex; align-items: center; justify-content: center;
-    margin: 0 auto 24px;
-    position: relative;
-    transition: background var(--t), border-color var(--t), box-shadow var(--t), transform var(--t);
   }
 
-  .how-step:hover .how-step-icon {
-    background: var(--gold-bg-2);
-    border-color: var(--gold);
-    box-shadow: 0 0 0 6px var(--gold-bg);
-    transform: translateY(-3px);
+  .how-step:not(:last-child) .how-step-arrow svg {
+    opacity: .55;
   }
 
-  .how-step-num {
+  /* The numbered circle — bold brown (--ink tinted toward amber) with white number */
+  .how-step-num-circle {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: #5C3D1E;   /* rich dark brown */
+    box-shadow:
+      0 0 0 5px rgba(92,61,30,.14),
+      0 4px 20px rgba(92,61,30,.28);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 28px;
+    position: relative; z-index: 2;
+    transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
+    flex-shrink: 0;
+  }
+
+  .how-step:hover .how-step-num-circle {
+    transform: translateY(-4px);
+    box-shadow:
+      0 0 0 7px rgba(92,61,30,.16),
+      0 10px 32px rgba(92,61,30,.38);
+  }
+
+  .how-step-num-circle span {
+    font-family: var(--font-serif);
+    font-size: 22px; font-weight: 600;
+    color: #fff;
+    line-height: 1;
+    letter-spacing: -.01em;
+    /* subtle gold shimmer to tie into the brand palette */
+    text-shadow: 0 1px 4px rgba(184,146,74,.4);
+  }
+
+  .how-step-label {
     font-family: var(--font-mono);
     font-size: 9px; color: var(--gold);
-    letter-spacing: .12em; text-transform: uppercase;
+    letter-spacing: .14em; text-transform: uppercase;
     margin-bottom: 10px;
+    opacity: .75;
   }
 
   .how-step-title {
@@ -662,6 +694,53 @@
 
   .how-step-desc {
     font-size: 12px; color: var(--ink-3); line-height: 1.7;
+  }
+
+  /* ── Responsive: stack vertically on narrow screens ── */
+  @media (max-width: 860px) {
+    .how-grid {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+
+    .how-step {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      column-gap: 24px;
+      text-align: left;
+      padding: 0 0 48px;
+      align-items: start;
+    }
+
+    /* Circle stays in its column, text flows right */
+    .how-step-num-circle {
+      margin: 0;
+      grid-row: 1 / span 4;
+    }
+
+    /* Vertical dashed line instead of horizontal */
+    .how-step:not(:last-child)::after {
+      top: 64px;
+      left: 31px;           /* horizontally centred under the 64px circle */
+      right: auto;
+      width: 1.5px;
+      height: calc(100% - 64px);
+      border-top: none;
+      border-left: 1.5px dashed rgba(139,90,43,.35);
+    }
+
+    .how-step:not(:last-child) .how-step-arrow {
+      top: auto;
+      bottom: 12px;
+      right: auto;
+      left: 22px;
+    }
+
+    .how-step-label,
+    .how-step-title,
+    .how-step-desc {
+      grid-column: 2;
+    }
   }
 
   /* ═══ SHOWCASE / IMAGE ROW ════════════════════════════════════════════════ */
@@ -751,6 +830,106 @@
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     font-weight: 500;
+  }
+
+  /* ═══ MASONRY SHOWCASE ════════════════════════════════════════════════════ */
+
+  .masonry-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: 260px 220px;
+    gap: 14px;
+  }
+
+  /* Row 1: 3 equal cards spanning 2 cols each
+     Row 2: 1 wide card (3 cols) + 3 narrow cards (1 col each) */
+  .masonry-card:nth-child(1) { grid-column: 1 / span 2; grid-row: 1; }
+  .masonry-card:nth-child(2) { grid-column: 3 / span 2; grid-row: 1; }
+  .masonry-card:nth-child(3) { grid-column: 5 / span 2; grid-row: 1; }
+  .masonry-card:nth-child(4) { grid-column: 1; grid-row: 2; }
+  .masonry-card:nth-child(5) { grid-column: 2; grid-row: 2; }
+  .masonry-card:nth-child(6) { grid-column: 3; grid-row: 2; }
+  .masonry-card:nth-child(7) { grid-column: 4 / span 3; grid-row: 2; }
+
+  @media (max-width: 1100px) {
+    .masonry-grid {
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: 240px 200px 200px;
+    }
+    .masonry-card:nth-child(1) { grid-column: 1; grid-row: 1; }
+    .masonry-card:nth-child(2) { grid-column: 2; grid-row: 1; }
+    .masonry-card:nth-child(3) { grid-column: 3; grid-row: 1; }
+    .masonry-card:nth-child(4) { grid-column: 1 / span 2; grid-row: 2; }
+    .masonry-card:nth-child(5) { grid-column: 3; grid-row: 2; }
+    .masonry-card:nth-child(6) { grid-column: 1; grid-row: 3; }
+    .masonry-card:nth-child(7) { grid-column: 2 / span 2; grid-row: 3; }
+  }
+
+  @media (max-width: 720px) {
+    .masonry-grid {
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(4, 200px);
+    }
+    .masonry-card:nth-child(1) { grid-column: 1; grid-row: 1; }
+    .masonry-card:nth-child(2) { grid-column: 2; grid-row: 1; }
+    .masonry-card:nth-child(3) { grid-column: 1 / span 2; grid-row: 2; }
+    .masonry-card:nth-child(4) { grid-column: 1; grid-row: 3; }
+    .masonry-card:nth-child(5) { grid-column: 2; grid-row: 3; }
+    .masonry-card:nth-child(6) { grid-column: 1 / span 2; grid-row: 4; }
+    .masonry-card:nth-child(7) { display: none; }
+  }
+
+  @media (max-width: 420px) {
+    .masonry-grid {
+      grid-template-columns: 1fr;
+      grid-template-rows: repeat(5, 200px);
+    }
+    .masonry-card:nth-child(1) { grid-column: 1; grid-row: 1; }
+    .masonry-card:nth-child(2) { grid-column: 1; grid-row: 2; }
+    .masonry-card:nth-child(3) { grid-column: 1; grid-row: 3; }
+    .masonry-card:nth-child(4) { grid-column: 1; grid-row: 4; }
+    .masonry-card:nth-child(5) { grid-column: 1; grid-row: 5; }
+    .masonry-card:nth-child(6) { display: none; }
+    .masonry-card:nth-child(7) { display: none; }
+  }
+
+  .masonry-card {
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(184,146,74,.14);
+    background: rgba(250,247,242,.03);
+    display: block;
+    transition: transform .3s var(--ease), border-color .3s;
+    cursor: zoom-in;
+  }
+
+  .masonry-card:hover {
+    transform: scale(1.025);
+    border-color: rgba(184,146,74,.4);
+    box-shadow: 0 0 28px rgba(184,146,74,.14);
+  }
+
+  .masonry-card img.mc-photo {
+    width: 100%; height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+
+  .mc-badge { display: none; }
+
+  /* Bottom tag pill kept for studio label */
+  .mc-tag {
+    position: absolute; bottom: 10px; left: 10px;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: .08em;
+    padding: 4px 9px; border-radius: 6px;
+    background: rgba(10,8,6,.72);
+    color: var(--gold-lt);
+    border: 1px solid rgba(184,146,74,.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    font-weight: 500;
+    z-index: 2;
   }
 
   /* ═══ AI MODELS STRIP ═════════════════════════════════════════════════════ */
@@ -1268,7 +1447,6 @@
     .features-header { grid-template-columns: 1fr; gap: 24px; }
     .features-grid { grid-template-columns: 1fr 1fr; }
     .how-grid { grid-template-columns: 1fr 1fr; gap: 48px; }
-    .how-grid::before { display: none; }
     .testimonials-grid { grid-template-columns: 1fr 1fr; }
     .faq-layout { grid-template-columns: 1fr; gap: 48px; }
     .faq-sticky { position: static; }
@@ -1489,40 +1667,141 @@
     <p class="section-sub">Every image below was generated entirely inside the glymr studio, from text descriptions, uploaded sketches, and model try-on sessions.</p>
   </div>
 
-  <div class="showcase-grid reveal">
-    <div class="showcase-img-placeholder sip-tall">
-      <img class="img-fill" src="{{ url_for('static', filename='images/gallery/bridal-necklace.webp') }}" alt="Bridal necklace" loading="lazy" decoding="async" fetchpriority="low">
-      <span class="sip-tag">Sketch Studio</span>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:16px">
-      <div class="showcase-img-placeholder sip-sq" style="flex:1;">
-        <img class="img-fill" src="{{ url_for('static', filename='images/gallery/solitaire-ring.webp') }}" alt="Solitaire ring" loading="lazy" decoding="async" fetchpriority="low">
-        <span class="sip-tag">Model Try-On</span>
-      </div>
-      <div class="showcase-img-placeholder sip-sq" style="flex:1;">
-        <img class="img-fill" src="{{ url_for('static', filename='images/gallery/cad-mesh.webp') }}" alt="CAD mesh" loading="lazy" decoding="async" fetchpriority="low">
-        <span class="sip-tag">CAD Export</span>
-      </div>
-    </div>
-    <div class="showcase-img-placeholder sip-tall">
-      <img class="img-fill" src="{{ url_for('static', filename='images/gallery/earring-model.webp') }}" alt="Earring model" loading="lazy" decoding="async" fetchpriority="low">
-      <span class="sip-tag">Model Try-On</span>
-    </div>
-  </div>
+  <div class="masonry-grid reveal">
 
-  <div class="showcase-grid-2 reveal" style="margin-top:0">
-    <div class="showcase-img-placeholder sip-sq">
-      <img class="img-fill" src="{{ url_for('static', filename='images/gallery/kundan-bangles.webp') }}" alt="Kundan bangles" loading="lazy" decoding="async" fetchpriority="low">
-      <span class="sip-tag">Sketch Studio</span>
+    <!-- Card 1 — Bridal Necklace -->
+    <div class="masonry-card"
+         data-modal-src="{{ url_for('static', filename='images/gallery/bridal-necklace.webp') }}"
+         data-modal-label="Bridal Necklace · Sketch Studio">
+      <img class="mc-photo"
+           src="{{ url_for('static', filename='images/gallery/bridal-necklace.webp') }}"
+           alt="Bridal necklace" loading="lazy" decoding="async">
+      <div class="mc-badge">
+        <div class="mc-user">
+          <img class="mc-avatar"
+               src="https://i.pravatar.cc/40?img=47"
+               alt="Priya S." loading="lazy">
+          <span class="mc-name">Priya Sharma</span>
+        </div>
+        <span class="mc-caption">Heritage Bridal Collection</span>
+      </div>
+      <span class="mc-tag">Sketch Studio</span>
     </div>
-    <div class="showcase-img-placeholder sip-sq">
-      <img class="img-fill" src="{{ url_for('static', filename='images/gallery/pendant.webp') }}" alt="Pendant" loading="lazy" decoding="async" fetchpriority="low">
-      <span class="sip-tag">Sketch Studio</span>
+
+    <!-- Card 2 — Solitaire Ring -->
+    <div class="masonry-card"
+         data-modal-src="{{ url_for('static', filename='images/gallery/solitaire-ring.webp') }}"
+         data-modal-label="Solitaire Ring · Model Try-On">
+      <img class="mc-photo"
+           src="{{ url_for('static', filename='images/gallery/solitaire-ring.webp') }}"
+           alt="Solitaire ring" loading="lazy" decoding="async">
+      <div class="mc-badge">
+        <div class="mc-user">
+          <img class="mc-avatar"
+               src="https://i.pravatar.cc/40?img=12"
+               alt="Arjun M." loading="lazy">
+          <span class="mc-name">Arjun Mehra</span>
+        </div>
+        <span class="mc-caption">Proposal Series — Vol. I</span>
+      </div>
+      <span class="mc-tag">Model Try-On</span>
     </div>
-    <div class="showcase-img-placeholder" style="aspect-ratio:16/7;">
-      <img class="img-fill" src="{{ url_for('static', filename='images/gallery/market-trends.webp') }}" alt="Market trends" loading="lazy" decoding="async" fetchpriority="low">
-      <span class="sip-tag">Market Analysis</span>
+
+    <!-- Card 3 — Earring Model -->
+    <div class="masonry-card"
+         data-modal-src="{{ url_for('static', filename='images/gallery/earring-model.webp') }}"
+         data-modal-label="Earring Try-On · Model Try-On">
+      <img class="mc-photo"
+           src="{{ url_for('static', filename='images/gallery/earring-model.webp') }}"
+           alt="Earring model" loading="lazy" decoding="async">
+      <div class="mc-badge">
+        <div class="mc-user">
+          <img class="mc-avatar"
+               src="https://i.pravatar.cc/40?img=25"
+               alt="Noor K." loading="lazy">
+          <span class="mc-name">Noor Khan</span>
+        </div>
+        <span class="mc-caption">Summer Drops Campaign</span>
+      </div>
+      <span class="mc-tag">Model Try-On</span>
     </div>
+
+    <!-- Card 4 — Kundan Bangles -->
+    <div class="masonry-card"
+         data-modal-src="{{ url_for('static', filename='images/gallery/kundan-bangles.webp') }}"
+         data-modal-label="Kundan Bangles · Sketch Studio">
+      <img class="mc-photo"
+           src="{{ url_for('static', filename='images/gallery/kundan-bangles.webp') }}"
+           alt="Kundan bangles" loading="lazy" decoding="async">
+      <div class="mc-badge">
+        <div class="mc-user">
+          <img class="mc-avatar"
+               src="https://i.pravatar.cc/40?img=9"
+               alt="Zara A." loading="lazy">
+          <span class="mc-name">Zara Ali</span>
+        </div>
+        <span class="mc-caption">Festive Kundan Edit</span>
+      </div>
+      <span class="mc-tag">Sketch Studio</span>
+    </div>
+
+    <!-- Card 5 — CAD Mesh -->
+    <div class="masonry-card"
+         data-modal-src="{{ url_for('static', filename='images/gallery/cad-mesh.webp') }}"
+         data-modal-label="CAD Mesh · 3D Export">
+      <img class="mc-photo"
+           src="{{ url_for('static', filename='images/gallery/cad-mesh.webp') }}"
+           alt="CAD mesh export" loading="lazy" decoding="async">
+      <div class="mc-badge">
+        <div class="mc-user">
+          <img class="mc-avatar"
+               src="https://i.pravatar.cc/40?img=33"
+               alt="Rohan V." loading="lazy">
+          <span class="mc-name">Rohan Verma</span>
+        </div>
+        <span class="mc-caption">Production-ready STL</span>
+      </div>
+      <span class="mc-tag">CAD Export</span>
+    </div>
+
+    <!-- Card 6 — Pendant -->
+    <div class="masonry-card"
+         data-modal-src="{{ url_for('static', filename='images/gallery/pendant.webp') }}"
+         data-modal-label="Pendant · Sketch Studio">
+      <img class="mc-photo"
+           src="{{ url_for('static', filename='images/gallery/pendant.webp') }}"
+           alt="Pendant" loading="lazy" decoding="async">
+      <div class="mc-badge">
+        <div class="mc-user">
+          <img class="mc-avatar"
+               src="https://i.pravatar.cc/40?img=51"
+               alt="Meera J." loading="lazy">
+          <span class="mc-name">Meera Joshi</span>
+        </div>
+        <span class="mc-caption">Minimal Gold Pendants</span>
+      </div>
+      <span class="mc-tag">Sketch Studio</span>
+    </div>
+
+    <!-- Card 7 — Market Trends -->
+    <div class="masonry-card"
+         data-modal-src="{{ url_for('static', filename='images/gallery/market-trends.webp') }}"
+         data-modal-label="Market Trends · Market Analysis">
+      <img class="mc-photo"
+           src="{{ url_for('static', filename='images/gallery/market-trends.webp') }}"
+           alt="Market trends" loading="lazy" decoding="async">
+      <div class="mc-badge">
+        <div class="mc-user">
+          <img class="mc-avatar"
+               src="https://i.pravatar.cc/40?img=62"
+               alt="Dev R." loading="lazy">
+          <span class="mc-name">Dev Rathore</span>
+        </div>
+        <span class="mc-caption">Q3 Trend Intelligence</span>
+      </div>
+      <span class="mc-tag">Market Analysis</span>
+    </div>
+
   </div>
 
   <div style="text-align:center;margin-top:48px;position:relative">
@@ -1717,50 +1996,68 @@
   </div>
 
   <div class="how-grid">
+
+    <!-- Step 1 -->
     <div class="how-step reveal">
-      <div class="how-step-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      <div class="how-step-num-circle">
+        <span>1</span>
+      </div>
+      <!-- Arrow connector to step 2 -->
+      <div class="how-step-arrow">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5A2B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+          <polyline points="13 6 19 12 13 18"/>
         </svg>
       </div>
-      <div class="how-step-num">Step 01</div>
+      <div class="how-step-label">Step 01</div>
       <div class="how-step-title">Sketch & Conceptualise</div>
       <p class="how-step-desc">Upload a rough sketch or describe your idea in plain language. AI generates multiple polished concept images you can immediately show a client or refine further.</p>
     </div>
 
+    <!-- Step 2 -->
     <div class="how-step reveal reveal-delay-1">
-      <div class="how-step-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      <div class="how-step-num-circle">
+        <span>2</span>
+      </div>
+      <!-- Arrow connector to step 3 -->
+      <div class="how-step-arrow">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5A2B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+          <polyline points="13 6 19 12 13 18"/>
         </svg>
       </div>
-      <div class="how-step-num">Step 02</div>
+      <div class="how-step-label">Step 02</div>
       <div class="how-step-title">Visualise on a Model</div>
       <p class="how-step-desc">Take your approved design and place it on a model for catalogue-quality photography. Choose your pose and lighting style and get a retail-ready image in seconds.</p>
     </div>
 
+    <!-- Step 3 -->
     <div class="how-step reveal reveal-delay-2">
-      <div class="how-step-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+      <div class="how-step-num-circle">
+        <span>3</span>
+      </div>
+      <!-- Arrow connector to step 4 -->
+      <div class="how-step-arrow">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5A2B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+          <polyline points="13 6 19 12 13 18"/>
         </svg>
       </div>
-      <div class="how-step-num">Step 03</div>
+      <div class="how-step-label">Step 03</div>
       <div class="how-step-title">Generate 3D CAD</div>
       <p class="how-step-desc">Turn your concept into a production-ready 3D file for casting, wax printing, or CNC milling. Download in the format your manufacturer needs.</p>
     </div>
 
+    <!-- Step 4 — no arrow after last step -->
     <div class="how-step reveal reveal-delay-3">
-      <div class="how-step-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-        </svg>
+      <div class="how-step-num-circle">
+        <span>4</span>
       </div>
-      <div class="how-step-num">Step 04</div>
+      <div class="how-step-label">Step 04</div>
       <div class="how-step-title">Analyse the Market</div>
-      <p class="how-step-desc">Before you commit to production, research live pricing, competitors, and trends. Know your price point and positioning with real data, not guesswork..</p>
+      <p class="how-step-desc">Before you commit to production, research live pricing, competitors, and trends. Know your price point and positioning with real data, not guesswork.</p>
     </div>
+
   </div>
 </section>
 
@@ -2041,7 +2338,7 @@
   }
 
   // Wire up all frames with data-modal-src
-  document.querySelectorAll('.jrny-frame[data-modal-src]').forEach(frame => {
+  document.querySelectorAll('.jrny-frame[data-modal-src], .masonry-card[data-modal-src]').forEach(frame => {
     frame.addEventListener('click', () => {
       openModal(frame.dataset.modalSrc, frame.dataset.modalLabel);
     });

@@ -3164,28 +3164,50 @@ def _fetch_og_thumbnail(url):
 @login_required
 @rate_limited
 def api_market_research():
+    import time as _time
+    _t0 = _time.monotonic()
+
+    def _elapsed():
+        return f'{(_time.monotonic() - _t0)*1000:.0f}ms'
+
     category = request.form.get('category', 'Jewellery')
     keyword  = request.form.get('keyword', '').strip() or None
     image    = request.files.get('image')
 
+    log.info(f'[market-research] START | category={category!r} keyword={keyword!r} '
+             f'image_filename={getattr(image, "filename", None)!r} '
+             f'image_content_type={getattr(image, "content_type", None)!r}')
+
     if not image:
+        log.warning(f'[market-research] ABORT — no image in request | {_elapsed()}')
         return jsonify({'success': False, 'error': 'No image provided'}), 400
 
+    log.info(f'[market-research] getting Gemini client | {_elapsed()}')
     client, err = get_gemini_client()
     if err:
+        log.error(f'[market-research] Gemini client error: {err} | {_elapsed()}')
         return jsonify({'success': False, 'error': err}), 500
+    log.info(f'[market-research] Gemini client OK | {_elapsed()}')
 
     try:
         img_bytes = image.read()
+        img_size  = len(img_bytes)
+        log.info(f'[market-research] image read | size={img_size} bytes ({img_size/1024:.1f} KB) | {_elapsed()}')
+
+        if img_size == 0:
+            log.error(f'[market-research] ABORT — image is 0 bytes | {_elapsed()}')
+            return jsonify({'success': False, 'error': 'Uploaded image is empty'}), 400
 
         # Redis cache key: SHA1 of image bytes + category + keyword
         cache_key = 'glymr:market:' + hashlib.sha1(
             img_bytes + category.encode() + (keyword or '').encode()
         ).hexdigest()
+        log.info(f'[market-research] checking cache | key={cache_key[:20]}… | {_elapsed()}')
         cached = cache_get(cache_key)
         if cached:
-            log.info(f'[market-research] cache HIT | key={cache_key[:20]}…')
+            log.info(f'[market-research] cache HIT | key={cache_key[:20]}… | {_elapsed()}')
             return jsonify(cached)
+        log.info(f'[market-research] cache MISS — proceeding to Gemini | {_elapsed()}')
 
         filter_note = f'Focus results specifically on listings matching: "{keyword}".' if keyword else ''
 
@@ -3204,39 +3226,82 @@ RULES:
 4. thumbnail: direct CDN image URL ending in .jpg/.png/.webp, or null
 5. summary: total sellers found, price spread, dominant platforms, competitive insight"""
 
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg'), prompt],
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.1,
-            ),
-        )
+        log.info(f'[market-research] sending request to Gemini (gemini-2.5-flash + google_search) | {_elapsed()}')
+        _t_gemini = _time.monotonic()
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg'), prompt],
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    temperature=0.1,
+                ),
+            )
+        except Exception as gemini_err:
+            gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
+            log.error(f'[market-research] Gemini call FAILED after {gemini_elapsed} | '
+                      f'error_type={type(gemini_err).__name__} | error={gemini_err} | total={_elapsed()}',
+                      exc_info=True)
+            raise
 
-        raw = response.text.strip().replace('```json', '').replace('```', '').strip()
+        gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
+        raw_text = response.text or ''
+        log.info(f'[market-research] Gemini responded in {gemini_elapsed} | '
+                 f'raw_len={len(raw_text)} chars | total={_elapsed()}')
+        log.debug(f'[market-research] Gemini raw (first 500 chars): {raw_text[:500]!r}')
+
+        raw = raw_text.strip().replace('```json', '').replace('```', '').strip()
         match = re.search(r'\{[\s\S]*\}', raw)
         if not match:
+            log.error(f'[market-research] JSON parse FAILED — no JSON object in response | '
+                      f'raw (first 300): {raw[:300]!r} | {_elapsed()}')
             return jsonify({'success': False, 'error': 'No JSON returned. Raw: ' + raw[:200]}), 500
 
-        parsed = json.loads(match.group(0))
-        listings = parsed.get('listings', [])
+        try:
+            parsed = json.loads(match.group(0))
+        except json.JSONDecodeError as je:
+            log.error(f'[market-research] JSON decode error: {je} | '
+                      f'matched text (first 300): {match.group(0)[:300]!r} | {_elapsed()}')
+            return jsonify({'success': False, 'error': f'Malformed JSON from model: {je}'}), 500
 
+        listings = parsed.get('listings', [])
+        log.info(f'[market-research] parsed OK | listings={len(listings)} '
+                 f'keywords={len(parsed.get("keywords", []))} | {_elapsed()}')
+
+        if not listings:
+            log.warning(f'[market-research] model returned 0 listings | summary={parsed.get("summary","")[:120]!r} | {_elapsed()}')
+
+        _t_enrich = _time.monotonic()
         enriched = [None] * len(listings)
         with ThreadPoolExecutor(max_workers=10) as pool:
             def enrich(item):
                 p = _normalize_price_to_inr(item.get('price'))
                 thumb = item.get('thumbnail') or (item.get('url') and _fetch_og_thumbnail(item['url']))
-                return {'title': item.get('title',''), 'url': item.get('url',''), 'source': item.get('source',''), 'price': p, 'thumbnail': thumb}
+                return {'title': item.get('title',''), 'url': item.get('url',''),
+                        'source': item.get('source',''), 'price': p, 'thumbnail': thumb}
             futures = {pool.submit(enrich, item): i for i, item in enumerate(listings)}
             try:
                 for future in as_completed(futures, timeout=8):
                     enriched[futures[future]] = future.result(timeout=3)
-            except Exception:
+            except Exception as enrich_err:
+                log.warning(f'[market-research] enrichment timeout/error: {enrich_err} — filling nulls | {_elapsed()}')
                 for future, idx in futures.items():
                     if enriched[idx] is None:
-                        enriched[idx] = {'title': listings[idx].get('title',''), 'url': listings[idx].get('url',''), 'source': listings[idx].get('source',''), 'price': _normalize_price_to_inr(listings[idx].get('price')), 'thumbnail': None}
+                        enriched[idx] = {
+                            'title': listings[idx].get('title',''),
+                            'url': listings[idx].get('url',''),
+                            'source': listings[idx].get('source',''),
+                            'price': _normalize_price_to_inr(listings[idx].get('price')),
+                            'thumbnail': None,
+                        }
 
         enriched = [e for e in enriched if e]
+        enrich_elapsed = f'{(_time.monotonic() - _t_enrich)*1000:.0f}ms'
+        thumb_ok  = sum(1 for e in enriched if e.get('thumbnail'))
+        thumb_nil = len(enriched) - thumb_ok
+        log.info(f'[market-research] enrichment done in {enrich_elapsed} | '
+                 f'enriched={len(enriched)} thumb_ok={thumb_ok} thumb_nil={thumb_nil} | total={_elapsed()}')
+
         result = {
             'success': True,
             'keywords': parsed.get('keywords', []),
@@ -3246,10 +3311,11 @@ RULES:
             'price_range': parsed.get('price_range'),
         }
         cache_set(cache_key, result, ttl=3600)  # cache for 1 hour
+        log.info(f'[market-research] DONE — returning {len(enriched)} listings | total={_elapsed()}')
         return jsonify(result)
 
     except Exception as e:
-        log.error(f"[market-research] exception: {e}", exc_info=True)
+        log.error(f'[market-research] UNHANDLED exception after {_elapsed()}: {e}', exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
