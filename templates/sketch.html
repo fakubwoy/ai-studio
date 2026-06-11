@@ -47,6 +47,7 @@
     background: var(--paper-2);
     display: flex; align-items: center; justify-content: center;
     transition: background var(--t) var(--ease);
+    margin: 0 auto;
   }
 
   .upload-zone:hover .upload-zone-icon { background: var(--gold-bg-2); }
@@ -439,7 +440,7 @@
       <div id="uploadTab" style="display:none">
         <div class="upload-zone" id="sketchUploadZone">
           <input type="file" id="sketchFile" accept="image/*" />
-          <div id="sketchPlaceholder">
+          <div id="sketchPlaceholder" style="display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">
             <div class="upload-zone-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
