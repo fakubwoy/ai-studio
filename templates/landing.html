@@ -294,10 +294,47 @@
   }
 
   .jrny-market {
-    display: flex; flex-direction: column; gap: 6px;
-    padding: 14px; width: 100%;
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 14px 14px 36px; width: 100%;
   }
 
+  .jrny-market-graph {
+    background: rgba(10,8,6,.28);
+    border: 1px solid rgba(184,146,74,.18);
+    border-radius: 8px;
+    padding: 9px 11px 8px;
+    flex: 1;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+
+  .jrny-graph-header {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .jrny-graph-label {
+    font-family: var(--font-mono); font-size: 8px;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: rgba(245,240,232,.45);
+  }
+
+  .jrny-graph-value {
+    font-family: var(--font-mono); font-size: 9px;
+    color: rgba(184,146,74,.95); letter-spacing: .04em;
+  }
+
+  .jrny-graph-delta {
+    font-family: var(--font-mono); font-size: 8px;
+    letter-spacing: .04em; padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .jrny-graph-delta.up   { color: #7ecba1; background: rgba(126,203,161,.12); }
+  .jrny-graph-delta.down { color: #e07a6a; background: rgba(224,122,106,.12); }
+
+  .jrny-sparkline {
+    width: 100%; height: 36px; overflow: visible;
+  }
+
+  /* Market rows (kept for legacy, hidden now) */
   .jrny-market-row {
     display: flex; align-items: center; gap: 8px;
     padding: 6px 8px; border-radius: 6px;
@@ -1607,35 +1644,62 @@
         </div>
 
         <!-- Market pricing listing frame -->
-        <div class="jrny-frame" style="">
+        <div class="jrny-frame" style="background:#f5f0e8; border-color:rgba(184,146,74,.3);">
           <div class="jrny-market">
-            <div class="jrny-market-row">
-              <div class="jrny-market-dot" style="background:rgba(184,146,74,.8)"></div>
-              <div class="jrny-market-lines">
-                <div class="jrny-mline gold w80"></div>
-                <div class="jrny-mline w55"></div>
-              </div>
-              <span class="jrny-price">₹4,299</span>
+
+            <!-- Graph 1: Gold price trend -->
+            <div class="jrny-graph-header" style="margin-bottom:2px;padding:0 2px;">
+              <span class="jrny-graph-label" style="color:rgba(40,28,10,.75);">Gold · 22K / g</span>
+              <span class="jrny-graph-delta up" style="color:#5a3e0a; background:rgba(90,62,10,.14);">▲ 2.4%</span>
             </div>
-            <div class="jrny-market-row">
-              <div class="jrny-market-dot" style="background:rgba(184,146,74,.55)"></div>
-              <div class="jrny-market-lines">
-                <div class="jrny-mline gold w65"></div>
-                <div class="jrny-mline w80"></div>
+            <div class="jrny-market-graph" style="background:rgba(255,255,255,.55); border-color:rgba(184,146,74,.22);">
+              <div class="jrny-graph-header">
+                <span class="jrny-graph-label" style="color:rgba(40,28,10,.65);">30-day trend</span>
+                <span class="jrny-graph-value" style="color:#5a3e0a;">₹6,850</span>
               </div>
-              <span class="jrny-price">₹6,850</span>
+              <svg class="jrny-sparkline" viewBox="0 0 200 36" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="grad1" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="rgba(150,110,40,.3)"/>
+                    <stop offset="100%" stop-color="rgba(150,110,40,0)"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,28 L18,24 L36,26 L54,20 L72,22 L90,16 L108,18 L126,12 L144,10 L162,8 L180,5 L200,3 L200,36 L0,36 Z"
+                      fill="url(#grad1)"/>
+                <polyline points="0,28 18,24 36,26 54,20 72,22 90,16 108,18 126,12 144,10 162,8 180,5 200,3"
+                          fill="none" stroke="rgba(140,100,30,1)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="200" cy="3" r="2.5" fill="rgba(140,100,30,1)"/>
+              </svg>
             </div>
-            <div class="jrny-market-row">
-              <div class="jrny-market-dot" style="background:rgba(184,146,74,.4)"></div>
-              <div class="jrny-market-lines">
-                <div class="jrny-mline gold w55"></div>
-                <div class="jrny-mline w65"></div>
+
+            <!-- Graph 2: Design demand trend -->
+            <div class="jrny-graph-header" style="margin-bottom:2px;padding:0 2px;">
+              <span class="jrny-graph-label" style="color:rgba(40,28,10,.75);">Floral · Demand index</span>
+              <span class="jrny-graph-delta down" style="color:#8b2e1e; background:rgba(139,46,30,.12);">▼ 0.8%</span>
+            </div>
+            <div class="jrny-market-graph" style="background:rgba(255,255,255,.55); border-color:rgba(184,146,74,.22);">
+              <div class="jrny-graph-header">
+                <span class="jrny-graph-label" style="color:rgba(40,28,10,.65);">Style trend</span>
+                <span class="jrny-graph-value" style="color:#5a3e0a;">78 / 100</span>
               </div>
-              <span class="jrny-price">₹3,120</span>
+              <svg class="jrny-sparkline" viewBox="0 0 200 36" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="grad2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="rgba(176,80,64,.22)"/>
+                    <stop offset="100%" stop-color="rgba(176,80,64,0)"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,22 L18,18 L36,14 L54,16 L72,10 L90,12 L108,8 L126,10 L144,14 L162,12 L180,15 L200,18 L200,36 L0,36 Z"
+                      fill="url(#grad2)"/>
+                <polyline points="0,22 18,18 36,14 54,16 72,10 90,12 108,8 126,10 144,14 162,12 180,15 200,18"
+                          fill="none" stroke="rgba(176,80,64,.95)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="200" cy="18" r="2.5" fill="rgba(176,80,64,1)"/>
+              </svg>
             </div>
+
           </div>
-          <div class="jrny-badge">
-            <span class="jrny-badge-label">Market Analysis</span>
+          <div class="jrny-badge" style="background:rgba(245,240,232,.85); border-color:rgba(184,146,74,.4);">
+            <span class="jrny-badge-label" style="color:#5a3e0a;">Market Analysis</span>
             <span class="jrny-badge-dot"></span>
           </div>
         </div>
