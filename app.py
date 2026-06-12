@@ -3268,10 +3268,10 @@ RULES:
                     break   # timeouts don't benefit from immediate retry — try next model
                 except _GeminiServerError as _se:
                     gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
-                    log.warning(f'[market-research] ServerError {_se.status_code} on {_model} try={_attempt+1} '
+                    log.warning(f'[market-research] ServerError {_se.code} on {_model} try={_attempt+1} '
                                 f'after {gemini_elapsed} | {_se}')
                     last_err = _se
-                    if _se.status_code == 503 and _attempt < len(_RETRY_DELAYS):
+                    if _se.code == 503 and _attempt < len(_RETRY_DELAYS):
                         _sleep = _RETRY_DELAYS[_attempt]
                         log.info(f'[market-research] sleeping {_sleep}s before retry')
                         _time.sleep(_sleep)
@@ -3291,7 +3291,7 @@ RULES:
             log.error(f'[market-research] all models/retries exhausted after {gemini_elapsed} | last_err={last_err}')
             # Distinguish busy (503 / timeout) from genuine errors
             _is_busy = isinstance(last_err, (TimeoutError,)) or (
-                isinstance(last_err, _GeminiServerError) and last_err.status_code == 503)
+                isinstance(last_err, _GeminiServerError) and last_err.code == 503)
             if _is_busy:
                 return jsonify({
                     'success': False,
