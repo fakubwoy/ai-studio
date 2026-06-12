@@ -470,6 +470,10 @@ async function runMarketResearch() {
 
   try {
     const res  = await fetch('/api/market-research', { method: 'POST', body: fd });
+    if (res.status === 503) {
+      showToast('AI service is temporarily busy — please try again in a moment.', 'error');
+      showEmptyState(); return;
+    }
     const data = await res.json();
     if (!data.success) { showToast(data.error || 'Research failed.', 'error'); showEmptyState(); }
     else { renderResults(data); }

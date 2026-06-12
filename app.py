@@ -14,6 +14,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from google import genai
 from google.genai import types
+from google.genai.errors import ServerError as _GeminiServerError
 from PIL import Image
 import io
 from dotenv import load_dotenv
@@ -3226,23 +3227,77 @@ RULES:
 4. thumbnail: direct CDN image URL ending in .jpg/.png/.webp, or null
 5. summary: total sellers found, price spread, dominant platforms, competitive insight"""
 
-        log.info(f'[market-research] sending request to Gemini (gemini-2.5-flash + google_search) | {_elapsed()}')
+        # Primary model; gemini-2.5-flash-lite is the economical 2.5+ fallback
+        _MARKET_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
+        _GEMINI_CALL_TIMEOUT = 90          # seconds per attempt before we give up
+        _RETRY_DELAYS        = [5, 20]     # backoff between retries on same model
+
+        log.info(f'[market-research] sending request to Gemini (models={_MARKET_MODELS}, google_search) | {_elapsed()}')
         _t_gemini = _time.monotonic()
-        try:
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=[types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg'), prompt],
-                config=types.GenerateContentConfig(
-                    tools=[types.Tool(google_search=types.GoogleSearch())],
-                    temperature=0.1,
-                ),
+
+        def _call_gemini(model_name):
+            """Run a single generate_content call, wrapped in a future for hard timeout."""
+            from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FutTimeout
+            _cfg = types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.1,
             )
-        except Exception as gemini_err:
+            _contents = [types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg'), prompt]
+            with ThreadPoolExecutor(max_workers=1) as _ex:
+                _fut = _ex.submit(client.models.generate_content,
+                                  model=model_name, contents=_contents, config=_cfg)
+                try:
+                    return _fut.result(timeout=_GEMINI_CALL_TIMEOUT)
+                except _FutTimeout:
+                    raise TimeoutError(f'Gemini call to {model_name} timed out after {_GEMINI_CALL_TIMEOUT}s')
+
+        response = None
+        last_err  = None
+        for _model in _MARKET_MODELS:
+            # Each model gets up to len(_RETRY_DELAYS)+1 attempts on transient 503s
+            for _attempt in range(len(_RETRY_DELAYS) + 1):
+                try:
+                    log.info(f'[market-research] attempt model={_model} try={_attempt+1} | {_elapsed()}')
+                    response = _call_gemini(_model)
+                    last_err = None
+                    break   # success — exit retry loop
+                except TimeoutError as _te:
+                    gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
+                    log.warning(f'[market-research] timeout on {_model} try={_attempt+1} after {gemini_elapsed} | {_te}')
+                    last_err = _te
+                    break   # timeouts don't benefit from immediate retry — try next model
+                except _GeminiServerError as _se:
+                    gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
+                    log.warning(f'[market-research] ServerError {_se.status_code} on {_model} try={_attempt+1} '
+                                f'after {gemini_elapsed} | {_se}')
+                    last_err = _se
+                    if _se.status_code == 503 and _attempt < len(_RETRY_DELAYS):
+                        _sleep = _RETRY_DELAYS[_attempt]
+                        log.info(f'[market-research] sleeping {_sleep}s before retry')
+                        _time.sleep(_sleep)
+                    else:
+                        break   # non-503 or retries exhausted — try next model
+                except Exception as _ge:
+                    gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
+                    log.error(f'[market-research] unexpected error on {_model} try={_attempt+1} '
+                              f'after {gemini_elapsed} | {type(_ge).__name__}: {_ge}', exc_info=True)
+                    last_err = _ge
+                    break   # unexpected errors — try next model
+            if response is not None:
+                break   # got a response — skip remaining models
+
+        if response is None:
             gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
-            log.error(f'[market-research] Gemini call FAILED after {gemini_elapsed} | '
-                      f'error_type={type(gemini_err).__name__} | error={gemini_err} | total={_elapsed()}',
-                      exc_info=True)
-            raise
+            log.error(f'[market-research] all models/retries exhausted after {gemini_elapsed} | last_err={last_err}')
+            # Distinguish busy (503 / timeout) from genuine errors
+            _is_busy = isinstance(last_err, (TimeoutError,)) or (
+                isinstance(last_err, _GeminiServerError) and last_err.status_code == 503)
+            if _is_busy:
+                return jsonify({
+                    'success': False,
+                    'error': 'The AI service is temporarily busy. Please wait a moment and try again.'
+                }), 503
+            raise last_err
 
         gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
         raw_text = response.text or ''
