@@ -258,6 +258,7 @@
         </svg>
         Research Market
       </button>
+      <div id="marketQuotaMeter" style="margin-top:8px;justify-content:center;display:flex"></div>
     </div>
 
     <!-- Google Trends panel (shown when Trends tab active) -->
@@ -825,5 +826,9 @@ function renderTrendsCharts(data) {
     });
   });
 }
+
+window.addEventListener('DOMContentLoaded', () => {
+  initQuotaMeter('/api/market-research', 'marketQuotaMeter');
+});
 </script>
 {% endblock %}

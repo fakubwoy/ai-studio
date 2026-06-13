@@ -3579,16 +3579,43 @@ Respond ONLY with this exact JSON — no markdown, no extra keys:
 @app.route('/api/gallery', methods=['GET'])
 @login_required
 def api_gallery_list():
-    """Return gallery items for the current user, newest first."""
+    """Return gallery items for the current user.
+
+    Query params:
+        q      – free-text search (matches title, category, tags)
+        sort   – 'newest' (default) | 'oldest' | 'category'
+        project_id – filter by project UUID
+    """
     if not _DB_URL:
         return jsonify({'items': [], 'warning': 'DATABASE_URL not set'}), 200
-    user_id = session['user_id']
+    user_id    = session['user_id']
+    q          = (request.args.get('q', '') or '').strip().lower()
+    sort       = request.args.get('sort', 'newest')
+    project_id = request.args.get('project_id', '').strip() or None
+
+    order_clause = {
+        'newest':   'ORDER BY g.created_at DESC',
+        'oldest':   'ORDER BY g.created_at ASC',
+        'category': 'ORDER BY g.category ASC, g.created_at DESC',
+    }.get(sort, 'ORDER BY g.created_at DESC')
+
     try:
         with db_conn() as conn:
             with conn.cursor() as cur:
+                params = [user_id]
+                where  = 'WHERE g.user_id = %s'
+                if project_id:
+                    where += ' AND g.project_id = %s'
+                    params.append(project_id)
+                if q:
+                    where += " AND (LOWER(g.title) LIKE %s OR LOWER(g.category) LIKE %s OR LOWER(g.tags::text) LIKE %s)"
+                    like = f'%{q}%'
+                    params.extend([like, like, like])
                 cur.execute(
-                    'SELECT id, url, type, category, title, tags, thumbnail_url, model_urls, created_at FROM gallery WHERE user_id=%s ORDER BY created_at DESC',
-                    (user_id,)
+                    f'SELECT g.id, g.url, g.type, g.category, g.title, g.tags, '
+                    f'g.thumbnail_url, g.model_urls, g.created_at, g.project_id '
+                    f'FROM gallery g {where} {order_clause}',
+                    params
                 )
                 rows = cur.fetchall()
         items = [
@@ -3601,6 +3628,7 @@ def api_gallery_list():
                 'tags':          r['tags'],
                 'thumbnail_url': r.get('thumbnail_url', ''),
                 'model_urls':    r.get('model_urls', {}),
+                'project_id':    str(r['project_id']) if r.get('project_id') else None,
                 'created_at':    r['created_at'].isoformat(),
             }
             for r in rows
@@ -4302,6 +4330,49 @@ def api_export_manufacturer():
 
     log.info(f'[export-mfr] spec generated | category={category} | metal={metal}')
     return jsonify({'success': True, 'spec': spec})
+
+
+# ── User-facing usage / quota API ────────────────────────────────────────────
+
+@app.route('/api/usage', methods=['GET'])
+@login_required
+def api_usage():
+    """Return per-user API usage for the current hour (for quota meter UI)."""
+    uid = session['user_id']
+
+    # The limits we surface to the user (mirrors _RATE_LIMITS)
+    QUOTA_LABELS = {
+        '/api/conceptualise':       ('Sketch Studio',   20, 3600),
+        '/api/generate-image':      ('Model Try-On',    20, 3600),
+        '/api/generate-cad':        ('3D CAD',          10, 3600),
+        '/api/generate-cad-multi':  ('3D CAD Multi',    10, 3600),
+        '/api/market-research':     ('Market Research', 15, 3600),
+        '/api/enhance-sketch':      ('Sketch Enhance',  20, 3600),
+    }
+
+    r = get_redis()
+    result = {}
+    for endpoint, (label, limit, window) in QUOTA_LABELS.items():
+        used = 0
+        reset_in = window
+        if r is not None:
+            try:
+                key = f'glymr:rl:{uid}:{endpoint}'
+                val = r.get(key)
+                if val:
+                    used = int(val)
+                    ttl  = r.ttl(key)
+                    reset_in = max(int(ttl), 0) if ttl and ttl > 0 else window
+            except Exception:
+                pass
+        result[endpoint] = {
+            'label':    label,
+            'used':     used,
+            'limit':    limit,
+            'remaining': max(limit - used, 0),
+            'reset_in': reset_in,
+        }
+    return jsonify({'success': True, 'quota': result})
 
 
 # ── Admin / Observability API ─────────────────────────────────────────────────

@@ -530,12 +530,21 @@
         </select>
       </div>
 
+      <div class="form-row">
+        <label>Save to Project <span style="font-weight:400;text-transform:none;font-size:10px;color:var(--ink-4)">(optional)</span></label>
+        <select id="sketchProject">
+          <option value="">— No project —</option>
+        </select>
+      </div>
+
       <button class="btn btn-gold" style="width:100%;margin-top:4px" id="conceptualiseBtn" onclick="runConceptualise()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
         </svg>
         Conceptualise
+        <span style="font-size:9px;opacity:.55;font-family:var(--font-mono);margin-left:4px">⌘↵</span>
       </button>
+      <div id="sketchQuotaMeter" style="margin-top:8px;justify-content:center;display:flex"></div>
     </div>
   </aside>
 
@@ -581,6 +590,22 @@ let currentInputTab = 'draw';
 let enhanceEnabled  = false;
 let enhanceStyle    = 'clean_concept';
 let concepts        = [];
+let _sketchProjects = [];
+
+// ── Load projects for the project picker ─────────────────────────────────────
+async function loadSketchProjects() {
+  try {
+    const res  = await fetch('/api/projects');
+    const data = await res.json();
+    _sketchProjects = data.projects || [];
+    const sel  = document.getElementById('sketchProject');
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— No project —</option>' +
+      _sketchProjects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    if (prev) sel.value = prev;
+  } catch(e) {}
+}
 
 // ── Canvas drawing state ──────────────────────────────────────────────────────
 let canvas, ctx;
@@ -600,6 +625,8 @@ window.addEventListener('DOMContentLoaded', () => {
   canvas.addEventListener('pointerup',    onPointerUp);
   canvas.addEventListener('pointerleave', onPointerUp);
   restoreState();
+  loadSketchProjects();
+  initQuotaMeter('/api/conceptualise', 'sketchQuotaMeter');
 });
 
 function setInputTab(tab) {
@@ -902,7 +929,8 @@ async function runConceptualise() {
     showToast('Request timed out or network error — the server may still be generating. Check your gallery in a moment.', 'error'); showEmpty();
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Conceptualise';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Conceptualise <span style="font-size:9px;opacity:.55;font-family:var(--font-mono);margin-left:4px">⌘↵</span>';
+    initQuotaMeter('/api/conceptualise', 'sketchQuotaMeter');
   }
 }
 
@@ -980,9 +1008,12 @@ async function saveConceptToGallery(i, btn) {
   const c = concepts[i]; if (!c || !c.image_url) { showToast('No image to save.', 'error'); return; }
   const origHTML = btn.innerHTML; btn.disabled = true;
   btn.innerHTML = '<div class="spinner" style="width:11px;height:11px;border-width:2px"></div>';
+  const projectId = document.getElementById('sketchProject')?.value || '';
   try {
+    const payload = { url: c.image_url, type: 'concept', category: document.getElementById('sketchCategory').value||'', title: c.title||'', tags: c.tags||[] };
+    if (projectId) payload.project_id = projectId;
     const res  = await fetch('/api/gallery', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: c.image_url, type: 'concept', category: document.getElementById('sketchCategory').value||'', title: c.title||'', tags: c.tags||[] }) });
+      body: JSON.stringify(payload) });
     const data = await res.json();
     if (data.success) {
       btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
@@ -996,5 +1027,14 @@ document.getElementById('sketchPrompt').addEventListener('input', saveState);
 document.getElementById('sketchCategory').addEventListener('change', saveState);
 document.getElementById('metalFinish').addEventListener('change', saveState);
 document.querySelectorAll('.mode-tab').forEach(t => t.addEventListener('click', () => saveState()));
+
+// Cmd/Ctrl+Enter triggers generate
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    const btn = document.getElementById('conceptualiseBtn');
+    if (btn && !btn.disabled) btn.click();
+  }
+});
 </script>
 {% endblock %}

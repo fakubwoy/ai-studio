@@ -516,6 +516,37 @@
     @media (max-width: 380px) {
       .gallery-grid { columns: 1 !important; }
     }
+
+    /* ── Quota meter ─────────────────────────────────────────────────── */
+    .quota-meter {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 10px; font-family: var(--font-mono);
+      color: var(--ink-4); white-space: nowrap;
+    }
+    .quota-bar-track {
+      width: 44px; height: 4px; border-radius: 2px;
+      background: var(--paper-3); overflow: hidden; flex-shrink: 0;
+    }
+    .quota-bar-fill {
+      height: 100%; border-radius: 2px;
+      background: var(--gold);
+      transition: width .4s var(--ease);
+    }
+    .quota-bar-fill.warn  { background: #d4a040; }
+    .quota-bar-fill.full  { background: var(--error); }
+    .quota-meter-label { color: var(--ink-3); font-weight: 500; }
+
+    /* ── Gallery skeleton ────────────────────────────────────────────── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--paper-2) 25%, var(--paper-3) 50%, var(--paper-2) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.4s infinite;
+      border-radius: var(--radius);
+    }
+    @keyframes skeleton-shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -653,6 +684,38 @@ window.fetch = async function(...args) {
   }
   return resp;
 };
+
+/* ── Quota meter helper ─────────────────────────────────────────────────── */
+// Call renderQuotaMeter(endpoint, containerId) on any tool page after load.
+// The container should be an empty <div> already in the sidebar.
+async function loadQuota(endpoint) {
+  try {
+    const res  = await _origFetch('/api/usage');
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.quota?.[endpoint] || null;
+  } catch(e) { return null; }
+}
+
+function renderQuotaMeter(quota, container) {
+  if (!quota || !container) return;
+  const pct  = Math.min((quota.used / quota.limit) * 100, 100);
+  const cls  = pct >= 100 ? 'full' : pct >= 70 ? 'warn' : '';
+  container.innerHTML = `
+    <div class="quota-meter">
+      <div class="quota-bar-track">
+        <div class="quota-bar-fill ${cls}" style="width:${pct}%"></div>
+      </div>
+      <span class="quota-meter-label">${quota.used}/${quota.limit} this hour</span>
+    </div>`;
+}
+
+async function initQuotaMeter(endpoint, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const q = await loadQuota(endpoint);
+  renderQuotaMeter(q, el);
+}
 
 /* ── Mobile nav hamburger ────────────────────────────────────────────────── */
 (function() {

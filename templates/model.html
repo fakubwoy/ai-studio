@@ -271,12 +271,16 @@
         <div class="eyebrow" style="margin-bottom:4px">AI Generation</div>
         <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink)">Model Try-On</h1>
       </div>
-      <button class="btn btn-gold" id="generateBtn" onclick="generateModelShot()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-        </svg>
-        Generate
-      </button>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <button class="btn btn-gold" id="generateBtn" onclick="generateModelShot()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          Generate
+          <span style="font-size:9px;opacity:.55;font-family:var(--font-mono);margin-left:4px">⌘↵</span>
+        </button>
+        <div id="modelQuotaMeter"></div>
+      </div>
     </div>
 
     <div class="output-zone" id="outputZone">
@@ -797,5 +801,17 @@ function sendToMarket() {
 document.getElementById('modelCategory').addEventListener('change', saveState);
 document.getElementById('customPrompt').addEventListener('input', saveState);
 document.getElementById('negativePrompt').addEventListener('input', saveState);
+
+window.addEventListener('DOMContentLoaded', () => {
+  initQuotaMeter('/api/generate-image', 'modelQuotaMeter');
+});
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    const btn = document.getElementById('generateBtn');
+    if (btn && !btn.disabled) btn.click();
+  }
+});
 </script>
 {% endblock %}

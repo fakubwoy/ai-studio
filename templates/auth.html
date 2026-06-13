@@ -489,7 +489,8 @@
             </div>
             <p class="otp-hint">
               Didn't receive it?
-              <a onclick="resendOtp()">Resend code</a>
+              <button id="resendBtn" onclick="resendOtp()" style="background:none;border:none;cursor:pointer;color:var(--gold);font-size:inherit;padding:0;font-family:inherit;text-decoration:underline;text-underline-offset:2px" disabled>Resend code</button>
+              <span id="resendCountdown" style="font-size:11px;color:var(--ink-4);font-family:var(--font-mono)"></span>
             </p>
           </div>
 
@@ -611,6 +612,7 @@
       document.querySelectorAll('.otp-digit').forEach(d => d.value = '');
       showStep('stepOtp');
       document.querySelector('.otp-digit').focus();
+      startResendCooldown(30);
     } catch (e) {
       setError('signupError', 'Network error. Please try again.');
     } finally {
@@ -624,8 +626,30 @@
     showStep('stepMain');
   }
 
+  let _resendTimer = null;
+  function startResendCooldown(seconds) {
+    const btn       = document.getElementById('resendBtn');
+    const countdown = document.getElementById('resendCountdown');
+    btn.disabled = true;
+    let remaining = seconds;
+    countdown.textContent = `(${remaining}s)`;
+    clearInterval(_resendTimer);
+    _resendTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(_resendTimer);
+        btn.disabled = false;
+        countdown.textContent = '';
+      } else {
+        countdown.textContent = `(${remaining}s)`;
+      }
+    }, 1000);
+  }
+
   async function resendOtp() {
     if (!currentEmail) return;
+    const btn = document.getElementById('resendBtn');
+    btn.disabled = true;
     setInfo('otpInfo', '');
     try {
       const res  = await fetch('/api/auth/send-otp', {
@@ -638,10 +662,12 @@
         setInfo('otpInfo', 'A new code has been sent to your inbox.');
         document.querySelectorAll('.otp-digit').forEach(d => d.value = '');
         document.querySelector('.otp-digit').focus();
+        startResendCooldown(30);
       } else {
         setError('otpError', data.error || 'Failed to resend.');
+        btn.disabled = false;
       }
-    } catch (e) { setError('otpError', 'Network error.'); }
+    } catch (e) { setError('otpError', 'Network error.'); btn.disabled = false; }
   }
 
   document.getElementById('otpRow').addEventListener('input', function(e) {

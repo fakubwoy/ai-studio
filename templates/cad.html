@@ -822,7 +822,9 @@
           <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
         </svg>
         Generate 3D Model
+        <span style="font-size:9px;opacity:.55;font-family:var(--font-mono);margin-left:4px">⌘↵</span>
       </button>
+      <div id="cadQuotaMeter" style="margin-top:8px;justify-content:center;display:flex"></div>
 
       <!-- ── Feature Extraction panel (populated after Extract click) ── -->
       <div class="features-panel" id="featuresPanel" style="display:none">
@@ -3078,5 +3080,19 @@ async function runMeshAnalysis() {
     btn.innerHTML = origLabel;
   }
 }
+
+// Init
+window.addEventListener('DOMContentLoaded', () => {
+  initQuotaMeter('/api/generate-cad', 'cadQuotaMeter');
+});
+
+// Cmd/Ctrl+Enter triggers generate
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    const btn = document.getElementById('cadBtn');
+    if (btn && !btn.disabled) btn.click();
+  }
+});
 </script>
 {% endblock %}
