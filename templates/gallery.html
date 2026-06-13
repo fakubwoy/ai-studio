@@ -9,36 +9,146 @@
     max-width: 1440px; margin: 0 auto;
   }
 
-  .gallery-header {
+  /* ── Gallery toolbar (two rows) ─────────────────────────────────────── */
+  .gallery-toolbar {
+    margin-bottom: 28px;
+  }
+
+  /* Row 1: title + right-side controls */
+  .gallery-toolbar-top {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 32px; flex-wrap: wrap; gap: 16px;
+    gap: 16px; margin-bottom: 16px; flex-wrap: wrap;
+  }
+
+  .gallery-title-block .eyebrow {
+    font-size: 10px; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--gold); margin-bottom: 3px;
+  }
+
+  .gallery-title-block h1 {
+    font-family: var(--font-serif); font-size: 26px; font-weight: 600;
+    color: var(--ink); line-height: 1.1;
+  }
+
+  .gallery-toolbar-controls {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+
+  /* Shared height for all controls in the toolbar */
+  .toolbar-control {
+    height: 36px;
+    border-radius: var(--radius);
+    border: 1px solid var(--paper-3);
+    background: var(--surface);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    color: var(--ink-2);
+    transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
+  }
+
+  .toolbar-control:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(184,146,74,.12);
+  }
+
+  /* Search input */
+  .toolbar-search-wrap {
+    position: relative;
+  }
+
+  .toolbar-search-wrap svg {
+    position: absolute; left: 10px; top: 50%;
+    transform: translateY(-50%); pointer-events: none;
+  }
+
+  .toolbar-search {
+    padding: 0 12px 0 30px;
+    width: 210px;
+  }
+
+  /* Sort select */
+  .toolbar-sort {
+    padding: 0 32px 0 10px;
+    width: 148px;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%236b5f58' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    cursor: pointer;
+  }
+
+  /* Project select */
+  .toolbar-project {
+    padding: 0 32px 0 10px;
+    width: 164px;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%236b5f58' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    cursor: pointer;
+  }
+
+  /* Divider between control groups */
+  .toolbar-divider {
+    width: 1px; height: 20px;
+    background: var(--paper-3); flex-shrink: 0;
+  }
+
+  /* Ghost action buttons */
+  .toolbar-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 36px; padding: 0 13px;
+    border-radius: var(--radius);
+    border: 1px solid var(--paper-3);
+    background: var(--surface);
+    font-family: var(--font-sans);
+    font-size: 12px; font-weight: 500;
+    color: var(--ink-3); cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: color var(--t) var(--ease), border-color var(--t) var(--ease), background var(--t) var(--ease);
+  }
+
+  .toolbar-btn:hover {
+    color: var(--ink); border-color: var(--paper-4);
+    background: var(--paper-2);
+  }
+
+  .toolbar-btn.danger:hover {
+    color: var(--error); border-color: rgba(184,48,48,.25);
+    background: rgba(184,48,48,.04);
+  }
+
+  /* Row 2: filter pill tabs */
+  .gallery-filter-row {
+    display: flex; align-items: center;
+    border-bottom: 1px solid var(--paper-3);
+    gap: 0;
   }
 
   .gallery-filter-tabs {
-    display: flex; gap: 2px;
-    background: var(--paper-2);
-    border: 1.5px solid var(--paper-3);
-    border-radius: 10px;
-    padding: 3px;
+    display: flex; gap: 0; flex: 1;
   }
 
   .filter-tab {
-    padding: 5px 14px; border-radius: 7px;
+    padding: 8px 16px;
     font-size: 12px; font-weight: 600; letter-spacing: .03em;
-    border: none;
+    border: none; border-bottom: 2px solid transparent;
     color: var(--ink-3); cursor: pointer;
     background: transparent;
-    transition: all var(--t) var(--ease);
+    transition: color var(--t) var(--ease), border-color var(--t) var(--ease);
     font-family: var(--font-sans);
+    margin-bottom: -1px; /* sit on top of the row's border-bottom */
   }
 
   .filter-tab.active {
-    background: var(--paper); color: var(--ink);
-    box-shadow: 0 1px 4px rgba(0,0,0,.12), 0 0 0 1px var(--paper-3);
+    color: var(--ink);
+    border-bottom-color: var(--gold);
   }
 
   .filter-tab:hover:not(.active) {
-    color: var(--ink-2); background: rgba(var(--paper-rgb, 250,247,242),.5);
+    color: var(--ink-2);
   }
 
   /* Masonry grid */
@@ -193,42 +303,55 @@
 
 {% block content %}
 <div class="gallery-page">
-  <div class="gallery-header">
-    <div>
-      <div class="eyebrow" style="margin-bottom:4px">My Work</div>
-      <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink)" id="galleryTitle">Gallery</h1>
+  <div class="gallery-toolbar">
+    <!-- Row 1: title + right-side controls -->
+    <div class="gallery-toolbar-top">
+      <div class="gallery-title-block">
+        <div class="eyebrow">My Work</div>
+        <h1 id="galleryTitle">Gallery</h1>
+      </div>
+      <div class="gallery-toolbar-controls">
+        <!-- Search -->
+        <div class="toolbar-search-wrap">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="gallerySearch" placeholder="Search title, category, tag…"
+            class="toolbar-control toolbar-search"
+            oninput="onSearchInput(this.value)" />
+        </div>
+        <!-- Sort -->
+        <select id="gallerySort" class="toolbar-control toolbar-sort" onchange="reloadGallery()">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="category">By category</option>
+        </select>
+        <!-- Project filter -->
+        <select id="projectFilter" class="toolbar-control toolbar-project" onchange="filterByProject(this.value)">
+          <option value="">All projects</option>
+        </select>
+        <div class="toolbar-divider"></div>
+        <a href="/studio/projects" class="toolbar-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+          </svg>
+          Projects
+        </a>
+        <button class="toolbar-btn danger" id="clearAllBtn" onclick="clearGallery()">Clear all</button>
+      </div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <!-- Search -->
-      <div style="position:relative">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input type="text" id="gallerySearch" placeholder="Search title, category, tag…"
-          style="padding:6px 12px 6px 30px;font-size:12px;width:220px;border-radius:20px"
-          oninput="onSearchInput(this.value)" />
-      </div>
-      <!-- Sort -->
-      <select id="gallerySort" style="max-width:130px;font-size:12px;padding:6px 10px;border-radius:20px" onchange="reloadGallery()">
-        <option value="newest">Newest first</option>
-        <option value="oldest">Oldest first</option>
-        <option value="category">By category</option>
-      </select>
+    <!-- Row 2: category filter tabs -->
+    <div class="gallery-filter-row">
       <div class="gallery-filter-tabs" id="galleryFilters">
-        <div class="filter-tab active" data-filter="all"       onclick="filterGallery('all',this)">All</div>
-        <div class="filter-tab"        data-filter="modelshot" onclick="filterGallery('modelshot',this)">Model Shots</div>
-        <div class="filter-tab"        data-filter="concept"   onclick="filterGallery('concept',this)">Concepts</div>
-        <div class="filter-tab"        data-filter="model"     onclick="filterGallery('model',this)">3D Models</div>
+        <button class="filter-tab active" data-filter="all"       onclick="filterGallery('all',this)">All</button>
+        <button class="filter-tab"        data-filter="modelshot" onclick="filterGallery('modelshot',this)">Model Shots</button>
+        <button class="filter-tab"        data-filter="concept"   onclick="filterGallery('concept',this)">Concepts</button>
+        <button class="filter-tab"        data-filter="model"     onclick="filterGallery('model',this)">3D Models</button>
       </div>
-      <select id="projectFilter" style="max-width:180px;font-size:12px;padding:6px 10px" onchange="filterByProject(this.value)">
-        <option value="">All projects</option>
-      </select>
-      <a href="/studio/projects" class="btn btn-ghost btn-sm">Projects</a>
-      <button class="btn btn-ghost btn-sm" id="clearAllBtn" onclick="clearGallery()">Clear All</button>
     </div>
   </div>
 
-  <div id="galleryView">
+  <div id="galleryView" style="margin-top:24px">
     <div class="gallery-grid" id="galleryGrid">
       <!-- Skeleton placeholders shown while loading -->
       <div class="skeleton" style="height:200px;margin-bottom:14px;border-radius:12px"></div>
