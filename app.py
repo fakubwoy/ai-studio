@@ -582,9 +582,25 @@ def get_current_user():
         return None
 
 
+# Mobile API key — set MOBILE_API_KEY in Railway env vars.
+# Any request carrying this value as the X-Mobile-Key header bypasses session
+# auth so the mobile app can call protected endpoints without a browser session.
+_MOBILE_API_KEY = os.getenv('MOBILE_API_KEY', '')
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        # ── Mobile app bypass ────────────────────────────────────────────────
+        # If a valid shared API key is present in the request header, allow the
+        # call through without requiring a browser session.  A synthetic user_id
+        # is injected so downstream helpers (track_usage, rate limiting) don't
+        # crash on a missing session value.
+        if _MOBILE_API_KEY and request.headers.get('X-Mobile-Key') == _MOBILE_API_KEY:
+            if not session.get('user_id'):
+                session['user_id'] = 'mobile-app'
+            return f(*args, **kwargs)
+
+        # ── Normal session auth ──────────────────────────────────────────────
         if not session.get('user_id'):
             if request.is_json or request.path.startswith('/api/'):
                 return jsonify({'error': 'Authentication required', 'redirect': '/auth'}), 401
