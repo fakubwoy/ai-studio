@@ -465,68 +465,54 @@ def get_meshy_key():
 def _otp_code(length=6):
     return ''.join(random.choices(string.digits, k=length))
 
-def _send_otp_gmail(to_email: str, code: str, purpose: str = 'verify', access_token: str | None = None) -> bool:
-    """Send OTP via Gmail API using a fresh OAuth2 access token."""
-    gmail_token = access_token or os.getenv('GMAIL_OAUTH_TOKEN')
-    gmail_sender = os.getenv('GMAIL_SENDER_EMAIL')
-    if not gmail_token or not gmail_sender:
-        log.error('[otp] GMAIL_OAUTH_TOKEN or GMAIL_SENDER_EMAIL not set')
+def _send_otp_resend(to_email: str, code: str, purpose: str = 'verify') -> bool:
+    """Send OTP via Resend API."""
+    api_key = os.getenv('RESEND_API_KEY')
+    if not api_key:
+        log.error('[otp] RESEND_API_KEY not set')
         return False
+
     subject_map = {'verify': 'Verify your glymr account', 'login': 'Your glymr sign-in code'}
     subject = subject_map.get(purpose, 'Your glymr code')
-    body = (
-        f"Subject: {subject}\r\n"
-        f"To: {to_email}\r\n"
-        f"From: glymr Studio <{gmail_sender}>\r\n"
-        f"Content-Type: text/html; charset=utf-8\r\n\r\n"
-        f"<div style='font-family:sans-serif;max-width:480px;margin:40px auto;padding:32px;border:1px solid #e8e0d2;border-radius:10px;background:#faf7f2'>"
+
+    html = (
+        f"<div style='font-family:sans-serif;max-width:480px;margin:40px auto;padding:32px;"
+        f"border:1px solid #e8e0d2;border-radius:10px;background:#faf7f2'>"
         f"<div style='font-size:28px;margin-bottom:4px'>◈ glymr</div>"
         f"<h2 style='font-size:20px;margin:16px 0 8px'>Your verification code</h2>"
-        f"<p style='color:#5a5047;margin-bottom:24px'>Enter this code to {'verify your account' if purpose=='verify' else 'sign in'}. It expires in 10 minutes.</p>"
-        f"<div style='font-size:40px;font-weight:700;letter-spacing:10px;text-align:center;padding:20px;background:#f2ede4;border-radius:8px;margin-bottom:24px'>{code}</div>"
+        f"<p style='color:#5a5047;margin-bottom:24px'>Enter this code to "
+        f"{'verify your account' if purpose == 'verify' else 'sign in'}. It expires in 10 minutes.</p>"
+        f"<div style='font-size:40px;font-weight:700;letter-spacing:10px;text-align:center;"
+        f"padding:20px;background:#f2ede4;border-radius:8px;margin-bottom:24px'>{code}</div>"
         f"<p style='color:#5a5047;font-size:13px'>If you didn't request this, you can safely ignore this email.</p>"
         f"</div>"
     )
-    raw = base64.urlsafe_b64encode(body.encode()).decode()
+
+    sender = os.getenv('RESEND_SENDER_EMAIL', 'glymr <onboarding@resend.dev>')
+
     try:
         r = requests.post(
-            'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
-            headers={'Authorization': f'Bearer {gmail_token}', 'Content-Type': 'application/json'},
-            json={'raw': raw},
+            'https://api.resend.com/emails',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json',
+            },
+            json={
+                'from': sender,
+                'to': [to_email],
+                'subject': subject,
+                'html': html,
+            },
             timeout=10,
         )
-        if r.status_code in (200, 202):
-            log.info(f'[otp] sent to {to_email}')
+        if r.status_code in (200, 201):
+            log.info(f'[otp] sent to {to_email} via Resend')
             return True
-        log.error(f'[otp] Gmail API error {r.status_code}: {r.text[:200]}')
+        log.error(f'[otp] Resend error {r.status_code}: {r.text[:200]}')
         return False
     except Exception as e:
-        log.error(f'[otp] send failed: {e}')
+        log.error(f'[otp] Resend send failed: {e}')
         return False
-
-
-def _get_gmail_access_token() -> str | None:
-    """Exchange refresh token for a fresh access token (called lazily per request)."""
-    refresh_token = os.getenv('GMAIL_REFRESH_TOKEN')
-    client_id     = os.getenv('GMAIL_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID')
-    client_secret = os.getenv('GMAIL_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
-    if not all([refresh_token, client_id, client_secret]):
-        return os.getenv('GMAIL_OAUTH_TOKEN')  # fallback: static token in env
-    try:
-        r = requests.post('https://oauth2.googleapis.com/token', data={
-            'grant_type':    'refresh_token',
-            'refresh_token': refresh_token,
-            'client_id':     client_id,
-            'client_secret': client_secret,
-        }, timeout=8)
-        body = r.json()
-        if 'access_token' not in body:
-            log.error(f'[gmail-token] refresh returned no access_token: {body.get("error")}: {body.get("error_description")}')
-            return None
-        return body['access_token']
-    except Exception as e:
-        log.error(f'[gmail-token] refresh failed: {e}')
-        return None
 
 
 def send_otp(to_email: str, purpose: str = 'verify') -> bool:
@@ -550,11 +536,7 @@ def send_otp(to_email: str, purpose: str = 'verify') -> bool:
     except Exception as e:
         log.error(f'[otp] db error: {e}')
         return False
-    token = _get_gmail_access_token()
-    if not token:
-        log.error('[otp] Could not obtain a Gmail access token — check GMAIL_REFRESH_TOKEN, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET (or GMAIL_OAUTH_TOKEN as fallback)')
-        return False
-    return _send_otp_gmail(to_email, code, purpose, access_token=token)
+    return _send_otp_resend(to_email, code, purpose)
 
 
 def verify_otp(email: str, code: str, purpose: str = 'verify') -> bool:
