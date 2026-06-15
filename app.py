@@ -4402,6 +4402,85 @@ def api_admin_stats():
         return jsonify({'error': str(e)}), 500
 
 
+# ── Generic upload endpoint (used by mobile app) ──────────────────────────────
+
+@app.route('/api/upload', methods=['POST'])
+@login_required
+def api_upload():
+    """
+    Generic image upload endpoint for the mobile app.
+
+    Accepts a multipart/form-data POST with a single file field named 'image'.
+    Tries to store the file on Cloudflare R2 (if configured); falls back to
+    the local /static/uploads/ directory.
+
+    Returns:
+        { "success": true, "url": "<public url>", "filename": "<saved name>" }
+    """
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image provided. Send the file in a field named "image".'}), 400
+
+    file = request.files['image']
+    if not file or not file.filename:
+        return jsonify({'error': 'Empty file received.'}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({
+            'error': f'File type not allowed. Accepted types: {", ".join(ALLOWED_EXTENSIONS)}'
+        }), 400
+
+    img_bytes = file.read()
+    if not img_bytes:
+        return jsonify({'error': 'File is empty after reading.'}), 400
+
+    # Detect MIME type for R2 upload
+    ext = file.filename.rsplit('.', 1)[1].lower()
+    mime_map = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'webp': 'image/webp'}
+    content_type = mime_map.get(ext, 'image/jpeg')
+
+    filename = f"{uuid.uuid4().hex}.{ext}"
+
+    # ── Try R2 first ──────────────────────────────────────────────────────────
+    r2_url = None
+    endpoint   = os.getenv('R2_ENDPOINT_URL', '').rstrip('/')
+    access_key = os.getenv('R2_ACCESS_KEY_ID', '')
+    secret_key = os.getenv('R2_SECRET_ACCESS_KEY', '')
+    bucket     = os.getenv('R2_BUCKET_NAME', '')
+    public_url = os.getenv('R2_PUBLIC_URL', '').rstrip('/')
+
+    if all([endpoint, access_key, secret_key, bucket, public_url]):
+        try:
+            import boto3
+            s3 = boto3.client(
+                's3',
+                endpoint_url=endpoint,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name='auto',
+            )
+            key = f'uploads/{filename}'
+            s3.put_object(Bucket=bucket, Key=key, Body=img_bytes, ContentType=content_type)
+            r2_url = f'{public_url}/{key}'
+            log.info(f'[upload] stored on R2: {r2_url}')
+        except Exception as e:
+            log.warning(f'[upload] R2 failed, falling back to local storage: {e}')
+
+    # ── Fall back to local disk ───────────────────────────────────────────────
+    if not r2_url:
+        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        try:
+            with open(save_path, 'wb') as fh:
+                fh.write(img_bytes)
+            host = request.host_url.rstrip('/')
+            r2_url = f'{host}/static/uploads/{filename}'
+            log.info(f'[upload] stored locally: {save_path}')
+        except Exception as e:
+            log.error(f'[upload] local storage also failed: {e}', exc_info=True)
+            return jsonify({'error': 'Failed to save uploaded file.'}), 500
+
+    return jsonify({'success': True, 'url': r2_url, 'filename': filename})
+
+
 # ── Static file serving ────────────────────────────────────────────────────────
 
 @app.route('/static/uploads/<filename>')
