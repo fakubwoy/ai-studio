@@ -1462,6 +1462,25 @@ def api_generate_both():
     if negative_prompt:
         suffix += f'\nAvoid: {negative_prompt}'
 
+    # ── Per-category body-part constraints ──────────────────────────────────
+    # These override Gemini's default assumptions about where a piece is worn.
+    CATEGORY_CONSTRAINTS = {
+        'Toe Ring': (
+            "⚠ BODY PART CONSTRAINT: This is a TOE RING — it is worn exclusively on a TOE, NOT on a finger, NOT on a hand. "
+            "Show ONLY bare feet/toes. The ring must appear on a toe (typically the second toe). "
+            "NO hands, NO fingers, NO wrists in frame. Foot/feet only."
+        ),
+        'Anklet': (
+            "⚠ BODY PART CONSTRAINT: This is an ANKLET — worn around the ANKLE only. "
+            "Show the ankle and lower leg. NO hands or fingers in frame."
+        ),
+        'Brooch': (
+            "⚠ BODY PART CONSTRAINT: This is a BROOCH — pinned to clothing on the chest/lapel. "
+            "Do NOT place it on a finger or wrist."
+        ),
+    }
+    category_constraint = CATEGORY_CONSTRAINTS.get(category, '')
+
     if is_set:
         pieces_desc = ' and '.join(pieces) if pieces else 'all pieces in the set'
         model_prompt = (
@@ -1474,6 +1493,7 @@ def api_generate_both():
     else:
         model_prompt = (
             f"Professional fashion photography. A beautiful model wearing this exact {category}.\n"
+            f"{category_constraint + chr(10) if category_constraint else ''}"
             f"Placement: {placement} | Size: {size_hint} | Pose: {pose} | Template: {template_name} | Model: {model_preference}\n"
             f"Studio lighting, high-end fashion magazine quality. Jewellery prominently visible, correctly sized.\n"
             f"RULES: 1) Reproduce jewellery identically from reference. 2) ONE {category} total. 3) No duplication.{suffix}"
