@@ -208,23 +208,23 @@ def init_db():
                         created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     );
                 """)
-                # Seed categories from DEFAULT_CATEGORIES if table is empty
-                cur.execute('SELECT COUNT(*) AS n FROM categories')
-                row = cur.fetchone()
-                if row['n'] == 0:
-                    log.info('[db] seeding categories table from defaults')
-                    for name, meta in DEFAULT_CATEGORIES.items():
-                        cur.execute(
-                            """INSERT INTO categories (name, description, is_set, templates)
-                               VALUES (%s, %s, %s, %s)
-                               ON CONFLICT (name) DO NOTHING""",
-                            (
-                                name,
-                                meta.get('description', ''),
-                                meta.get('is_set', False),
-                                json.dumps(meta.get('templates', [])),
-                            )
+                # Upsert any DEFAULT_CATEGORIES entries that don't yet exist in the table.
+                # ON CONFLICT DO NOTHING means existing rows (including user edits) are
+                # left untouched — only truly missing categories (e.g. newly added defaults
+                # like Toe Ring) are inserted on startup.
+                log.info('[db] upserting missing default categories')
+                for name, meta in DEFAULT_CATEGORIES.items():
+                    cur.execute(
+                        """INSERT INTO categories (name, description, is_set, templates)
+                           VALUES (%s, %s, %s, %s)
+                           ON CONFLICT (name) DO NOTHING""",
+                        (
+                            name,
+                            meta.get('description', ''),
+                            meta.get('is_set', False),
+                            json.dumps(meta.get('templates', [])),
                         )
+                    )
         log.info('[db] tables ready')
     except Exception as e:
         log.error(f'[db] init_db failed: {e}', exc_info=True)
@@ -349,6 +349,13 @@ DEFAULT_CATEGORIES = {
     "Brooch": {"description": "Pin/brooch for garments", "templates": [
         {"name": "Lapel Pin", "placement": "pinned to jacket lapel", "size_hint": "2-3cm, left chest lapel", "model_pose": "three-quarter turn, jacket visible"},
         {"name": "Statement Brooch", "placement": "large decorative chest piece", "size_hint": "5-10cm, upper chest area", "model_pose": "front facing, upper body shot"},
+    ]},
+    "Toe Ring": {"description": "Decorative ring worn on the toes, traditionally on the second toe", "templates": [
+        {"name": "Plain Band", "placement": "sits on the second toe of the foot", "size_hint": "inner diameter 14-16mm, band width 2-4mm", "model_pose": "foot extended forward, toes spread, shot from above at slight angle"},
+        {"name": "Open/Adjustable Band", "placement": "open-ended band gripping the toe, adjustable fit", "size_hint": "inner diameter 14-18mm, open back, band 2-5mm wide", "model_pose": "barefoot, foot angled to show both the ring and the open back"},
+        {"name": "Midi Ring", "placement": "worn above the knuckle on the middle segment of a toe", "size_hint": "inner diameter 12-14mm, sits mid-toe", "model_pose": "close-up top-down shot of toes, all rings clearly visible"},
+        {"name": "Floral / Motif", "placement": "decorative top piece resting on the toe surface", "size_hint": "band 14-16mm ID; motif 8-15mm wide, centred on top of toe", "model_pose": "foot pointed, top-down or three-quarter angle to showcase motif detail"},
+        {"name": "Stacking Set", "placement": "two or three thin rings worn on the same or adjacent toes", "size_hint": "each band 1-2mm wide, 14-16mm ID", "model_pose": "barefoot, toes fanned out, top-down showing all stacked rings together"},
     ]},
     "Jewellery Set": {"description": "A complete matching jewellery set", "is_set": True, "templates": [
         {"name": "Necklace + Drop Earrings Set", "placement": "necklace rests on collarbone; matching drop earrings hang from both earlobes", "size_hint": "necklace 43-70cm; earrings 3-7cm drop", "model_pose": "front-facing, chin slightly up, hair pinned up", "pieces": ["necklace", "earrings"], "set_instruction": "BOTH necklace AND earrings must appear on the model simultaneously."},

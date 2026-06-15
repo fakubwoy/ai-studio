@@ -185,6 +185,41 @@
       }
     ]
   },
+  "Toe Ring": {
+    "description": "Decorative ring worn on the toes, traditionally on the second toe",
+    "templates": [
+      {
+        "name": "Plain Band",
+        "placement": "sits on the second toe of the foot",
+        "size_hint": "inner diameter 14-16mm, band width 2-4mm",
+        "model_pose": "foot extended forward, toes spread, shot from above at slight angle"
+      },
+      {
+        "name": "Open/Adjustable Band",
+        "placement": "open-ended band gripping the toe, adjustable fit",
+        "size_hint": "inner diameter 14-18mm, open back, band 2-5mm wide",
+        "model_pose": "barefoot, foot angled to show both the ring and the open back"
+      },
+      {
+        "name": "Midi Ring",
+        "placement": "worn above the knuckle on the middle segment of a toe",
+        "size_hint": "inner diameter 12-14mm, sits mid-toe",
+        "model_pose": "close-up top-down shot of toes, all rings clearly visible"
+      },
+      {
+        "name": "Floral / Motif",
+        "placement": "decorative top piece resting on the toe surface",
+        "size_hint": "band 14-16mm ID; motif 8-15mm wide, centred on top of toe",
+        "model_pose": "foot pointed, top-down or three-quarter angle to showcase motif detail"
+      },
+      {
+        "name": "Stacking Set",
+        "placement": "two or three thin rings worn on the same or adjacent toes",
+        "size_hint": "each band 1-2mm wide, 14-16mm ID",
+        "model_pose": "barefoot, toes fanned out, top-down showing all stacked rings together"
+      }
+    ]
+  },
   "Jewellery Set": {
     "description": "A complete matching jewellery set worn together — necklace with earrings, and optionally other matching pieces",
     "is_set": true,
