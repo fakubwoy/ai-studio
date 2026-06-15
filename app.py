@@ -616,6 +616,7 @@ _RATE_LIMITS = {
     '/api/generate-cad-multi':  (10, 3600),
     '/api/conceptualise':       (20, 3600),
     '/api/generate-image':      (20, 3600),
+    '/api/generate-both':       (20, 3600),   # shares same quota as generate-image
     '/api/market-research':     (15, 3600),
     '/api/trends':              (30, 3600),   # 30 trend lookups per hour
     '/api/validate-cad':        (30, 3600),
@@ -1328,6 +1329,128 @@ def _generate_with_gemini(image_path, prompt, category, extra_paths=None):
         elif '403' in err_str or 'permission' in err_str.lower():
             hint = 'API key lacks image generation access. Use a key from aistudio.google.com.'
         return {'error': f'Gemini failed: {err_str}', 'details': hint}
+
+# ── API: Generate both shots in one call (mobile app) ────────────────────────
+#
+# Accepts multipart/form-data with:
+#   jewellery_image  – one or more image files (same field as /api/generate-image)
+#   category         – jewellery category string
+#   template         – JSON-encoded template object
+#   modelPref        – model preference string (default: 'diverse female model')
+#   customPrompt     – optional extra instructions
+#   negativePrompt   – optional things to avoid
+#
+# Runs a product-shot generation and a model-shot generation in parallel.
+# Returns:
+#   { success, product_shot_url, model_shot_url,
+#     product_shot_error, model_shot_error }
+
+@app.route('/api/generate-both', methods=['POST'])
+@login_required
+@rate_limited
+def api_generate_both():
+    files = request.files.getlist('jewellery_image')
+    if not files or not files[0].filename:
+        return jsonify({'error': 'No image provided. Send files in a field named "jewellery_image".'}), 400
+
+    category         = request.form.get('category', '')
+    template_json    = request.form.get('template', '{}')
+    model_preference = request.form.get('modelPref', 'diverse female model')
+    custom_prompt    = request.form.get('customPrompt', '')
+    negative_prompt  = request.form.get('negativePrompt', '')
+
+    try:
+        template = json.loads(template_json)
+    except Exception:
+        template = {}
+
+    # Save all uploaded files to disk
+    saved_paths = []
+    for file in files:
+        if file and file.filename and allowed_file(file.filename):
+            fn = secure_filename(f"{uuid.uuid4()}_{file.filename}")
+            fp = os.path.join(app.config['UPLOAD_FOLDER'], fn)
+            file.save(fp)
+            saved_paths.append(fp)
+
+    if not saved_paths:
+        return jsonify({'error': 'No valid image files received. Accepted types: png, jpg, jpeg, webp.'}), 400
+
+    placement     = template.get('placement', 'naturally on the model')
+    size_hint     = template.get('size_hint', '')
+    pose          = template.get('model_pose', 'natural elegant pose')
+    template_name = template.get('name', category)
+    set_instruction = template.get('set_instruction', '')
+    pieces        = template.get('pieces', [])
+
+    cats   = load_categories()
+    is_set = cats.get(category, {}).get('is_set', False) or 'set' in category.lower()
+
+    # ── Build prompts ────────────────────────────────────────────────────────
+    suffix = ''
+    if custom_prompt:
+        suffix += f'\nAdditional instructions: {custom_prompt}'
+    if negative_prompt:
+        suffix += f'\nAvoid: {negative_prompt}'
+
+    if is_set:
+        pieces_desc = ' and '.join(pieces) if pieces else 'all pieces in the set'
+        model_prompt = (
+            f"Professional high-end fashion photography. A beautiful model wearing this complete jewellery set.\n"
+            f"⚠ THIS IS A JEWELLERY SET — ALL PIECES MUST BE WORN SIMULTANEOUSLY ⚠\n"
+            f"{set_instruction if set_instruction else f'Show all pieces ({pieces_desc}) worn together.'}\n"
+            f"Pieces: {pieces_desc} | Placement: {placement} | Size: {size_hint} | Pose: {pose}\n"
+            f"Model: {model_preference} | Studio lighting, high-end catalogue quality.{suffix}"
+        )
+    else:
+        model_prompt = (
+            f"Professional fashion photography. A beautiful model wearing this exact {category}.\n"
+            f"Placement: {placement} | Size: {size_hint} | Pose: {pose} | Template: {template_name} | Model: {model_preference}\n"
+            f"Studio lighting, high-end fashion magazine quality. Jewellery prominently visible, correctly sized.\n"
+            f"RULES: 1) Reproduce jewellery identically from reference. 2) ONE {category} total. 3) No duplication.{suffix}"
+        )
+
+    product_prompt = (
+        f"Professional e-commerce product photography of this {category}.\n"
+        f"Pure white background, soft even studio lighting, no shadows.\n"
+        f"Jewellery centred, sharp focus on every detail, no model, no hands.\n"
+        f"Magazine-quality product shot suitable for an online jewellery store.{suffix}"
+    )
+
+    extra_paths = saved_paths[1:]
+
+    # ── Run both generations in parallel ─────────────────────────────────────
+    product_result = {}
+    model_result   = {}
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        product_future = pool.submit(_generate_with_gemini, saved_paths[0], product_prompt, category, extra_paths)
+        model_future   = pool.submit(_generate_with_gemini, saved_paths[0], model_prompt,   category, extra_paths)
+        product_result = product_future.result()
+        model_result   = model_future.result()
+
+    response = {
+        'success':           True,
+        'product_shot_url':  product_result.get('image_url', ''),
+        'product_shot_error': product_result.get('error', ''),
+        'model_shot_url':    model_result.get('image_url', ''),
+        'model_shot_error':  model_result.get('error', ''),
+    }
+
+    # Surface a top-level error only if both shots failed
+    if not response['product_shot_url'] and not response['model_shot_url']:
+        response['success'] = False
+        response['error'] = (
+            f"Both generations failed. Product: {response['product_shot_error']} | "
+            f"Model: {response['model_shot_error']}"
+        )
+
+    log.info(
+        f"[generate-both] product={'OK' if response['product_shot_url'] else 'FAIL'} "
+        f"model={'OK' if response['model_shot_url'] else 'FAIL'}"
+    )
+    return jsonify(response)
+
 
 # ── API: Analyse result (AI feedback loop) ─────────────────────────────────────
 
