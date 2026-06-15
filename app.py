@@ -1283,44 +1283,106 @@ RULES: 1) Reproduce jewellery identically from reference. 2) ONE {category} tota
 
     return jsonify(_generate_with_gemini(saved_paths[0], prompt, category, extra_paths=saved_paths[1:]))
 
-def _generate_with_gemini(image_path, prompt, category, extra_paths=None):
+def _generate_with_gemini(image_path, prompt, category, extra_paths=None, _fallback_prompt=None):
+    """
+    Call Gemini image generation with retry logic for two distinct failure modes:
+
+    1. 504 DEADLINE_EXCEEDED — transient server overload. Retry up to 2 times
+       with exponential back-off (2s, 4s).
+
+    2. Text-only response (no inline_data) — Gemini declined to generate an image,
+       usually because the prompt mentions a person/model. Retry once with a
+       softened fallback prompt that describes the jewellery without a human wearer.
+    """
     client, err = get_gemini_client()
     if err:
         return {'error': err}
+
     try:
         img = Image.open(image_path)
-        contents = [prompt, img]
+        extra_imgs = []
         if extra_paths:
-            contents[0] += f"\n\n{len(extra_paths)} additional angle(s) provided below."
             for ep in extra_paths:
-                try: contents.append(Image.open(ep))
-                except Exception: pass
+                try:
+                    extra_imgs.append(Image.open(ep))
+                except Exception:
+                    pass
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-image",
-            contents=contents,
-            config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
-        )
+        def _build_contents(p):
+            c = [p, img]
+            if extra_imgs:
+                c[0] += f"\n\n{len(extra_imgs)} additional angle(s) provided below."
+                c.extend(extra_imgs)
+            return c
+
+        def _call_gemini(p):
+            """Single Gemini call with 504 retry (up to 3 attempts total)."""
+            last_exc = None
+            for attempt in range(3):
+                try:
+                    return client.models.generate_content(
+                        model="gemini-2.5-flash-image",
+                        contents=_build_contents(p),
+                        config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
+                    )
+                except Exception as e:
+                    err_str = str(e)
+                    is_transient = ('504' in err_str or '503' in err_str or
+                                    'DEADLINE_EXCEEDED' in err_str or 'UNAVAILABLE' in err_str)
+                    if attempt < 2 and is_transient:
+                        wait = 2 ** (attempt + 1)  # 2s, 4s
+                        log.warning(f'[generate] transient error (attempt {attempt+1}), retrying in {wait}s: {e}')
+                        time.sleep(wait)
+                        last_exc = e
+                        continue
+                    raise
+            raise last_exc
+
+        def _save_image(out_bytes):
+            out_fn  = f"output_{uuid.uuid4()}.png"
+            r2_url  = _upload_to_r2(out_bytes, f'outputs/{out_fn}')
+            if r2_url:
+                log.info(f'[generate] uploaded to R2: {r2_url}')
+                return r2_url
+            out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
+            Image.open(io.BytesIO(out_bytes)).save(out_path)
+            return f'/static/outputs/{out_fn}'
+
+        # ── First attempt with the original prompt ────────────────────────────
+        response = _call_gemini(prompt)
 
         for part in response.candidates[0].content.parts:
             if part.inline_data is not None:
-                out_bytes = part.inline_data.data
-                out_fn    = f"output_{uuid.uuid4()}.png"
+                return {'success': True, 'image_url': _save_image(part.inline_data.data),
+                        'provider': 'Gemini', 'prompt_used': prompt}
 
-                # Try durable R2 storage first; fall back to local /tmp
-                r2_url = _upload_to_r2(out_bytes, f'outputs/{out_fn}')
-                if r2_url:
-                    image_url = r2_url
-                    log.info(f'[generate] uploaded to R2: {r2_url}')
-                else:
-                    out_path = os.path.join(app.config['OUTPUT_FOLDER'], out_fn)
-                    Image.open(io.BytesIO(out_bytes)).save(out_path)
-                    image_url = f'/static/outputs/{out_fn}'
-
-                return {'success': True, 'image_url': image_url, 'provider': 'Gemini', 'prompt_used': prompt}
-
+        # Gemini returned text only — it likely refused to draw a person.
+        # Log the refusal text so we can see exactly what it said.
         text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
-        return {'error': 'Gemini returned no image.', 'details': ' '.join(text_parts) if text_parts else 'No details.'}
+        refusal_text = ' '.join(text_parts) if text_parts else '(no text)'
+        log.warning(f'[generate] text-only response (prompt refused?): {refusal_text[:300]}')
+
+        # ── Fallback: retry with a neutral, person-free prompt ────────────────
+        if _fallback_prompt is None:
+            _fallback_prompt = (
+                f"Professional jewellery product photography of this {category}.\n"
+                f"Soft studio lighting, elegant neutral background.\n"
+                f"Jewellery is the sole subject, sharply focused, true-to-reference.\n"
+                f"High-end catalogue quality, no people, no hands."
+            )
+
+        log.info('[generate] retrying with fallback product-style prompt')
+        response2 = _call_gemini(_fallback_prompt)
+
+        for part in response2.candidates[0].content.parts:
+            if part.inline_data is not None:
+                return {'success': True, 'image_url': _save_image(part.inline_data.data),
+                        'provider': 'Gemini', 'prompt_used': _fallback_prompt}
+
+        text_parts2 = [p.text for p in response2.candidates[0].content.parts if p.text]
+        return {'error': 'Gemini returned no image after retry.',
+                'details': ' '.join(text_parts2) if text_parts2 else refusal_text}
+
     except Exception as e:
         err_str = str(e)
         hint = 'Check your GEMINI_API_KEY and image generation permissions.'
@@ -1446,8 +1508,8 @@ def api_generate_both():
         )
 
     log.info(
-        f"[generate-both] product={'OK' if response['product_shot_url'] else 'FAIL'} "
-        f"model={'OK' if response['model_shot_url'] else 'FAIL'}"
+        f"[generate-both] product={'OK' if response['product_shot_url'] else 'FAIL: ' + response['product_shot_error'][:120]} | "
+        f"model={'OK' if response['model_shot_url'] else 'FAIL: ' + response['model_shot_error'][:120]}"
     )
     return jsonify(response)
 
