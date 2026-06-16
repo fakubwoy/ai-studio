@@ -2932,20 +2932,49 @@ async function removeBackground() {
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;border-width:2px"></div> Removing background…';
 
-  // Convert to base64 if needed
-  let imageData = previewSrc;
-  if (!previewSrc.startsWith('data:')) {
-    try {
-      const r = await fetch(previewSrc);
-      const b = await r.blob();
-      imageData = await new Promise(res => {
-        const rd = new FileReader(); rd.onload = e => res(e.target.result); rd.readAsDataURL(b);
-      });
-    } catch(e) { showToast('Could not load image.', 'error'); btn.disabled = false; btn.innerHTML = origLabel; return; }
+  // Helper: compress a blob to JPEG ≤ ~3 MB so it never inflates past Flask's 32 MB limit
+  async function compressBlobBgr(blob) {
+    return new Promise(res => {
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        const MAX = 1200;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) { const ratio = Math.min(MAX/w, MAX/h); w = Math.round(w*ratio); h = Math.round(h*ratio); }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(b => { URL.revokeObjectURL(url); res(b || blob); }, 'image/jpeg', 0.88);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); res(blob); };
+      img.src = url;
+    });
   }
 
+  // Resolve the image to a Blob — prefer the original File object to avoid re-encoding overhead
+  let imageBlob = null;
+  try {
+    if (cadImageFile) {
+      // Use the original file directly (cheapest path, no re-encoding)
+      imageBlob = await compressBlobBgr(cadImageFile);
+    } else if (previewSrc.startsWith('data:')) {
+      // data-URI → Blob
+      const fetchRes = await fetch(previewSrc);
+      imageBlob = await compressBlobBgr(await fetchRes.blob());
+    } else {
+      // Remote URL (static or CDN)
+      const fetchRes = await fetch(previewSrc);
+      imageBlob = await compressBlobBgr(await fetchRes.blob());
+    }
+  } catch(e) {
+    showToast('Could not load image.', 'error');
+    btn.disabled = false; btn.innerHTML = origLabel; return;
+  }
+
+  // Send as a proper multipart file — avoids the ~33% base64 inflation that was
+  // causing Flask's 32 MB MAX_CONTENT_LENGTH to fire on perfectly normal images
   const fd = new FormData();
-  fd.append('image_data', imageData);
+  fd.append('image', imageBlob, 'jewellery.jpg');
   fd.append('category', document.getElementById('cadCategory')?.value || 'Jewellery');
 
   try {
