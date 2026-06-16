@@ -2,2460 +2,1027 @@
 {% block title %}glymr · AI-Powered Jewellery Studio{% endblock %}
 
 {% block head %}
-{# ── Preload above-the-fold images so the browser fetches them immediately ── #}
+{# ── Preload the scroll-story frames so the sequence is instant ── #}
 <link rel="preload" as="image" href="{{ url_for('static', filename='images/init/sketch.webp') }}" fetchpriority="high">
+<link rel="preload" as="image" href="{{ url_for('static', filename='images/gallery/cad-mesh.webp') }}" fetchpriority="high">
 <link rel="preload" as="image" href="{{ url_for('static', filename='images/init/concept.webp') }}" fetchpriority="high">
 <link rel="preload" as="image" href="{{ url_for('static', filename='images/init/model.webp') }}" fetchpriority="high">
+<link rel="preload" as="image" href="{{ url_for('static', filename='images/gallery/market-trends.webp') }}" fetchpriority="high">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
 <style>
-
-  /* ═══ RESET & SHARED ══════════════════════════════════════════════════════ */
-
-  .lp-section {
-    padding: 120px 80px;
-  }
-
-  .section-eyebrow {
-    font-family: var(--font-mono);
-    font-size: 10px; color: var(--gold);
-    letter-spacing: .2em; text-transform: uppercase;
-    margin-bottom: 16px;
-    display: flex; align-items: center; gap: 10px;
-  }
-
-  .section-eyebrow::before {
-    content: '';
-    display: inline-block;
-    width: 20px; height: 1px;
-    background: var(--gold);
-    opacity: .6;
-  }
-
-  .section-h2 {
-    font-family: var(--font-serif);
-    font-size: clamp(36px, 4vw, 56px);
-    font-weight: 300; line-height: 1.1;
-    color: var(--ink);
-    letter-spacing: -.01em;
-  }
-
-  .section-h2 em { font-style: italic; color: var(--gold); }
-
-  .section-sub {
-    font-size: 15px; color: var(--ink-3);
-    line-height: 1.8; max-width: 520px;
-    margin-top: 14px;
-  }
-
-  /* ═══ ANNOUNCEMENT BAR ════════════════════════════════════════════════════ */
-
-  .announce-bar {
-    background: var(--ink);
-    padding: 10px 40px;
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    position: relative; z-index: 199;
-  }
-
-  .announce-bar-text {
-    font-family: var(--font-mono);
-    font-size: 11px; color: rgba(250,247,242,.6);
-    letter-spacing: .06em;
-  }
-
-  .announce-bar-badge {
-    font-family: var(--font-mono);
-    font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
-    padding: 2px 7px; border-radius: 4px;
-    background: var(--gold); color: #fff;
-    font-weight: 600;
-  }
-
-  /* ═══ HERO ════════════════════════════════════════════════════════════════ */
-
-  .hero {
-    height: calc(100vh - var(--nav-h));
-    height: calc(100svh - var(--nav-h));
-    min-height: 0;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .hero-left {
-    display: flex; flex-direction: column; justify-content: center;
-    padding: 60px 72px 60px 80px;
-    position: relative; z-index: 2;
-    overflow: hidden;
-  }
-
-  .hero-kicker {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 5px 14px; border-radius: 20px;
-    background: var(--gold-bg); border: 1px solid rgba(184,146,74,.22);
-    font-family: var(--font-mono); font-size: 10px;
-    letter-spacing: .12em; text-transform: uppercase;
-    color: var(--gold-dk); margin-bottom: 32px;
-    animation: fade-up .5s var(--ease-out) .05s both;
-  }
-
-  .hero-kicker-dot {
-    width: 5px; height: 5px; border-radius: 50%;
-    background: var(--gold);
-    animation: blink-pulse 1.8s ease-in-out infinite;
-  }
-
-  @keyframes blink-pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
-
-  .hero-h1 {
-    font-family: var(--font-serif);
-    font-size: clamp(52px, 5.8vw, 86px);
-    font-weight: 300;
-    line-height: 1.04;
-    color: var(--ink);
-    margin-bottom: 28px;
-    letter-spacing: -.015em;
-    animation: fade-up .6s var(--ease-out) .12s both;
-  }
-
-  .hero-h1 em { font-style: italic; color: var(--gold); }
-
-  .hero-h1 .serif-thin {
-    font-weight: 200; opacity: .55;
-    display: block; font-size: .75em;
-    letter-spacing: .01em; margin-top: 2px;
-  }
-
-  .hero-sub {
-    font-size: 15px; color: var(--ink-3); line-height: 1.8;
-    max-width: 420px; margin-bottom: 48px;
-    animation: fade-up .6s var(--ease-out) .2s both;
-  }
-
-  .hero-ctas {
-    display: flex; gap: 12px; flex-wrap: wrap;
-    animation: fade-up .6s var(--ease-out) .28s both;
-  }
-
-  .hero-trust {
-    display: flex; align-items: center; gap: 18px;
-    margin-top: 56px; padding-top: 32px;
-    border-top: 1px solid var(--paper-3);
-    animation: fade-up .5s var(--ease-out) .35s both;
-  }
-
-  .hero-trust-item {
-    display: flex; align-items: center; gap: 6px;
-  }
-
-  .hero-trust-dot {
-    width: 6px; height: 6px; border-radius: 50%; background: var(--gold);
-    flex-shrink: 0; opacity: .7;
-  }
-
-  .hero-trust-text {
-    font-family: var(--font-mono); font-size: 10px;
-    color: var(--ink-4); letter-spacing: .05em;
-    white-space: nowrap;
-  }
-
-  /* ——— Hero right ——— */
-  .hero-right {
-    background: var(--ink);
-    position: relative; overflow: hidden;
-  }
-
-  .hero-canvas {
-    position: absolute; inset: 0;
-    background:
-      radial-gradient(ellipse 65% 65% at 55% 30%, rgba(184,146,74,.14) 0%, transparent 70%),
-      radial-gradient(ellipse 45% 50% at 22% 76%, rgba(201,120,106,.08) 0%, transparent 65%);
-  }
-
-  .hero-grid {
-    position: absolute; inset: 0;
-    background-image:
-      linear-gradient(rgba(184,146,74,.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(184,146,74,.04) 1px, transparent 1px);
-    background-size: 44px 44px;
-  }
-
-  .hero-orbs { position: absolute; inset: 0; pointer-events: none; }
-
-  .orb {
-    position: absolute; border-radius: 50%;
-    filter: blur(52px); opacity: .5;
-    animation: float 10s ease-in-out infinite;
-  }
-
-  .orb-1 { width: 280px; height: 280px; background: rgba(184,146,74,.16); top: 10%; left: 15%; }
-  .orb-2 { width: 170px; height: 170px; background: rgba(201,120,106,.11); top: 55%; left: 55%; animation-delay: -3.5s; }
-  .orb-3 { width: 120px; height: 120px; background: rgba(122,158,142,.08); top: 28%; left: 65%; animation-delay: -5.5s; }
-
-  @keyframes float {
-    0%,100% { transform: translateY(0) scale(1); }
-    50%      { transform: translateY(-20px) scale(1.04); }
-  }
-
-  /* ——— Jewellery Journey Panel ——— */
-  .hero-journey {
-    position: absolute; inset: 0;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    gap: 10px;
-    padding: 28px 36px;
-    overflow: hidden;
-  }
-
-  /* Top row: large jewellery image + sketch side by side */
-  .jrny-top {
-    display: contents;
-  }
-
-  .jrny-frame {
-    border-radius: 12px;
-    border: 1px solid rgba(184,146,74,.18);
-    background: rgba(250,247,242,.03);
-    position: relative; overflow: hidden;
-    display: flex; align-items: center; justify-content: center;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    transition: border-color .3s, box-shadow .3s;
-    min-height: 0;
-  }
-
-  .jrny-frame:hover {
-    border-color: rgba(184,146,74,.4);
-    box-shadow: 0 0 24px rgba(184,146,74,.12);
-  }
-
-  .jrny-frame-tall { max-height: 100%; }
-  .jrny-frame-sq   { max-height: 100%; }
-  .jrny-frame-wide { max-height: 100%; }
-
-  /* Jewellery SVG artwork inside frames */
-  .jrny-art {
-    width: 100%; height: 100%;
-    display: flex; align-items: center; justify-content: center;
-    position: relative; z-index: 1;
-  }
-
-  /* Sketch frame — hand-drawn style lines */
-  .jrny-sketch-lines {
-    position: absolute; inset: 0;
-    background-image:
-      repeating-linear-gradient(
-        -30deg,
-        transparent,
-        transparent 8px,
-        rgba(184,146,74,.07) 8px,
-        rgba(184,146,74,.07) 9px
-      );
-  }
-
-  /* Glow pulse on the "generated" frame */
-  .jrny-frame.glow {
-    animation: jrny-glow 3s ease-in-out infinite;
-  }
-
-  @keyframes jrny-glow {
-    0%,100% { box-shadow: 0 0 0 0 rgba(184,146,74,0); border-color: rgba(184,146,74,.22); }
-    50%      { box-shadow: 0 0 28px 4px rgba(184,146,74,.2); border-color: rgba(184,146,74,.55); }
-  }
-
-  .jrny-badge {
-    position: absolute; bottom: 10px; left: 10px; right: 10px;
-    display: flex; align-items: center; justify-content: space-between;
-    background: rgba(10,8,6,.72);
-    border: 1px solid rgba(184,146,74,.35);
-    border-radius: 7px;
-    padding: 5px 9px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    z-index: 2;
-  }
-
-  .jrny-badge-label {
-    font-family: var(--font-mono); font-size: 9px;
-    letter-spacing: .1em; text-transform: uppercase;
-    color: var(--gold-lt); font-weight: 500;
-  }
-
-  .jrny-badge-dot {
-    width: 5px; height: 5px; border-radius: 50%;
-    background: var(--gold);
-    animation: blink-pulse 1.8s ease-in-out infinite;
-    flex-shrink: 0;
-  }
-
-  /* Bottom row: model try-on + market listing */
-  .jrny-bottom {
-    display: contents;
-  }
-
-  .jrny-market {
-    display: flex; flex-direction: column; gap: 10px;
-    padding: 14px 14px 36px; width: 100%;
-  }
-
-  .jrny-market-graph {
-    background: rgba(10,8,6,.28);
-    border: 1px solid rgba(184,146,74,.18);
-    border-radius: 8px;
-    padding: 9px 11px 8px;
-    flex: 1;
-    display: flex; flex-direction: column; gap: 5px;
-  }
-
-  .jrny-graph-header {
-    display: flex; align-items: center; justify-content: space-between;
-  }
-
-  .jrny-graph-label {
-    font-family: var(--font-mono); font-size: 8px;
-    letter-spacing: .1em; text-transform: uppercase;
-    color: rgba(245,240,232,.45);
-  }
-
-  .jrny-graph-value {
-    font-family: var(--font-mono); font-size: 9px;
-    color: rgba(184,146,74,.95); letter-spacing: .04em;
-  }
-
-  .jrny-graph-delta {
-    font-family: var(--font-mono); font-size: 8px;
-    letter-spacing: .04em; padding: 1px 5px;
-    border-radius: 3px;
-  }
-  .jrny-graph-delta.up   { color: #7ecba1; background: rgba(126,203,161,.12); }
-  .jrny-graph-delta.down { color: #e07a6a; background: rgba(224,122,106,.12); }
-
-  .jrny-sparkline {
-    width: 100%; height: 36px; overflow: visible;
-  }
-
-  /* Market rows (kept for legacy, hidden now) */
-  .jrny-market-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 8px; border-radius: 6px;
-    background: rgba(250,247,242,.04);
-    border: 1px solid rgba(184,146,74,.1);
-  }
-
-  .jrny-market-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .jrny-market-lines { flex: 1; display: flex; flex-direction: column; gap: 3px; }
-
-  .jrny-mline {
-    height: 5px; border-radius: 3px;
-    background: rgba(250,247,242,.1);
-  }
-  .jrny-mline.gold { background: rgba(184,146,74,.3); }
-  .jrny-mline.w80 { width: 80%; }
-  .jrny-mline.w55 { width: 55%; }
-  .jrny-mline.w65 { width: 65%; }
-
-  .jrny-price {
-    font-family: var(--font-mono); font-size: 10px;
-    color: rgba(184,146,74,.9); letter-spacing: .04em;
-    white-space: nowrap;
-  }
-
-  /* Model frame inner decoration */
-  .jrny-model-inner {
-    display: flex; flex-direction: column; align-items: center;
-    justify-content: center; gap: 8px; width: 100%; padding: 16px;
-  }
-
-  .jrny-model-fig {
-    width: 52px; height: 52px; border-radius: 50%;
-    background: rgba(184,146,74,.1);
-    border: 1.5px solid rgba(184,146,74,.25);
-    display: flex; align-items: center; justify-content: center;
-    position: relative;
-  }
-
-  /* Jewellery accent on model */
-  .jrny-model-fig::after {
-    content: '';
-    position: absolute; bottom: -3px;
-    width: 28px; height: 6px;
-    border-radius: 3px;
-    background: linear-gradient(90deg, var(--gold-dk), var(--gold-lt));
-    opacity: .7;
-  }
-
-  .jrny-model-lines { width: 100%; display: flex; flex-direction: column; gap: 4px; align-items: center; }
-
-  /* Sketch SVG decoration */
-  .jrny-sketch-svg {
-    width: 70%; height: 70%; opacity: .55;
-  }
-
-  /* ═══ LOGOS / TRUST BAR ═══════════════════════════════════════════════════ */
-
-  .trust-bar {
-    padding: 0 0;
-    border-top: 1px solid var(--paper-3);
-    border-bottom: 1px solid var(--paper-3);
-    display: flex; align-items: stretch; gap: 0;
-    background: var(--surface);
-    overflow: hidden;
-    height: 64px;
-  }
-
-  .trust-bar-label {
-    font-family: var(--font-mono); font-size: 9px;
-    letter-spacing: .16em; text-transform: uppercase;
-    color: var(--ink-4); white-space: nowrap;
-    padding: 0 36px;
-    border-right: 1px solid var(--paper-3);
-    flex-shrink: 0;
-    display: flex; align-items: center;
-    background: var(--surface);
-    position: relative; z-index: 2;
-  }
-
-  /* Marquee wrapper — clips and fades the scroll track */
-  .trust-marquee-wrap {
-    flex: 1; overflow: hidden; position: relative;
-    display: flex; align-items: center;
-  }
-  .trust-marquee-wrap::before,
-  .trust-marquee-wrap::after {
-    content: '';
-    position: absolute; top: 0; bottom: 0; width: 80px;
-    pointer-events: none; z-index: 1;
-  }
-  .trust-marquee-wrap::before {
-    left: 0;
-    background: linear-gradient(to right, var(--surface), transparent);
-  }
-  .trust-marquee-wrap::after {
-    right: 0;
-    background: linear-gradient(to left, var(--surface), transparent);
-  }
-
-  .trust-marquee-track {
-    display: flex; align-items: center;
-    width: max-content;
-    animation: marquee-scroll 28s linear infinite;
-  }
-
-  .trust-marquee-track:hover { animation-play-state: paused; }
-
-  @keyframes marquee-scroll {
-    0%   { transform: translateX(0); }
-    100% { transform: translateX(-50%); }
-  }
-
-  .trust-logo {
-    font-family: var(--font-serif);
-    font-size: 15px; font-weight: 600;
-    color: var(--ink-2); letter-spacing: .04em;
-    opacity: .75; transition: opacity .2s;
-    white-space: nowrap;
-    padding: 0 36px;
-    flex-shrink: 0;
-  }
-
-  .trust-logo:hover { opacity: .85; }
-
-  /* Divider dot between items */
-  .trust-sep {
-    width: 3px; height: 3px; border-radius: 50%;
-    background: var(--gold); opacity: .2;
-    flex-shrink: 0;
-  }
-
-  /* ═══ STATS BAND ══════════════════════════════════════════════════════════ */
-
-  .stats-band {
-    background: var(--ink);
-    padding: 72px 80px;
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1px;
-    position: relative; overflow: hidden;
-  }
-
-  .stats-band::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: radial-gradient(ellipse 60% 80% at 50% 100%, rgba(184,146,74,.08) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  .stat-item {
-    padding: 40px 36px;
-    border-right: 1px solid rgba(255,255,255,.06);
-    position: relative; z-index: 1;
-  }
-
-  .stat-item:last-child { border-right: none; }
-
-  .stat-num {
-    font-family: var(--font-serif);
-    font-size: clamp(42px, 4vw, 64px);
-    font-weight: 300; line-height: 1;
-    color: var(--paper);
-    letter-spacing: -.02em;
-    margin-bottom: 10px;
-  }
-
-  .stat-num span {
-    font-size: .45em; color: var(--gold-lt);
-    font-family: var(--font-mono); letter-spacing: .1em;
-    vertical-align: super; margin-left: 2px;
-  }
-
-  .stat-label {
-    font-size: 13px; color: rgba(250,247,242,.4);
-    line-height: 1.5; max-width: 160px;
-  }
-
-  .stat-bar {
-    width: 32px; height: 2px;
-    background: var(--gold); opacity: .5;
-    border-radius: 2px; margin-bottom: 16px;
-  }
-
-  /* ═══ FEATURES ════════════════════════════════════════════════════════════ */
-
-  .features-section {
-    background: var(--paper);
-    padding: 120px 80px;
-  }
-
-  .features-header {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 60px; margin-bottom: 80px;
-    align-items: end;
-  }
-
-  .features-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 2px;
-    background: var(--paper-3);
-    border: 1px solid var(--paper-3);
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-  }
-
-  .feat-card {
-    background: var(--surface);
-    padding: 48px 40px;
-    display: flex; flex-direction: column;
-    transition: background var(--t) var(--ease);
-    position: relative; overflow: hidden;
-  }
-
-  .feat-card::before {
-    content: '';
-    position: absolute; top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--gold), transparent);
-    opacity: 0;
-    transition: opacity var(--t) var(--ease);
-  }
-
-  .feat-card:hover { background: var(--paper); }
-  .feat-card:hover::before { opacity: 1; }
-
-  .feat-icon-wrap {
-    width: 48px; height: 48px;
-    border-radius: var(--radius);
-    background: var(--gold-bg);
-    border: 1px solid rgba(184,146,74,.16);
-    display: flex; align-items: center; justify-content: center;
-    margin-bottom: 24px;
-    transition: background var(--t) var(--ease), transform var(--t) var(--ease);
-  }
-
-  .feat-card:hover .feat-icon-wrap {
-    background: var(--gold-bg-2); transform: translateY(-2px);
-  }
-
-  .feat-num {
-    font-family: var(--font-mono);
-    font-size: 10px; color: var(--paper-4);
-    letter-spacing: .1em; margin-bottom: 10px;
-  }
-
-  .feat-title {
-    font-family: var(--font-serif);
-    font-size: 22px; font-weight: 600;
-    color: var(--ink); margin-bottom: 12px;
-  }
-
-  .feat-desc {
-    font-size: 13px; color: var(--ink-3); line-height: 1.75;
-    flex: 1; margin-bottom: 28px;
-  }
-
-  .feat-tags {
-    display: flex; flex-wrap: wrap; gap: 5px;
-    margin-bottom: 24px;
-  }
-
-  .feat-tag {
-    font-family: var(--font-mono); font-size: 9px;
-    letter-spacing: .08em; text-transform: uppercase;
-    padding: 3px 9px; border-radius: 20px;
-    background: var(--gold-bg); color: var(--gold-dk);
-    border: 1px solid rgba(184,146,74,.18);
-  }
-
-  .feat-link {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-size: 12px; font-weight: 600;
-    color: var(--gold-dk); letter-spacing: .04em;
-    transition: gap var(--t) var(--ease);
-    margin-top: auto;
-  }
-
-  .feat-link:hover { gap: 10px; }
-  .feat-link svg { transition: transform var(--t) var(--ease); }
-  .feat-link:hover svg { transform: translateX(2px); }
-
-  /* ═══ HOW IT WORKS ════════════════════════════════════════════════════════ */
-
-  .how-section {
-    background: var(--surface);
-    padding: 120px 80px;
-    border-top: 1px solid var(--paper-3);
-  }
-
-  .how-header {
-    max-width: 560px; margin-bottom: 80px;
-  }
-
-  /* Flow wrapper — positions the arrow connectors between steps */
-  .how-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0;
-    position: relative;
-    align-items: start;
-  }
-
-  /* Arrow connectors rendered as pseudo-elements on each step except the last */
-  .how-step {
-    padding: 0 28px;
-    text-align: center;
-    position: relative;
-    z-index: 1;
-  }
-
-  /* Arrowhead connector sitting between step circles */
-  .how-step:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    /* Circle center: 64px radius from top (circle is 64px tall, margin-bottom 24px) */
-    top: 32px;
-    right: -4px;
-    transform: translateY(-50%);
-    width: calc(100% - 120px); /* gap between circle edges */
-    height: 0;
-    left: calc(50% + 44px); /* start after the circle's right edge */
-    right: 0;
-    border-top: 1.5px dashed rgba(139,90,43,.35);
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  /* Arrowhead tip — a small right-pointing triangle at the end of each connector */
-  .how-step:not(:last-child) .how-step-arrow {
-    position: absolute;
-    top: 32px;
-    /* sits right at the midpoint between this step's right edge and next step's left edge */
-    right: -14px;
-    transform: translateY(-50%);
-    z-index: 2;
-    display: flex; align-items: center; justify-content: center;
-  }
-
-  .how-step:not(:last-child) .how-step-arrow svg {
-    opacity: .55;
-  }
-
-  /* The numbered circle — bold brown (--ink tinted toward amber) with white number */
-  .how-step-num-circle {
-    width: 64px; height: 64px;
-    border-radius: 50%;
-    background: #5C3D1E;   /* rich dark brown */
-    box-shadow:
-      0 0 0 5px rgba(92,61,30,.14),
-      0 4px 20px rgba(92,61,30,.28);
-    display: flex; align-items: center; justify-content: center;
-    margin: 0 auto 28px;
-    position: relative; z-index: 2;
-    transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
-    flex-shrink: 0;
-  }
-
-  .how-step:hover .how-step-num-circle {
-    transform: translateY(-4px);
-    box-shadow:
-      0 0 0 7px rgba(92,61,30,.16),
-      0 10px 32px rgba(92,61,30,.38);
-  }
-
-  .how-step-num-circle span {
-    font-family: var(--font-serif);
-    font-size: 22px; font-weight: 600;
-    color: #fff;
-    line-height: 1;
-    letter-spacing: -.01em;
-    /* subtle gold shimmer to tie into the brand palette */
-    text-shadow: 0 1px 4px rgba(184,146,74,.4);
-  }
-
-  .how-step-label {
-    font-family: var(--font-mono);
-    font-size: 9px; color: var(--gold);
-    letter-spacing: .14em; text-transform: uppercase;
-    margin-bottom: 10px;
-    opacity: .75;
-  }
-
-  .how-step-title {
-    font-family: var(--font-serif);
-    font-size: 18px; font-weight: 600;
-    color: var(--ink); margin-bottom: 10px;
-  }
-
-  .how-step-desc {
-    font-size: 12px; color: var(--ink-3); line-height: 1.7;
-  }
-
-  /* ── Responsive: stack vertically on narrow screens ── */
-  @media (max-width: 860px) {
-    .how-grid {
-      grid-template-columns: 1fr;
-      gap: 0;
-    }
-
-    .how-step {
-      display: grid;
-      grid-template-columns: 64px 1fr;
-      column-gap: 24px;
-      text-align: left;
-      padding: 0 0 48px;
-      align-items: start;
-    }
-
-    /* Circle stays in its column, text flows right */
-    .how-step-num-circle {
-      margin: 0;
-      grid-row: 1 / span 4;
-    }
-
-    /* Vertical dashed line instead of horizontal */
-    .how-step:not(:last-child)::after {
-      top: 64px;
-      left: 31px;           /* horizontally centred under the 64px circle */
-      right: auto;
-      width: 1.5px;
-      height: calc(100% - 64px);
-      border-top: none;
-      border-left: 1.5px dashed rgba(139,90,43,.35);
-    }
-
-    .how-step:not(:last-child) .how-step-arrow {
-      top: auto;
-      bottom: 12px;
-      right: auto;
-      left: 22px;
-    }
-
-    .how-step-label,
-    .how-step-title,
-    .how-step-desc {
-      grid-column: 2;
-    }
-  }
-
-  /* ═══ SHOWCASE / IMAGE ROW ════════════════════════════════════════════════ */
-
-  .showcase-section {
-    background: var(--ink);
-    padding: 120px 80px;
-    position: relative; overflow: hidden;
-  }
-
-  .showcase-section::before {
-    content: '';
-    position: absolute; inset: 0;
-    background:
-      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(184,146,74,.07) 0%, transparent 60%);
-    pointer-events: none;
-  }
-
-  .showcase-header {
-    max-width: 600px; margin-bottom: 72px;
-  }
-
-  .showcase-header .section-h2 { color: var(--paper); }
-  .showcase-header .section-sub { color: rgba(250,247,242,.45); }
-
-  .showcase-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-  }
-
-  .showcase-grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr 2fr;
-    gap: 16px;
-  }
-
-  .showcase-img-placeholder {
-    border-radius: var(--radius-lg);
-    border: 1px solid rgba(184,146,74,.12);
-    background: rgba(250,247,242,.03);
-    position: relative; overflow: hidden;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 10px;
-    transition: border-color var(--t-slow), background var(--t-slow);
-  }
-
-  .showcase-img-placeholder:hover {
-    border-color: rgba(184,146,74,.3);
-    background: rgba(250,247,242,.05);
-  }
-
-  .showcase-img-placeholder::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: linear-gradient(135deg, rgba(184,146,74,.04) 0%, transparent 60%);
-  }
-
-  .sip-tall  { aspect-ratio: 3/4; }
-  .sip-sq    { aspect-ratio: 1; }
-  .sip-wide  { aspect-ratio: 16/9; }
-
-  .sip-icon {
-    width: 44px; height: 44px;
-    border-radius: 50%; background: rgba(184,146,74,.1);
-    border: 1px solid rgba(184,146,74,.2);
-    display: flex; align-items: center; justify-content: center;
-    position: relative; z-index: 1;
-  }
-
-  .sip-label {
-    font-family: var(--font-mono); font-size: 9px;
-    letter-spacing: .1em; text-transform: uppercase;
-    color: rgba(250,247,242,.25);
-    position: relative; z-index: 1;
-  }
-
-  .sip-tag {
-    position: absolute; bottom: 12px; left: 12px;
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em;
-    padding: 5px 10px; border-radius: 6px;
-    background: rgba(10,8,6,.72);
-    color: var(--gold-lt);
-    border: 1px solid rgba(184,146,74,.45);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    font-weight: 500;
-  }
-
-  /* ═══ MASONRY SHOWCASE ════════════════════════════════════════════════════ */
-
-  .masonry-grid {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    grid-template-rows: 260px 220px;
-    gap: 14px;
-  }
-
-  /* Row 1: 3 equal cards spanning 2 cols each
-     Row 2: 1 wide card (3 cols) + 3 narrow cards (1 col each) */
-  .masonry-card:nth-child(1) { grid-column: 1 / span 2; grid-row: 1; }
-  .masonry-card:nth-child(2) { grid-column: 3 / span 2; grid-row: 1; }
-  .masonry-card:nth-child(3) { grid-column: 5 / span 2; grid-row: 1; }
-  .masonry-card:nth-child(4) { grid-column: 1; grid-row: 2; }
-  .masonry-card:nth-child(5) { grid-column: 2; grid-row: 2; }
-  .masonry-card:nth-child(6) { grid-column: 3; grid-row: 2; }
-  .masonry-card:nth-child(7) { grid-column: 4 / span 3; grid-row: 2; }
-
-  @media (max-width: 1100px) {
-    .masonry-grid {
-      grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: 240px 200px 200px;
-    }
-    .masonry-card:nth-child(1) { grid-column: 1; grid-row: 1; }
-    .masonry-card:nth-child(2) { grid-column: 2; grid-row: 1; }
-    .masonry-card:nth-child(3) { grid-column: 3; grid-row: 1; }
-    .masonry-card:nth-child(4) { grid-column: 1 / span 2; grid-row: 2; }
-    .masonry-card:nth-child(5) { grid-column: 3; grid-row: 2; }
-    .masonry-card:nth-child(6) { grid-column: 1; grid-row: 3; }
-    .masonry-card:nth-child(7) { grid-column: 2 / span 2; grid-row: 3; }
-  }
-
-  @media (max-width: 720px) {
-    .masonry-grid {
-      grid-template-columns: repeat(2, 1fr);
-      grid-template-rows: repeat(4, 200px);
-    }
-    .masonry-card:nth-child(1) { grid-column: 1; grid-row: 1; }
-    .masonry-card:nth-child(2) { grid-column: 2; grid-row: 1; }
-    .masonry-card:nth-child(3) { grid-column: 1 / span 2; grid-row: 2; }
-    .masonry-card:nth-child(4) { grid-column: 1; grid-row: 3; }
-    .masonry-card:nth-child(5) { grid-column: 2; grid-row: 3; }
-    .masonry-card:nth-child(6) { grid-column: 1 / span 2; grid-row: 4; }
-    .masonry-card:nth-child(7) { display: none; }
-  }
-
-  @media (max-width: 420px) {
-    .masonry-grid {
-      grid-template-columns: 1fr;
-      grid-template-rows: repeat(5, 200px);
-    }
-    .masonry-card:nth-child(1) { grid-column: 1; grid-row: 1; }
-    .masonry-card:nth-child(2) { grid-column: 1; grid-row: 2; }
-    .masonry-card:nth-child(3) { grid-column: 1; grid-row: 3; }
-    .masonry-card:nth-child(4) { grid-column: 1; grid-row: 4; }
-    .masonry-card:nth-child(5) { grid-column: 1; grid-row: 5; }
-    .masonry-card:nth-child(6) { display: none; }
-    .masonry-card:nth-child(7) { display: none; }
-  }
-
-  .masonry-card {
-    border-radius: 14px;
-    overflow: hidden;
-    position: relative;
-    border: 1px solid rgba(184,146,74,.14);
-    background: rgba(250,247,242,.03);
-    display: block;
-    transition: transform .3s var(--ease), border-color .3s;
-    cursor: zoom-in;
-  }
-
-  .masonry-card:hover {
-    transform: scale(1.025);
-    border-color: rgba(184,146,74,.4);
-    box-shadow: 0 0 28px rgba(184,146,74,.14);
-  }
-
-  .masonry-card img.mc-photo {
-    width: 100%; height: 100%;
-    display: block;
-    object-fit: cover;
-  }
-
-  .mc-badge { display: none; }
-
-  /* Bottom tag pill kept for studio label */
-  .mc-tag {
-    position: absolute; bottom: 10px; left: 10px;
-    font-family: var(--font-mono); font-size: 9px; letter-spacing: .08em;
-    padding: 4px 9px; border-radius: 6px;
-    background: rgba(10,8,6,.72);
-    color: var(--gold-lt);
-    border: 1px solid rgba(184,146,74,.45);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    font-weight: 500;
-    z-index: 2;
-  }
-
-  /* ═══ AI MODELS STRIP ═════════════════════════════════════════════════════ */
-
-  .ai-strip {
-    background: var(--paper-2);
-    padding: 56px 80px;
-    border-top: 1px solid var(--paper-3);
-    border-bottom: 1px solid var(--paper-3);
-    display: flex; align-items: center; gap: 60px;
-  }
-
-  .ai-strip-left {
-    flex: 1; max-width: 360px;
-  }
-
-  .ai-strip-title {
-    font-family: var(--font-serif);
-    font-size: 22px; font-weight: 600;
-    color: var(--ink); margin-bottom: 8px;
-  }
-
-  .ai-strip-sub {
-    font-size: 13px; color: var(--ink-3); line-height: 1.7;
-  }
-
-  .ai-models {
-    display: flex; gap: 12px; flex-wrap: wrap; flex: 1;
-  }
-
-  .ai-model-card {
-    flex: 1; min-width: 160px;
-    background: var(--surface);
-    border: 1px solid var(--paper-3);
-    border-radius: var(--radius-lg);
-    padding: 20px 18px;
-    transition: border-color var(--t), box-shadow var(--t);
-  }
-
-  .ai-model-card:hover {
-    border-color: rgba(184,146,74,.3);
-    box-shadow: var(--shadow);
-  }
-
-  .ai-model-name {
-    font-family: var(--font-mono); font-size: 11px;
-    color: var(--gold-dk); letter-spacing: .06em;
-    font-weight: 500; margin-bottom: 4px;
-  }
-
-  .ai-model-role {
-    font-size: 12px; color: var(--ink-3); line-height: 1.5;
-  }
-
-  /* ═══ COMPARISON TABLE ════════════════════════════════════════════════════ */
-
-  .compare-section {
-    padding: 120px 80px;
-    background: var(--paper);
-  }
-
-  .compare-header {
-    max-width: 560px; margin-bottom: 64px;
-  }
-
-  .compare-table {
-    border: 1px solid var(--paper-3);
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-  }
-
-  .compare-row {
-    display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
-    border-bottom: 1px solid var(--paper-3);
-  }
-
-  .compare-row:last-child { border-bottom: none; }
-
-  .compare-cell {
-    padding: 18px 24px;
-    font-size: 13px; color: var(--ink-3);
-    border-right: 1px solid var(--paper-3);
-    display: flex; align-items: center;
-  }
-
-  .compare-cell:last-child { border-right: none; }
-
-  .compare-row.header-row .compare-cell {
-    background: var(--ink);
-    color: rgba(250,247,242,.5);
-    font-family: var(--font-mono); font-size: 10px;
-    letter-spacing: .1em; text-transform: uppercase;
-    padding: 14px 24px; font-weight: 500;
-  }
-
-  .compare-row.header-row .compare-cell:first-child {
-    color: rgba(250,247,242,.3);
-  }
-
-  .compare-row.header-row .compare-cell.highlight-col {
-    background: rgba(184,146,74,.12);
-    color: var(--gold-lt);
-    border-left: 1px solid rgba(184,146,74,.2);
-    border-right: 1px solid rgba(184,146,74,.2);
-  }
-
-  .compare-cell.feat-name {
-    color: var(--ink); font-weight: 500;
-  }
-
-  .compare-cell.highlight-col {
-    background: rgba(184,146,74,.04);
-    border-left: 1px solid rgba(184,146,74,.12);
-    border-right: 1px solid rgba(184,146,74,.12);
-  }
-
-  .compare-row:nth-child(even) .compare-cell {
-    background: var(--surface);
-  }
-
-  .compare-row:nth-child(even) .compare-cell.highlight-col {
-    background: rgba(184,146,74,.06);
-  }
-
-  .check-icon {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 18px; height: 18px; border-radius: 50%;
-    background: rgba(45,106,79,.12); color: var(--success);
-    flex-shrink: 0;
-  }
-
-  .cross-icon {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 18px; height: 18px; border-radius: 50%;
-    background: var(--paper-2); color: var(--ink-4);
-    flex-shrink: 0;
-  }
-
-  /* ===== TESTIMONIALS ===================================================== */
-
-  .testimonials-section {
-    background: var(--surface);
-    padding: 120px 80px;
-    border-top: 1px solid var(--paper-3);
-  }
-
-  .testimonials-header { max-width: 480px; margin-bottom: 64px; }
-
-  .testimonials-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-  }
-
-  .testimonial-card {
-    background: var(--paper);
-    border: 1px solid var(--paper-3);
-    border-radius: var(--radius-xl);
-    padding: 40px 32px 32px;
-    transition: border-color var(--t-slow), box-shadow var(--t-slow),
-                opacity .6s var(--ease-out), transform .6s var(--ease-out);
-    display: flex; flex-direction: column;
-    opacity: 0;
-    transform: translateY(28px);
-  }
-
-  .testimonial-card.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  .testimonial-card:nth-child(1) { transition-delay: 0s; }
-  .testimonial-card:nth-child(2) { transition-delay: .12s; }
-  .testimonial-card:nth-child(3) { transition-delay: .24s; }
-
-  .testimonial-card:hover {
-    border-color: rgba(184,146,74,.25);
-    box-shadow: var(--shadow-lg);
-  }
-
-  .testimonial-card::before {
-    content: '\201C';
-    font-family: var(--font-serif);
-    font-size: 72px; line-height: 1;
-    color: var(--gold); opacity: .25;
-    display: block;
-    margin-bottom: 4px;
-    margin-top: -12px;
-    margin-left: -4px;
-  }
-
-  .testi-text {
-    font-family: var(--font-serif);
-    font-size: 17px; font-weight: 400;
-    color: var(--ink); line-height: 1.65;
-    font-style: italic; flex: 1;
-    margin-bottom: 28px;
-  }
-
-  .testi-author {
-    display: flex; align-items: center;
-    padding-top: 20px;
-    border-top: 1px solid var(--paper-3);
-  }
-
-  .testi-name {
-    font-size: 13px; font-weight: 600; color: var(--ink);
-    margin-bottom: 2px;
-  }
-
-  .testi-role {
-    font-size: 11px; color: var(--ink-4); font-family: var(--font-mono);
-    letter-spacing: .04em;
-  }
-
-  /* ═══ FAQ ═════════════════════════════════════════════════════════════════ */
-
-  .faq-section {
-    padding: 120px 80px;
-    background: var(--paper);
-    border-top: 1px solid var(--paper-3);
-  }
-
-  .faq-layout {
-    display: grid;
-    grid-template-columns: 1fr 1.6fr;
-    gap: 80px;
-    align-items: start;
-  }
-
-  .faq-sticky { position: sticky; top: calc(var(--nav-h) + 40px); }
-
-  .faq-list { display: flex; flex-direction: column; gap: 2px; }
-
-  .faq-item {
-    border: 1px solid var(--paper-3);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    background: var(--surface);
-    transition: border-color var(--t), box-shadow var(--t);
-  }
-
-  .faq-item:hover { border-color: rgba(184,146,74,.2); }
-
-  .faq-q {
-    padding: 20px 24px;
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 16px; cursor: pointer;
-    font-size: 14px; font-weight: 500; color: var(--ink);
-    user-select: none;
-  }
-
-  .faq-chevron {
-    flex-shrink: 0; color: var(--ink-4);
-    transition: transform var(--t) var(--ease);
-  }
-
-  .faq-item.open .faq-chevron { transform: rotate(180deg); }
-
-  .faq-a {
-    padding: 0 24px;
-    font-size: 13px; color: var(--ink-3); line-height: 1.75;
-    max-height: 0; overflow: hidden;
-    transition: max-height .3s var(--ease), padding .3s var(--ease);
-  }
-
-  .faq-item.open .faq-a {
-    max-height: 200px;
-    padding: 0 24px 20px;
-  }
-
-  /* ═══ CTA STRIP ═══════════════════════════════════════════════════════════ */
-
-  .cta-strip {
-    padding: 120px 80px;
-    background: var(--ink);
-    text-align: center;
-    position: relative; overflow: hidden;
-  }
-
-  .cta-strip::before {
-    content: '';
-    position: absolute; inset: 0;
-    background:
-      radial-gradient(ellipse 70% 70% at 50% 50%, rgba(184,146,74,.1) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  .cta-badge {
-    display: inline-flex; align-items: center; gap: 7px;
-    padding: 5px 14px; border-radius: 20px;
-    background: rgba(184,146,74,.12); border: 1px solid rgba(184,146,74,.2);
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em;
-    color: var(--gold-lt); text-transform: uppercase;
-    margin-bottom: 32px; position: relative;
-  }
-
-  .cta-strip h2 {
-    font-family: var(--font-serif);
-    font-size: clamp(36px, 4.5vw, 60px);
-    font-weight: 300; color: var(--paper);
-    margin-bottom: 18px; position: relative;
-    line-height: 1.1; letter-spacing: -.01em;
-  }
-
-  .cta-strip h2 em { font-style: italic; color: var(--gold-lt); }
-
-  .cta-strip p {
-    font-size: 15px; color: rgba(250,247,242,.45);
-    margin-bottom: 48px; position: relative;
-    max-width: 460px; margin-left: auto; margin-right: auto;
-    line-height: 1.75;
-  }
-
-  .cta-btns {
-    display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
-    position: relative;
-  }
-
-  .cta-strip .cta-note {
-    margin-top: 20px;
-    font-family: var(--font-mono); font-size: 10px;
-    color: rgba(250,247,242,.2); letter-spacing: .06em;
-    position: relative;
-  }
-
-  /* ═══ FOOTER ══════════════════════════════════════════════════════════════ */
-
-  .footer {
-    background: var(--ink-2);
-    border-top: 1px solid rgba(255,255,255,.05);
-  }
-
-  .footer-top {
-    padding: 64px 80px;
-    display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
-    gap: 48px;
-  }
-
-  .footer-brand-logo {
-    display: flex; align-items: center; gap: 9px;
-    font-family: var(--font-serif);
-    font-size: 20px; font-weight: 600;
-    color: var(--paper); margin-bottom: 16px;
-  }
-
-  .footer-brand-desc {
-    font-size: 12px; color: rgba(250,247,242,.35);
-    line-height: 1.7; max-width: 280px;
-    margin-bottom: 24px;
-  }
-
-  .footer-powered {
-    display: flex; align-items: center; gap: 6px;
-    font-family: var(--font-mono); font-size: 9px;
-    color: rgba(250,247,242,.22); letter-spacing: .1em;
-    text-transform: uppercase;
-  }
-
-  .footer-powered span { color: rgba(250,247,242,.4); }
-
-  .footer-col-title {
-    font-family: var(--font-mono); font-size: 9px;
-    letter-spacing: .15em; text-transform: uppercase;
-    color: rgba(250,247,242,.35);
-    margin-bottom: 16px; font-weight: 500;
-  }
-
-  .footer-links {
-    display: flex; flex-direction: column; gap: 8px;
-  }
-
-  .footer-link {
-    font-size: 13px; color: rgba(250,247,242,.4);
-    transition: color var(--t);
-  }
-
-  .footer-link:hover { color: rgba(250,247,242,.8); }
-
-  .footer-bottom {
-    padding: 20px 80px;
-    border-top: 1px solid rgba(255,255,255,.05);
-    display: flex; align-items: center; justify-content: space-between;
-  }
-
-  .footer-copy {
-    font-family: var(--font-mono); font-size: 10px;
-    color: rgba(250,247,242,.2); letter-spacing: .06em;
-  }
-
-  .footer-legal {
-    display: flex; gap: 20px;
-  }
-
-  .footer-legal a {
-    font-family: var(--font-mono); font-size: 10px;
-    color: rgba(250,247,242,.2); letter-spacing: .06em;
-    transition: color var(--t);
-  }
-
-  .footer-legal a:hover { color: rgba(250,247,242,.5); }
-
-  /* ═══ SCROLL ANIMATIONS ═══════════════════════════════════════════════════ */
-
-  .reveal {
-    opacity: 0; transform: translateY(20px);
-    transition: opacity .6s var(--ease-out), transform .6s var(--ease-out);
-  }
-
-  .reveal.visible { opacity: 1; transform: translateY(0); }
-
-  .reveal-delay-1 { transition-delay: .1s; }
-  .reveal-delay-2 { transition-delay: .2s; }
-  .reveal-delay-3 { transition-delay: .3s; }
-  .reveal-delay-4 { transition-delay: .4s; }
-
-  /* ═══ IMAGE MODAL ═════════════════════════════════════════════════════════ */
-
-  .img-modal-backdrop {
-    position: fixed; inset: 0; z-index: 900;
-    background: rgba(10,8,6,.88);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    display: flex; align-items: center; justify-content: center;
-    opacity: 0; pointer-events: none;
-    transition: opacity .25s var(--ease);
-  }
-
-  .img-modal-backdrop.open {
-    opacity: 1; pointer-events: auto;
-  }
-
-  .img-modal-inner {
-    position: relative;
-    max-width: min(90vw, 720px);
-    max-height: 85vh;
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    box-shadow: 0 40px 80px rgba(0,0,0,.5);
-    border: 1px solid rgba(184,146,74,.2);
-    transform: scale(.94) translateY(8px);
-    transition: transform .3s var(--ease-out);
-  }
-
-  .img-modal-backdrop.open .img-modal-inner {
-    transform: scale(1) translateY(0);
-  }
-
-  .img-modal-inner img {
-    display: block;
-    width: 100%; height: 100%;
-    object-fit: contain;
-    max-height: 85vh;
-  }
-
-  .img-modal-close {
-    position: absolute; top: 12px; right: 12px;
-    width: 34px; height: 34px; border-radius: 50%;
-    background: rgba(10,8,6,.72);
-    border: 1px solid rgba(184,146,74,.25);
-    backdrop-filter: blur(8px);
-    color: rgba(250,247,242,.75);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; z-index: 2;
-    transition: background .2s, border-color .2s;
-  }
-
-  .img-modal-close:hover {
-    background: rgba(10,8,6,.95);
-    border-color: rgba(184,146,74,.5);
-    color: #fff;
-  }
-
-  .img-modal-label {
-    position: absolute; bottom: 14px; left: 14px;
-    font-family: var(--font-mono); font-size: 10px;
-    letter-spacing: .1em; text-transform: uppercase;
-    padding: 5px 10px; border-radius: 6px;
-    background: rgba(10,8,6,.72);
-    color: var(--gold-lt);
-    border: 1px solid rgba(184,146,74,.35);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
-
-  /* ── Image-fill helper: replaces CSS background-image with a real <img> ── */
-  .img-fill {
-    position: absolute; inset: 0;
-    width: 100%; height: 100%;
-    object-fit: cover;
-    object-position: center;
-    z-index: 0;
-    display: block;
-  }
-  .jrny-badge { z-index: 2; }
-  .showcase-img-placeholder { position: relative; overflow: hidden; }
-
-
-  .jrny-frame[data-modal-src] {
-    cursor: zoom-in;
-  }
-
-  .jrny-frame[data-modal-src]:hover {
-    border-color: rgba(184,146,74,.55);
-    box-shadow: 0 0 28px rgba(184,146,74,.18);
-  }
-
-  /* ═══ RESPONSIVE ══════════════════════════════════════════════════════════ */
-
-  @media (max-width: 1200px) {
-    .stats-band { grid-template-columns: 1fr 1fr; }
-    .stat-item { border-bottom: 1px solid rgba(255,255,255,.06); }
-    .features-header { grid-template-columns: 1fr; gap: 24px; }
-    .features-grid { grid-template-columns: 1fr 1fr; }
-    .how-grid { grid-template-columns: 1fr 1fr; gap: 48px; }
-    .testimonials-grid { grid-template-columns: 1fr 1fr; }
-    .faq-layout { grid-template-columns: 1fr; gap: 48px; }
-    .faq-sticky { position: static; }
-    .footer-top { grid-template-columns: 1fr 1fr; }
-  }
-
-  @media (max-width: 900px) {
-    .hero { grid-template-columns: 1fr; }
-    .hero-right { display: none; }
-    .hero-left { padding: 80px 40px 60px; }
-    .lp-section { padding: 80px 40px; }
-    .trust-bar { padding: 24px 40px; }
-    .stats-band { padding: 60px 40px; }
-    .features-section, .how-section, .showcase-section,
-    .compare-section, .testimonials-section, .faq-section,
-    .cta-strip { padding: 80px 40px; }
-    .ai-strip { padding: 40px; flex-direction: column; gap: 32px; }
-    .compare-row { grid-template-columns: 2fr 1fr 1fr; }
-    .compare-row .compare-cell:nth-child(3) { display: none; }
-    .compare-row.header-row .compare-cell:nth-child(3) { display: none; }
-    .footer-top { padding: 48px 40px; grid-template-columns: 1fr 1fr; }
-    .footer-bottom { padding: 16px 40px; }
-  }
-
-  @media (max-width: 600px) {
-    .hero-left { padding: 60px 24px 48px; }
-    .features-grid { grid-template-columns: 1fr; }
-    .how-grid { grid-template-columns: 1fr; }
-    .testimonials-grid { grid-template-columns: 1fr; }
-    .showcase-grid, .showcase-grid-2 { grid-template-columns: 1fr 1fr; }
-    .stats-band { grid-template-columns: 1fr 1fr; padding: 40px 24px; }
-    .features-section, .how-section, .showcase-section,
-    .compare-section, .testimonials-section, .faq-section,
-    .cta-strip { padding: 60px 24px; }
-    .trust-bar { height: auto; flex-direction: column; align-items: flex-start; gap: 0; }
-    .trust-bar-label { border-right: none; border-bottom: 1px solid var(--paper-3); width: 100%; padding: 12px 24px; }
-    .trust-marquee-wrap { width: 100%; padding: 14px 0; }
-    .footer-top { grid-template-columns: 1fr; padding: 40px 24px; }
-    .footer-bottom { flex-direction: column; gap: 8px; text-align: center; padding: 16px 24px; }
-    .ai-strip { padding: 40px 24px; }
-    .compare-section { padding: 60px 24px; }
-    .compare-row { grid-template-columns: 1fr 1fr; }
-    .compare-row .compare-cell:nth-child(3) { display: none; }
-    .compare-row .compare-cell:nth-child(4) { display: none; }
-    .compare-row.header-row .compare-cell:nth-child(4) { display: none; }
-  }
-
+/* ════════════════════════════════════════════════════════════════════════════
+   amp × glymr  —  white canvas, one gold accent, one typeface (Inter)
+   Scoped to the landing page only (this style block loads after base.html's).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --canvas:   #ffffff;
+  --linen:    #f4f3f1;
+  --bone:     #ece9e3;
+  --ink:      #0a0a0a;
+  --carbon:   #292b2a;
+  --slate:    #7a7b7b;
+  --ash:      #a2a3a2;
+  --line:     #e6e3dd;
+  --fog:      #dfddd7;
+  --charcoal: #16130d;
+  --gold:     #b8924a;
+  --gold-dk:  #8a6830;
+  --gold-lt:  #d4a96a;
+  --gold-wash:#f6f0e4;
+  --font-amp: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --cta-shadow: rgba(184,146,74,.42) 1px 6px 16px 0, rgba(0,0,0,.06) 0 1px 4px 0;
+}
+
+/* Landing typography reset onto Inter ----------------------------------------- */
+body { background: var(--canvas); color: var(--ink); font-family: var(--font-amp); }
+.nav-logo, .nav-links a, .nav-user-name { font-family: var(--font-amp) !important; }
+.nav-logo { font-weight: 600; letter-spacing: -.02em; }
+.nav-links a { letter-spacing: -.01em; }
+
+/* Light white translucent glass header; the video sits BELOW it (not behind) */
+.page { padding-top: var(--nav-h) !important; }
+.nav {
+  background: rgba(255,255,255,.5); border-bottom: 1px solid rgba(255,255,255,.5);
+  backdrop-filter: blur(18px) saturate(1.6); -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  box-shadow: 0 1px 0 rgba(255,255,255,.4) inset;
+  transition: background .35s var(--ease);
+}
+/* Wordmark: hand font, no diamond logo mark */
+.nav .nav-logo-mark { display: none !important; }
+.nav .nav-logo {
+  font-family: var(--font-serif) !important;  /* Cormorant Garamond — elegant serif logotype */
+  font-size: 27px; line-height: 1; font-weight: 600; letter-spacing: .015em;
+  text-transform: capitalize;
+  background: linear-gradient(95deg, #8a6830 0%, #b8924a 38%, #e6c578 58%, #b8924a 82%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: var(--gold);
+}
+.nav .nav-links a { color: var(--ink-2); }
+.nav .nav-links a:hover, .nav .nav-links a.active { color: var(--gold-dk); background: var(--gold-bg); }
+.nav .nav-cta { background: var(--ink); color: var(--paper) !important; }
+.nav .nav-cta:hover { background: var(--ink-2) !important; }
+.nav.amp-nav-solid { background: rgba(255,255,255,.68); }
+
+.amp { font-family: var(--font-amp); }
+
+/* ── Shared section primitives ───────────────────────────────────────────── */
+.amp-sec { max-width: 1200px; margin: 0 auto; padding: 112px 40px; }
+.amp-eyebrow {
+  font-size: 12px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--slate); display: flex; align-items: center; gap: 10px; margin-bottom: 20px;
+}
+.amp-eyebrow::before { content:''; width: 22px; height: 1px; background: var(--gold); }
+.amp-h2 {
+  font-size: clamp(34px, 4.4vw, 56px); font-weight: 300; line-height: 1.08;
+  letter-spacing: -.034em; color: var(--ink);
+}
+.amp-h2 em { font-style: normal; color: var(--gold); }
+.amp-rule { width: 120px; height: 2px; background: var(--gold); margin-top: 26px; }
+.amp-sub {
+  font-size: 16px; font-weight: 400; line-height: 1.6; color: var(--carbon);
+  max-width: 520px; margin-top: 22px; letter-spacing: -.01em;
+}
+
+/* ── Buttons (radius ladder: pill 50 / secondary 24 / small 8) ───────────── */
+.amp-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  font-family: var(--font-amp); font-weight: 500; font-size: 15px; letter-spacing: -.01em;
+  cursor: pointer; border: none; white-space: nowrap; transition: all .2s cubic-bezier(.4,0,.2,1);
+}
+.amp-btn-primary {
+  background: var(--gold); color: #fff; border-radius: 50px;
+  padding: 15px 30px; box-shadow: var(--cta-shadow);
+}
+.amp-btn-primary:hover { background: var(--gold-dk); transform: translateY(-1px); box-shadow: rgba(184,146,74,.55) 1px 8px 22px 0, rgba(0,0,0,.08) 0 1px 4px 0; }
+.amp-btn-secondary {
+  background: var(--canvas); color: var(--carbon); border: 1px solid var(--line);
+  border-radius: 24px; padding: 14px 26px;
+}
+.amp-btn-secondary:hover { border-color: var(--gold); color: var(--gold-dk); }
+.amp-btn-ghost-dark {
+  background: transparent; color: rgba(255,255,255,.82); border: 1px solid rgba(255,255,255,.22);
+  border-radius: 24px; padding: 14px 26px;
+}
+.amp-btn-ghost-dark:hover { border-color: var(--gold-lt); color: #fff; }
+.chev { width: 15px; height: 15px; }
+
+/* ══ ANNOUNCEMENT BAR ════════════════════════════════════════════════════ */
+.amp-announce {
+  background: var(--linen); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 11px 24px; font-size: 14px; color: var(--carbon); letter-spacing: -.01em;
+}
+.amp-announce b { color: var(--ink); font-weight: 500; }
+.amp-announce .amp-pill {
+  font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: #fff; background: var(--gold); border-radius: 8px; padding: 3px 8px;
+}
+
+/* ══ HERO — full-bleed 16:9 landscape video (cover, no borders/white sides) ═ */
+@keyframes amp-blink { 0%,100%{opacity:.35} 50%{opacity:1} }
+/* Hero fills exactly the viewport below the fixed header */
+.amp-hero { position: relative; width: 100%; height: calc(100vh - var(--nav-h)); height: calc(100svh - var(--nav-h)); margin: 0; overflow: hidden; background: #0c0a07; }
+.amp-hero-video-wrap { position: absolute; inset: 0; margin: 0; border-radius: 0; }
+.amp-hero-video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; border: none; border-radius: 0; opacity: 1; box-shadow: none; background: #0c0a07;
+}
+
+/* Portrait video section */
+.amp-vid-portrait { background: var(--canvas); padding: 24px 40px 96px; }
+.amp-vid-portrait-inner { max-width: 460px; margin: 0 auto; position: relative; }
+.amp-vid-portrait-inner::before {
+  content:''; position: absolute; inset: -8%; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse 60% 50% at 50% 40%, rgba(184,146,74,.18), transparent 72%);
+  filter: blur(22px);
+}
+.amp-portrait-video {
+  position: relative; z-index: 1; display: block; width: 100%; height: auto;
+  object-fit: contain; border-radius: 16px; opacity: .95;
+  border: 1px solid var(--line);
+  box-shadow: 0 36px 80px -34px rgba(20,16,10,.5); background: #0c0a07;
+}
+
+/* ══ SCROLL STORY (the centerpiece) ══════════════════════════════════════ */
+.amp-scrolly { position: relative; height: 440vh; background: var(--canvas); }
+.amp-stage {
+  position: sticky; top: var(--nav-h);
+  height: calc(100vh - var(--nav-h)); height: calc(100svh - var(--nav-h));
+  display: grid; grid-template-columns: 0.8fr 1.2fr; align-items: center;
+  gap: 56px; max-width: 1360px; margin: 0 auto; padding: 0 48px; overflow: hidden;
+}
+
+/* Left: narrative copy */
+.amp-stage-copy { position: relative; z-index: 3; }
+.amp-stage-step {
+  font-size: 13px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--gold-dk); margin-bottom: 18px; display: flex; align-items: baseline; gap: 8px;
+}
+.amp-stage-step .num { font-size: 13px; color: var(--gold); }
+.amp-stage-step .tot { color: var(--ash); }
+.amp-stage-titles { position: relative; height: clamp(120px, 17vh, 160px); }
+.amp-stage-title {
+  position: absolute; inset: 0; font-size: clamp(34px, 4.6vw, 60px); font-weight: 300;
+  line-height: 1.04; letter-spacing: -.035em; color: var(--ink);
+  opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s ease;
+}
+.amp-stage-title em { font-style: normal; color: var(--gold); }
+.amp-stage-title.on { opacity: 1; transform: translateY(0); }
+.amp-stage-descs { position: relative; height: 96px; margin-top: 18px; }
+.amp-stage-desc {
+  position: absolute; inset: 0; font-size: 16px; line-height: 1.6; color: var(--carbon);
+  max-width: 420px; letter-spacing: -.01em;
+  opacity: 0; transform: translateY(12px); transition: opacity .5s ease .05s, transform .5s ease .05s;
+}
+.amp-stage-desc.on { opacity: 1; transform: translateY(0); }
+
+/* Progress rail */
+.amp-rail { display: flex; gap: 10px; margin-top: 40px; }
+.amp-rail-seg { flex: 1; max-width: 56px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.amp-rail-seg i { display: block; height: 100%; width: 0; background: var(--gold); transition: width .25s linear; }
+
+/* Right: the 3D image stack */
+.amp-stack {
+  position: relative; z-index: 2; width: 100%;
+  aspect-ratio: 16 / 10; max-height: calc(100vh - var(--nav-h) - 56px);
+  perspective: 1800px;
+}
+.amp-frame {
+  position: absolute; inset: 0; margin: auto; width: 100%; height: 100%;
+  transform-style: preserve-3d; will-change: opacity, transform, filter;
+}
+.amp-frame-card {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  border-radius: 10px; overflow: hidden;
+  background: radial-gradient(ellipse 90% 90% at 50% 38%, #f5f0e6 0%, #ece5d6 100%);
+  border: 1px solid var(--line);
+  box-shadow: 0 36px 80px -30px rgba(20,16,10,.55), 0 1px 0 rgba(255,255,255,.6) inset;
+}
+/* contain = full image, never cropped; landscape frame letterboxes portraits cleanly */
+.amp-frame-card img { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+/* Market-analysis frame (sparkline panel instead of a photo) */
+.amp-mkt-card { background: linear-gradient(160deg, #faf6ee, #f1e8d6); padding: 36px; display: flex; align-items: center; }
+.amp-mkt { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; width: 100%; }
+.amp-mkt-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.amp-mkt-label { font-family: var(--font-amp); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: rgba(40,28,10,.7); }
+.amp-mkt-delta { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+.amp-mkt-delta.up { color: #5a3e0a; background: rgba(90,62,10,.14); }
+.amp-mkt-delta.down { color: #8b2e1e; background: rgba(139,46,30,.12); }
+.amp-mkt-graph { background: rgba(255,255,255,.65); border: 1px solid rgba(184,146,74,.25); border-radius: 12px; padding: 14px 16px; }
+.amp-mkt-grow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.amp-mkt-grow span:first-child { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: rgba(40,28,10,.55); }
+.amp-mkt-val { font-family: var(--font-amp); font-size: 15px; font-weight: 600; color: #5a3e0a; }
+.amp-spark { width: 100%; height: 54px; display: block; }
+@media (max-width: 980px) { .amp-mkt { grid-template-columns: 1fr; gap: 16px; } .amp-mkt-card { padding: 22px; } .amp-spark { height: 40px; } }
+.amp-frame-tag {
+  position: absolute; left: 12px; bottom: 12px;
+  font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--gold-dk); background: rgba(255,255,255,.9); border: 1px solid var(--line);
+  border-radius: 50px; padding: 5px 12px; display: flex; align-items: center; gap: 7px;
+  backdrop-filter: blur(6px);
+}
+.amp-frame-tag .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--gold); animation: amp-blink 1.8s ease-in-out infinite; }
+
+/* faint wireframe grid behind the stack — the "white blueprint" feel */
+.amp-stack::before {
+  content:''; position: absolute; inset: -40px; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(184,146,74,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(184,146,74,.05) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, #000 30%, transparent 75%);
+}
+
+/* scroll cue under hero */
+.amp-cue { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 56px; color: var(--ash); }
+.amp-cue span { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; }
+.amp-cue svg { animation: amp-bob 1.6s ease-in-out infinite; }
+@keyframes amp-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(5px)} }
+
+/* ══ STATS — contrasting glass cards on a warm section ═══════════════════ */
+.amp-statsec { background: linear-gradient(180deg, #ffffff 0%, #f5efe5 48%, #ffffff 100%); }
+.amp-stats { max-width: 1200px; margin: 0 auto; padding: 96px 40px; display: grid; grid-template-columns: repeat(4,1fr); gap: 22px; }
+.amp-stat-card {
+  background: linear-gradient(155deg, rgba(255,255,255,.92), rgba(241,231,214,.8));
+  backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(184,146,74,.3); border-radius: 18px; padding: 30px 28px;
+  box-shadow: 0 20px 44px -24px rgba(92,61,30,.4), 0 1px 0 rgba(255,255,255,.85) inset;
+  transition: transform .3s var(--ease), border-color .3s, box-shadow .3s;
+}
+.amp-stat-card:hover { transform: translateY(-5px); border-color: rgba(184,146,74,.6); box-shadow: 0 26px 50px -22px rgba(184,146,74,.55); }
+.amp-stat-bar { width: 32px; height: 2px; background: var(--gold); margin-bottom: 18px; }
+.amp-stat-num { font-size: clamp(40px, 4vw, 60px); font-weight: 300; line-height: 1; letter-spacing: -.03em; color: var(--ink); }
+.amp-stat-num span { font-size: .4em; color: var(--gold-dk); margin-left: 4px; }
+.amp-stat-label { font-size: 14px; color: var(--slate); line-height: 1.5; margin-top: 12px; max-width: 190px; }
+
+/* ══ SPLIT — portrait video | vertical 4-step workflow ══════════════════ */
+.amp-split { max-width: 1200px; margin: 0 auto; padding: 56px 40px; }
+.amp-split-head { max-width: 1120px; margin-bottom: 52px; }
+.amp-split-head .amp-eyebrow { margin-bottom: 14px; }
+.amp-sub-1line { margin-top: 12px; max-width: none; }
+.amp-split-grid { display: grid; grid-template-columns: 0.78fr 1.22fr; gap: 48px; align-items: center; }
+.amp-split-video { position: relative; display: flex; justify-content: center; }
+.amp-split-video::before {
+  content:''; position: absolute; inset: -8%; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse 60% 50% at 50% 45%, rgba(184,146,74,.16), transparent 72%); filter: blur(22px);
+}
+.amp-portrait-video {
+  position: relative; z-index: 1; display: block; width: auto; max-width: 100%; height: auto;
+  max-height: 64vh; object-fit: contain; margin: 0 auto;
+  border-radius: 16px; border: 1px solid var(--line); background: #0c0a07;
+  box-shadow: 0 36px 80px -34px rgba(20,16,10,.5);
+}
+.amp-split-flow { display: flex; flex-direction: column; }
+.amp-vstep { position: relative; display: grid; grid-template-columns: 44px 1fr; gap: 16px; padding: 11px 0; }
+.amp-vstep-num {
+  position: relative; z-index: 1; width: 42px; height: 42px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6e4a23, #5C3D1E 70%);
+  box-shadow: 0 0 0 4px rgba(92,61,30,.1), 0 5px 14px rgba(92,61,30,.28);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-serif); font-size: 17px; font-weight: 600; color: #fff;
+}
+/* dashed connector + arrowhead from each step down to the next */
+.amp-vstep:not(:last-child)::before { content:''; position: absolute; left: 21px; top: 46px; bottom: 2px; border-left: 1.5px dashed rgba(139,90,43,.45); }
+.amp-vstep:not(:last-child)::after { content:''; position: absolute; left: 21px; bottom: 2px; width: 7px; height: 7px; border-right: 1.5px solid rgba(139,90,43,.6); border-bottom: 1.5px solid rgba(139,90,43,.6); transform: translate(-50%,0) rotate(45deg); }
+.amp-vstep-label { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
+.amp-vstep-title { font-family: var(--font-serif); font-size: 18px; font-weight: 600; color: var(--ink); margin-bottom: 3px; letter-spacing: -.01em; }
+.amp-vstep-desc { font-size: 13px; line-height: 1.5; color: var(--carbon); letter-spacing: -.01em; }
+
+/* ══ FEATURES (ghost cards) ══════════════════════════════════════════════ */
+.amp-feat-head { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; margin-bottom: 56px; }
+.amp-feat-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+.amp-card {
+  background: var(--canvas); border: 1px solid var(--line); border-radius: 5px; padding: 32px;
+  display: flex; flex-direction: column; transition: border-color .2s, transform .2s;
+}
+.amp-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+.amp-card-num { font-size: 13px; color: var(--ash); font-weight: 500; letter-spacing: .08em; margin-bottom: 18px; }
+.amp-card-icon { width: 44px; height: 44px; border-radius: 8px; background: var(--gold-wash); border: 1px solid rgba(184,146,74,.18); display: flex; align-items: center; justify-content: center; margin-bottom: 22px; }
+.amp-card-title { font-size: 22px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-bottom: 10px; }
+.amp-card-desc { font-size: 15px; line-height: 1.6; color: var(--carbon); flex: 1; margin-bottom: 22px; letter-spacing: -.01em; }
+.amp-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; }
+.amp-tag { font-size: 12px; font-weight: 500; letter-spacing: -.01em; color: var(--slate); background: var(--linen); border: 1px solid var(--line); border-radius: 50px; padding: 4px 11px; }
+.amp-card-link { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--gold-dk); margin-top: auto; transition: gap .2s; }
+.amp-card-link:hover { gap: 10px; }
+
+/* ══ VERTICAL 3D TOOL STACK ══════════════════════════════════════════════ */
+.amp-stack3d { position: relative; margin-top: 64px; display: grid; place-items: center; min-height: 540px; }
+.amp-stack3d-viewport { position: relative; width: 320px; height: 460px; perspective: 1200px; touch-action: none; }
+.ts-card {
+  position: absolute; left: 50%; top: 50%; width: 300px; height: 430px;
+  border-radius: 22px; overflow: hidden; transform-style: preserve-3d;
+  transform: translate(-50%,-50%); will-change: transform, opacity;
+  transition: transform .5s cubic-bezier(.2,.7,.2,1), opacity .5s ease;
+  border: 1px solid rgba(255,255,255,.1); background: #110d08; cursor: grab;
+  box-shadow: 0 25px 50px -12px rgba(20,16,10,.45);
+}
+.ts-card:active { cursor: grabbing; }
+.ts-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.ts-card-grad { position: absolute; inset: 0; background: linear-gradient(to top, rgba(8,6,4,.94) 6%, rgba(8,6,4,.45) 44%, rgba(8,6,4,.04) 74%); }
+.ts-card-body { position: absolute; inset: auto 0 0 0; padding: 24px; color: #fff; z-index: 2; }
+.ts-num { font-size: 12px; letter-spacing: .16em; color: var(--gold-lt); margin-bottom: 8px; }
+.ts-title { font-size: 25px; font-weight: 500; letter-spacing: -.02em; margin-bottom: 8px; }
+.ts-desc { font-size: 13px; line-height: 1.55; color: rgba(255,255,255,.72); margin-bottom: 14px; }
+.ts-link { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; color: var(--gold-lt); transition: gap .2s; }
+.ts-link:hover { gap: 11px; }
+
+.amp-stack3d-counter { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.amp-stack3d-counter span { font-size: 30px; font-weight: 300; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1; }
+.amp-stack3d-counter .tot { font-size: 14px; color: var(--ash); }
+.amp-stack3d-counter i { width: 26px; height: 1px; background: var(--fog); }
+.amp-stack3d-dots { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 2px; }
+.ts-dot { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; padding: 0; }
+.ts-dot i { width: 8px; height: 8px; border-radius: 50%; background: rgba(10,10,10,.22); transition: all .3s var(--ease); display: block; }
+.ts-dot.on i { height: 22px; border-radius: 6px; background: var(--gold); }
+.ts-dot:hover i { background: rgba(10,10,10,.45); }
+.amp-stack3d-hint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--ash); }
+.amp-stack3d-hint svg { animation: amp-bob 1.6s ease-in-out infinite; }
+
+/* ══ HOW IT WORKS — circle + arrow flow (serif heading) ══════════════════ */
+.amp-how { background: var(--linen); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.amp-how-head { max-width: 620px; margin-bottom: 80px; }
+.amp-serif-h2 { font-family: var(--font-serif); font-size: clamp(40px, 5.4vw, 66px); font-weight: 400; line-height: 1.04; letter-spacing: -.005em; color: var(--ink); }
+.amp-serif-h2 em { font-style: italic; color: var(--gold); }
+.amp-how-head .amp-sub { margin-top: 20px; }
+
+.amp-flow { display: grid; grid-template-columns: repeat(4,1fr); gap: 0; align-items: start; }
+.amp-flow-step { padding: 0 28px; text-align: center; position: relative; z-index: 1; }
+/* dashed connector line between circles */
+.amp-flow-step:not(:last-child)::after {
+  content: ''; position: absolute; top: 36px; transform: translateY(-50%);
+  left: calc(50% + 48px); right: calc(-50% + 48px); height: 0;
+  border-top: 1.5px dashed rgba(139,90,43,.4); z-index: 0;
+}
+.amp-flow-arrow { position: absolute; top: 36px; right: -11px; transform: translateY(-50%); color: var(--gold); z-index: 2; display: flex; }
+.amp-flow-circle {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6e4a23, #5C3D1E 70%);
+  box-shadow: 0 0 0 5px rgba(92,61,30,.12), 0 6px 22px rgba(92,61,30,.3);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 28px; position: relative; z-index: 2;
+  transition: transform .25s var(--ease), box-shadow .25s var(--ease);
+}
+.amp-flow-step:hover .amp-flow-circle { transform: translateY(-4px); box-shadow: 0 0 0 7px rgba(92,61,30,.16), 0 12px 30px rgba(92,61,30,.42); }
+.amp-flow-circle span { font-family: var(--font-serif); font-size: 24px; font-weight: 600; color: #fff; line-height: 1; text-shadow: 0 1px 4px rgba(184,146,74,.4); }
+.amp-flow-label { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; opacity: .85; }
+.amp-flow-title { font-family: var(--font-serif); font-size: 21px; font-weight: 600; color: var(--ink); margin-bottom: 10px; letter-spacing: -.01em; }
+.amp-flow-desc { font-size: 14px; line-height: 1.7; color: var(--carbon); letter-spacing: -.01em; }
+
+/* ══ SHOWCASE MASONRY ════════════════════════════════════════════════════ */
+.amp-show { background: var(--canvas); }
+.amp-masonry { display: grid; grid-template-columns: repeat(6,1fr); grid-template-rows: 280px 230px; gap: 16px; margin-top: 56px; }
+.amp-mc { border-radius: 8px; overflow: hidden; position: relative; border: 1px solid var(--line); background: var(--linen); cursor: zoom-in; transition: transform .3s, border-color .3s; }
+.amp-mc:hover { transform: scale(1.02); border-color: var(--gold); }
+.amp-mc img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.amp-mc .amp-frame-tag { backdrop-filter: blur(8px); }
+.amp-mc:nth-child(1){grid-column:1/span 2;grid-row:1}
+.amp-mc:nth-child(2){grid-column:3/span 2;grid-row:1}
+.amp-mc:nth-child(3){grid-column:5/span 2;grid-row:1}
+.amp-mc:nth-child(4){grid-column:1;grid-row:2}
+.amp-mc:nth-child(5){grid-column:2;grid-row:2}
+.amp-mc:nth-child(6){grid-column:3;grid-row:2}
+.amp-mc:nth-child(7){grid-column:4/span 3;grid-row:2}
+
+/* ══ AI STRIP ════════════════════════════════════════════════════════════ */
+.amp-ai { background: var(--linen); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.amp-ai-in { max-width: 1200px; margin: 0 auto; padding: 64px 40px; display: flex; gap: 56px; align-items: center; }
+.amp-ai-left { max-width: 340px; }
+.amp-ai-title { font-size: 24px; font-weight: 400; letter-spacing: -.02em; color: var(--ink); margin-bottom: 8px; }
+.amp-ai-sub { font-size: 15px; line-height: 1.6; color: var(--carbon); }
+.amp-ai-cards { display: flex; gap: 14px; flex: 1; flex-wrap: wrap; }
+.amp-ai-card { flex: 1; min-width: 170px; background: var(--canvas); border: 1px solid var(--line); border-radius: 5px; padding: 20px; }
+.amp-ai-name { font-size: 14px; font-weight: 600; letter-spacing: -.01em; color: var(--gold-dk); margin-bottom: 5px; }
+.amp-ai-role { font-size: 13px; line-height: 1.5; color: var(--slate); }
+
+/* ══ FAQ ═════════════════════════════════════════════════════════════════ */
+.amp-faq { background: var(--canvas); }
+.amp-faq-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 64px; align-items: start; }
+.amp-faq-sticky { position: sticky; top: calc(var(--nav-h) + 40px); }
+.amp-faq-list { display: flex; flex-direction: column; gap: 6px; }
+.amp-faq-item { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; transition: border-color .2s, background .2s; }
+.amp-faq-item:hover { border-color: var(--gold); }
+.amp-faq-item.open { background: var(--linen); }
+.amp-faq-q { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; cursor: pointer; font-size: 14px; font-weight: 500; letter-spacing: -.01em; color: var(--ink); }
+.amp-faq-chev { flex-shrink: 0; color: var(--slate); transition: transform .25s; }
+.amp-faq-item.open .amp-faq-chev { transform: rotate(180deg); }
+.amp-faq-a { padding: 0 18px; max-height: 0; overflow: hidden; font-size: 13.5px; line-height: 1.6; color: var(--carbon); transition: max-height .3s, padding .3s; }
+.amp-faq-item.open .amp-faq-a { max-height: 220px; padding: 0 18px 15px; }
+
+/* ══ CTA + FOOTER ════════════════════════════════════════════════════════ */
+.amp-cta { background: var(--canvas); text-align: center; border-top: 1px solid var(--line); }
+.amp-cta-in { max-width: 880px; margin: 0 auto; padding: 72px 40px; }
+.amp-cta h2 { font-size: clamp(28px,3.2vw,42px); font-weight: 300; letter-spacing: -.03em; color: var(--ink); line-height: 1.1; }
+.amp-cta h2 em { font-style: normal; color: var(--gold); }
+.amp-cta p { font-size: 15px; color: var(--carbon); max-width: 440px; margin: 14px auto 26px; line-height: 1.6; }
+.amp-cta-note { margin-top: 16px; font-size: 13px; color: var(--slate); }
+
+.amp-foot {
+  position: relative; overflow: hidden; background: var(--charcoal);
+  border-top: 1px solid rgba(255,255,255,.08);
+  border-top-left-radius: 28px; border-top-right-radius: 28px;
+  background-image: radial-gradient(38% 90px at 50% 0%, rgba(184,146,74,.16), transparent);
+}
+.amp-foot::before { content:''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 33%; height: 1px; background: rgba(184,146,74,.5); filter: blur(1px); }
+.amp-foot-top { max-width: 1200px; margin: 0 auto; padding: 44px 40px 32px; display: grid; grid-template-columns: 1.4fr 2fr; gap: 40px; }
+.amp-foot-cols { display: grid; grid-template-columns: repeat(3,1fr); gap: 28px; }
+.amp-foot-logo { display: flex; align-items: center; gap: 9px; font-size: 20px; font-weight: 600; letter-spacing: -.02em; color: #fff; margin-bottom: 16px; }
+.amp-foot-desc { font-size: 13px; color: rgba(255,255,255,.4); line-height: 1.55; max-width: 300px; margin-bottom: 14px; }
+.amp-foot-powered { font-size: 12px; letter-spacing: .04em; color: rgba(255,255,255,.28); }
+.amp-foot-powered span { color: rgba(255,255,255,.5); }
+.amp-foot-ct { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.4); margin-bottom: 16px; }
+.amp-foot-links { display: flex; flex-direction: column; gap: 9px; }
+.amp-foot-links a { font-size: 14px; color: rgba(255,255,255,.45); transition: color .2s; }
+.amp-foot-links a:hover { color: #fff; }
+.amp-foot-bot { max-width: 1200px; margin: 0 auto; padding: 14px 40px; border-top: 1px solid rgba(255,255,255,.06); display: flex; justify-content: space-between; align-items: center; }
+.amp-foot-copy { font-size: 13px; color: rgba(255,255,255,.3); }
+.amp-foot-legal { display: flex; gap: 20px; }
+.amp-foot-legal a { font-size: 13px; color: rgba(255,255,255,.3); transition: color .2s; }
+.amp-foot-legal a:hover { color: rgba(255,255,255,.6); }
+
+/* ══ REVEAL ══════════════════════════════════════════════════════════════ */
+.amp-reveal { opacity: 0; transform: translateY(22px); transition: opacity .6s cubic-bezier(0,.4,.2,1), transform .6s cubic-bezier(0,.4,.2,1); }
+.amp-reveal.in { opacity: 1; transform: translateY(0); }
+.amp-d1 { transition-delay: .08s } .amp-d2 { transition-delay: .16s } .amp-d3 { transition-delay: .24s } .amp-d4 { transition-delay: .32s }
+
+/* ══ IMAGE MODAL ═════════════════════════════════════════════════════════ */
+.amp-modal { position: fixed; inset: 0; z-index: 900; background: rgba(10,8,6,.86); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .25s; }
+.amp-modal.open { opacity: 1; pointer-events: auto; }
+.amp-modal-inner { position: relative; max-width: min(90vw,760px); max-height: 86vh; border-radius: 8px; overflow: hidden; border: 1px solid rgba(184,146,74,.25); transform: scale(.95); transition: transform .3s; }
+.amp-modal.open .amp-modal-inner { transform: scale(1); }
+.amp-modal-inner img { display: block; width: 100%; max-height: 86vh; object-fit: contain; }
+.amp-modal-close { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; background: rgba(10,8,6,.7); border: 1px solid rgba(184,146,74,.3); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+/* ══ RESPONSIVE ══════════════════════════════════════════════════════════ */
+@media (max-width: 980px) {
+  .amp-sec { padding: 80px 28px; }
+  .amp-stage { grid-template-columns: 1fr; gap: 24px; align-content: center; padding: 0 24px; }
+  .amp-stack { width: 100%; aspect-ratio: 16/10; max-height: 46vh; order: -1; }
+  .amp-stage-titles { height: auto; min-height: 90px; }
+  .amp-stage-descs { height: auto; min-height: 80px; }
+  .amp-scrolly { height: 520vh; }
+  .amp-stats { grid-template-columns: 1fr 1fr; gap: 32px; }
+  .amp-feat-head { grid-template-columns: 1fr; gap: 20px; }
+  .amp-feat-grid { grid-template-columns: 1fr; }
+  .amp-how-head { margin-bottom: 48px; }
+  .amp-stack3d-counter { display: none; }
+  .amp-split { padding: 72px 28px; }
+  .amp-split-grid { grid-template-columns: 1fr; gap: 36px; }
+  .amp-split-video { max-width: 420px; margin: 0 auto; }
+  .amp-flow { grid-template-columns: 1fr 1fr; gap: 48px 0; }
+  .amp-flow-step:not(:last-child)::after, .amp-flow-arrow { display: none; }
+  .amp-ai-in { flex-direction: column; align-items: flex-start; gap: 28px; }
+  .amp-faq-grid { grid-template-columns: 1fr; gap: 32px; }
+  .amp-faq-sticky { position: static; }
+  .amp-foot-top { grid-template-columns: 1fr 1fr; }
+  .amp-masonry { grid-template-columns: repeat(3,1fr); grid-template-rows: 240px 200px 200px; }
+  .amp-mc:nth-child(1){grid-column:1/span 3;grid-row:1}
+  .amp-mc:nth-child(2){grid-column:1;grid-row:2}
+  .amp-mc:nth-child(3){grid-column:2;grid-row:2}
+  .amp-mc:nth-child(4){grid-column:3;grid-row:2}
+  .amp-mc:nth-child(5){grid-column:1;grid-row:3}
+  .amp-mc:nth-child(6){grid-column:2;grid-row:3}
+  .amp-mc:nth-child(7){grid-column:3;grid-row:3}
+}
+@media (max-width: 560px) {
+  .amp-stats { grid-template-columns: 1fr; }
+  .amp-flow { grid-template-columns: 1fr; }
+  .amp-foot-top { grid-template-columns: 1fr; }
+  .amp-foot-bot { flex-direction: column; gap: 10px; }
+  .amp-masonry { grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4,180px); }
+  .amp-mc:nth-child(n){grid-column:auto;grid-row:auto}
+  .amp-mc:nth-child(1){grid-column:1/span 2}
+}
+@media (prefers-reduced-motion: reduce) {
+  .amp-reveal { opacity: 1; transform: none; transition: none; }
+  .ts-card { transition: opacity .2s linear; }
+  .amp-cue svg, .amp-stack3d-hint svg, .amp-hero-kicker .dot, .amp-frame-tag .dot { animation: none; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
 
-<!-- ═══ HERO ════════════════════════════════════════════════════════════════ -->
+<!-- ══ HERO — full-bleed landscape video (heading baked into the video) ═════ -->
+<header class="amp-hero amp">
+  <div class="amp-hero-video-wrap">
+    <video class="amp-hero-video" autoplay muted loop playsinline preload="auto"
+           poster="{{ url_for('static', filename='images/hero-poster.jpg') }}">
+      <source src="{{ url_for('static', filename='videos/final-glymer.mp4') }}" type="video/mp4">
+    </video>
+  </div>
+</header>
 
-<section class="hero">
-  <div class="hero-left">
-    <h1 class="hero-h1">
-      Design.<br>
-      Visualise.<br>
-      <em>Go to market.</em>
-      <span class="serif-thin">Without leaving your desk.</span>
-    </h1>
+<!-- ══ SPLIT — portrait video  |  4-step workflow ═════════════════════════ -->
+<section class="amp-split amp">
+  <div class="amp-split-head amp-reveal">
+    <div class="amp-eyebrow">How it works</div>
+    <h2 class="amp-serif-h2">From <em>idea</em> to market-ready.</h2>
+    <p class="amp-sub amp-sub-1line">A four-step pipeline that takes your design from imagination to a commercial product, without jumping between tools, agencies, or software.</p>
+  </div>
 
-    <p class="hero-sub">
-      From rough sketch to catalogue-ready image, production 3D model, and real-time competitive pricing. glymr is the full design pipeline built for jewellery makers.
-    </p>
-
-    <div class="hero-ctas">
-      <a href="/studio/sketch" class="btn btn-gold btn-lg">
-        Start designing free
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </a>
-      <a href="#features" class="btn btn-outline btn-lg">See how it works</a>
+  <div class="amp-split-grid">
+    <div class="amp-split-video amp-reveal">
+      <video class="amp-portrait-video" autoplay muted loop playsinline preload="auto"
+             poster="{{ url_for('static', filename='images/init/model.webp') }}">
+        <source src="{{ url_for('static', filename='videos/POTRAIT.mp4') }}" type="video/mp4">
+      </video>
     </div>
 
-    <div class="hero-trust">
-      <div class="hero-trust-item">
-        <span class="hero-trust-dot"></span>
-        <span class="hero-trust-text">No design skills required</span>
+    <div class="amp-split-flow">
+      <div class="amp-vstep amp-reveal">
+        <div class="amp-vstep-num">1</div>
+        <div class="amp-vstep-body">
+          <div class="amp-vstep-label">Step 01</div>
+          <div class="amp-vstep-title">Sketch &amp; Conceptualise</div>
+          <p class="amp-vstep-desc">Upload a rough sketch or describe your idea in plain language. AI returns multiple polished concept images in seconds.</p>
+        </div>
       </div>
-      <div class="hero-trust-item">
-        <span class="hero-trust-dot"></span>
-        <span class="hero-trust-text">Results in under 60s</span>
+      <div class="amp-vstep amp-reveal amp-d1">
+        <div class="amp-vstep-num">2</div>
+        <div class="amp-vstep-body">
+          <div class="amp-vstep-label">Step 02</div>
+          <div class="amp-vstep-title">Visualise on a Model</div>
+          <p class="amp-vstep-desc">Place an approved design on a model for catalogue-quality photography. Pick pose and lighting, get a retail-ready shot.</p>
+        </div>
       </div>
-      <div class="hero-trust-item">
-        <span class="hero-trust-dot"></span>
-        <span class="hero-trust-text">Export-ready files</span>
+      <div class="amp-vstep amp-reveal amp-d2">
+        <div class="amp-vstep-num">3</div>
+        <div class="amp-vstep-body">
+          <div class="amp-vstep-label">Step 03</div>
+          <div class="amp-vstep-title">Generate 3D CAD</div>
+          <p class="amp-vstep-desc">Turn the concept into a production-ready 3D file for casting, wax printing, or CNC milling, in the format you need.</p>
+        </div>
+      </div>
+      <div class="amp-vstep amp-reveal amp-d3">
+        <div class="amp-vstep-num">4</div>
+        <div class="amp-vstep-body">
+          <div class="amp-vstep-label">Step 04</div>
+          <div class="amp-vstep-title">Analyse the Market</div>
+          <p class="amp-vstep-desc">Before production, research live pricing, competitors, and trends. Set your price with real data, not guesswork.</p>
+        </div>
       </div>
     </div>
   </div>
+</section>
 
-  <div class="hero-right">
-    <div class="hero-canvas"></div>
-    <div class="hero-grid"></div>
-    <div class="hero-orbs">
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-      <div class="orb orb-3"></div>
-    </div>
+<!-- ══ SCROLL STORY — the pipeline, frame by frame ════════════════════════ -->
+<section class="amp-scrolly amp" id="story">
+  <div class="amp-stage">
 
-    <!-- Jewellery Journey Panel -->
-    <div class="hero-journey">
+    <!-- Narrative copy (left) -->
+    <div class="amp-stage-copy">
+      <div class="amp-stage-step"><span class="num" id="stepNum">01</span><span class="tot">/ 04 · The glymr pipeline</span></div>
 
-      <!-- Top row: sketch input + rendered jewellery output -->
-      <div class="jrny-top">
-
-        <!-- Sketch / input frame -->
-        <div class="jrny-frame jrny-frame-tall"
-             data-modal-src="{{ url_for('static', filename='images/init/sketch.webp') }}"
-             data-modal-label="Sketch Input">
-          <img class="img-fill"
-               src="{{ url_for('static', filename='images/init/sketch.webp') }}"
-               alt="Sketch input"
-               fetchpriority="high"
-               decoding="async">
-          <div class="jrny-badge">
-            <span class="jrny-badge-label">Sketch Input</span>
-            <span class="jrny-badge-dot"></span>
-          </div>
-        </div>
-
-        <!-- Rendered jewellery output frame -->
-        <div class="jrny-frame jrny-frame-tall glow"
-             data-modal-src="{{ url_for('static', filename='images/init/concept.webp') }}"
-             data-modal-label="AI Render">
-          <img class="img-fill"
-               src="{{ url_for('static', filename='images/init/concept.webp') }}"
-               alt="AI render"
-               fetchpriority="high"
-               decoding="async">
-          <div class="jrny-badge">
-            <span class="jrny-badge-label">AI Render</span>
-            <span class="jrny-badge-dot"></span>
-          </div>
-        </div>
-
+      <div class="amp-stage-titles" id="stageTitles">
+        <div class="amp-stage-title on" data-i="0">It starts with a <em>sketch.</em></div>
+        <div class="amp-stage-title" data-i="1">Rendered as <em>real jewellery.</em></div>
+        <div class="amp-stage-title" data-i="2">Worn by an <em>AI model.</em></div>
+        <div class="amp-stage-title" data-i="3">Taken <em>to market.</em></div>
       </div>
 
-      <!-- Bottom row: model try-on + market pricing -->
-      <div class="jrny-bottom">
+      <div class="amp-stage-descs" id="stageDescs">
+        <div class="amp-stage-desc on" data-i="0">Upload a rough drawing or describe an idea in plain words. The studio reads your intent.</div>
+        <div class="amp-stage-desc" data-i="1">Gemini renders a photorealistic, catalogue-grade piece in your chosen metal and stones.</div>
+        <div class="amp-stage-desc" data-i="2">Place the design on a photorealistic model for instant lookbook and e-commerce shots.</div>
+        <div class="amp-stage-desc" data-i="3">Before production, see live pricing and demand trends pulled from the real market.</div>
+      </div>
 
-        <!-- Model try-on frame -->
-        <div class="jrny-frame"
-             data-modal-src="{{ url_for('static', filename='images/init/model.webp') }}"
-             data-modal-label="Model Try-On">
-          <img class="img-fill"
-               src="{{ url_for('static', filename='images/init/model.webp') }}"
-               alt="Model try-on"
-               style="object-position:center 15%;"
-               fetchpriority="high"
-               decoding="async">
-          <div class="jrny-badge">
-            <span class="jrny-badge-label">Model Try-On</span>
-            <span class="jrny-badge-dot"></span>
-          </div>
+      <div class="amp-rail" id="rail" aria-hidden="true">
+        <div class="amp-rail-seg"><i></i></div>
+        <div class="amp-rail-seg"><i></i></div>
+        <div class="amp-rail-seg"><i></i></div>
+        <div class="amp-rail-seg"><i></i></div>
+      </div>
+    </div>
+
+    <!-- Image stack (right) -->
+    <div class="amp-stack" id="stack">
+      <div class="amp-frame" data-i="0" data-effect="base">
+        <div class="amp-frame-card">
+          <img src="{{ url_for('static', filename='images/init/sketch.webp') }}" alt="Hand sketch of a jewellery set" fetchpriority="high" decoding="async">
+          <span class="amp-frame-tag"><span class="dot"></span> Sketch</span>
         </div>
-
-        <!-- Market pricing listing frame -->
-        <div class="jrny-frame" style="background:#f5f0e8; border-color:rgba(184,146,74,.3);">
-          <div class="jrny-market">
-
-            <!-- Graph 1: Gold price trend -->
-            <div class="jrny-graph-header" style="margin-bottom:2px;padding:0 2px;">
-              <span class="jrny-graph-label" style="color:rgba(40,28,10,.75);">Gold · 22K / g</span>
-              <span class="jrny-graph-delta up" style="color:#5a3e0a; background:rgba(90,62,10,.14);">▲ 2.4%</span>
-            </div>
-            <div class="jrny-market-graph" style="background:rgba(255,255,255,.55); border-color:rgba(184,146,74,.22);">
-              <div class="jrny-graph-header">
-                <span class="jrny-graph-label" style="color:rgba(40,28,10,.65);">30-day trend</span>
-                <span class="jrny-graph-value" style="color:#5a3e0a;">₹6,850</span>
+      </div>
+      <div class="amp-frame" data-i="1" data-effect="render">
+        <div class="amp-frame-card">
+          <img src="{{ url_for('static', filename='images/init/concept.webp') }}" alt="Rendered aquamarine jewellery set" decoding="async">
+          <span class="amp-frame-tag"><span class="dot"></span> AI Render</span>
+        </div>
+      </div>
+      <div class="amp-frame" data-i="2" data-effect="model">
+        <div class="amp-frame-card">
+          <img src="{{ url_for('static', filename='images/init/model.webp') }}" alt="Model wearing the jewellery set" style="object-position:center 12%;" decoding="async">
+          <span class="amp-frame-tag"><span class="dot"></span> Model Try-On</span>
+        </div>
+      </div>
+      <div class="amp-frame" data-i="3" data-effect="dissolve">
+        <div class="amp-frame-card amp-mkt-card">
+          <div class="amp-mkt">
+            <div class="amp-mkt-col">
+              <div class="amp-mkt-head"><span class="amp-mkt-label">Gold · 22K / g</span><span class="amp-mkt-delta up">▲ 2.4%</span></div>
+              <div class="amp-mkt-graph">
+                <div class="amp-mkt-grow"><span>30-day trend</span><span class="amp-mkt-val">₹6,850</span></div>
+                <svg viewBox="0 0 200 40" preserveAspectRatio="none" class="amp-spark">
+                  <defs><linearGradient id="mg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(150,110,40,.28)"/><stop offset="100%" stop-color="rgba(150,110,40,0)"/></linearGradient></defs>
+                  <path d="M0,30 L18,26 L36,28 L54,21 L72,23 L90,16 L108,18 L126,12 L144,10 L162,8 L180,5 L200,3 L200,40 L0,40 Z" fill="url(#mg1)"/>
+                  <polyline points="0,30 18,26 36,28 54,21 72,23 90,16 108,18 126,12 144,10 162,8 180,5 200,3" fill="none" stroke="#8c641e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="200" cy="3" r="3" fill="#8c641e"/>
+                </svg>
               </div>
-              <svg class="jrny-sparkline" viewBox="0 0 200 36" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="grad1" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="rgba(150,110,40,.3)"/>
-                    <stop offset="100%" stop-color="rgba(150,110,40,0)"/>
-                  </linearGradient>
-                </defs>
-                <path d="M0,28 L18,24 L36,26 L54,20 L72,22 L90,16 L108,18 L126,12 L144,10 L162,8 L180,5 L200,3 L200,36 L0,36 Z"
-                      fill="url(#grad1)"/>
-                <polyline points="0,28 18,24 36,26 54,20 72,22 90,16 108,18 126,12 144,10 162,8 180,5 200,3"
-                          fill="none" stroke="rgba(140,100,30,1)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="200" cy="3" r="2.5" fill="rgba(140,100,30,1)"/>
-              </svg>
             </div>
-
-            <!-- Graph 2: Design demand trend -->
-            <div class="jrny-graph-header" style="margin-bottom:2px;padding:0 2px;">
-              <span class="jrny-graph-label" style="color:rgba(40,28,10,.75);">Floral · Demand index</span>
-              <span class="jrny-graph-delta down" style="color:#8b2e1e; background:rgba(139,46,30,.12);">▼ 0.8%</span>
-            </div>
-            <div class="jrny-market-graph" style="background:rgba(255,255,255,.55); border-color:rgba(184,146,74,.22);">
-              <div class="jrny-graph-header">
-                <span class="jrny-graph-label" style="color:rgba(40,28,10,.65);">Style trend</span>
-                <span class="jrny-graph-value" style="color:#5a3e0a;">78 / 100</span>
+            <div class="amp-mkt-col">
+              <div class="amp-mkt-head"><span class="amp-mkt-label">Floral · Demand index</span><span class="amp-mkt-delta down">▼ 0.8%</span></div>
+              <div class="amp-mkt-graph">
+                <div class="amp-mkt-grow"><span>Style trend</span><span class="amp-mkt-val">78 / 100</span></div>
+                <svg viewBox="0 0 200 40" preserveAspectRatio="none" class="amp-spark">
+                  <defs><linearGradient id="mg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(176,80,64,.22)"/><stop offset="100%" stop-color="rgba(176,80,64,0)"/></linearGradient></defs>
+                  <path d="M0,24 L18,20 L36,15 L54,17 L72,11 L90,13 L108,9 L126,11 L144,15 L162,13 L180,16 L200,19 L200,40 L0,40 Z" fill="url(#mg2)"/>
+                  <polyline points="0,24 18,20 36,15 54,17 72,11 90,13 108,9 126,11 144,15 162,13 180,16 200,19" fill="none" stroke="#b05040" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="200" cy="19" r="3" fill="#b05040"/>
+                </svg>
               </div>
-              <svg class="jrny-sparkline" viewBox="0 0 200 36" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="grad2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="rgba(176,80,64,.22)"/>
-                    <stop offset="100%" stop-color="rgba(176,80,64,0)"/>
-                  </linearGradient>
-                </defs>
-                <path d="M0,22 L18,18 L36,14 L54,16 L72,10 L90,12 L108,8 L126,10 L144,14 L162,12 L180,15 L200,18 L200,36 L0,36 Z"
-                      fill="url(#grad2)"/>
-                <polyline points="0,22 18,18 36,14 54,16 72,10 90,12 108,8 126,10 144,14 162,12 180,15 200,18"
-                          fill="none" stroke="rgba(176,80,64,.95)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="200" cy="18" r="2.5" fill="rgba(176,80,64,1)"/>
-              </svg>
             </div>
-
           </div>
-          <div class="jrny-badge">
-            <span class="jrny-badge-label">Market Analysis</span>
-            <span class="jrny-badge-dot"></span>
-          </div>
+          <span class="amp-frame-tag"><span class="dot"></span> Market Analysis</span>
         </div>
-
       </div>
     </div>
+
   </div>
 </section>
 
-<!-- ═══ IMAGE MODAL ═════════════════════════════════════════════════════════ -->
-
-<div class="img-modal-backdrop" id="imgModal" role="dialog" aria-modal="true" aria-label="Image preview">
-  <div class="img-modal-inner">
-    <button class="img-modal-close" id="imgModalClose" aria-label="Close">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-    </button>
-    <img id="imgModalImg" src="" alt="Preview" />
-    <span class="img-modal-label" id="imgModalLabel"></span>
-  </div>
-</div>
-
-<!-- ═══ SHOWCASE / GALLERY PREVIEW ════════════════════════════════════════ -->
-
-<section class="showcase-section">
-  <div class="showcase-header reveal">
-    <h2 class="section-h2" style="color:var(--paper)">What glymr<br><em>creates.</em></h2>
-    <p class="section-sub">Every image below was generated entirely inside the glymr studio, from text descriptions, uploaded sketches, and model try-on sessions.</p>
-  </div>
-
-  <div class="masonry-grid reveal">
-
-    <!-- Card 1 — Bridal Necklace -->
-    <div class="masonry-card"
-         data-modal-src="{{ url_for('static', filename='images/gallery/bridal-necklace.webp') }}"
-         data-modal-label="Bridal Necklace · Sketch Studio">
-      <img class="mc-photo"
-           src="{{ url_for('static', filename='images/gallery/bridal-necklace.webp') }}"
-           alt="Bridal necklace" loading="lazy" decoding="async">
-      <div class="mc-badge">
-        <div class="mc-user">
-          <img class="mc-avatar"
-               src="https://i.pravatar.cc/40?img=47"
-               alt="Priya S." loading="lazy">
-          <span class="mc-name">Priya Sharma</span>
-        </div>
-        <span class="mc-caption">Heritage Bridal Collection</span>
-      </div>
-      <span class="mc-tag">Sketch Studio</span>
-    </div>
-
-    <!-- Card 2 — Solitaire Ring -->
-    <div class="masonry-card"
-         data-modal-src="{{ url_for('static', filename='images/gallery/solitaire-ring.webp') }}"
-         data-modal-label="Solitaire Ring · Model Try-On">
-      <img class="mc-photo"
-           src="{{ url_for('static', filename='images/gallery/solitaire-ring.webp') }}"
-           alt="Solitaire ring" loading="lazy" decoding="async">
-      <div class="mc-badge">
-        <div class="mc-user">
-          <img class="mc-avatar"
-               src="https://i.pravatar.cc/40?img=12"
-               alt="Arjun M." loading="lazy">
-          <span class="mc-name">Arjun Mehra</span>
-        </div>
-        <span class="mc-caption">Proposal Series — Vol. I</span>
-      </div>
-      <span class="mc-tag">Model Try-On</span>
-    </div>
-
-    <!-- Card 3 — Earring Model -->
-    <div class="masonry-card"
-         data-modal-src="{{ url_for('static', filename='images/gallery/earring-model.webp') }}"
-         data-modal-label="Earring Try-On · Model Try-On">
-      <img class="mc-photo"
-           src="{{ url_for('static', filename='images/gallery/earring-model.webp') }}"
-           alt="Earring model" loading="lazy" decoding="async">
-      <div class="mc-badge">
-        <div class="mc-user">
-          <img class="mc-avatar"
-               src="https://i.pravatar.cc/40?img=25"
-               alt="Noor K." loading="lazy">
-          <span class="mc-name">Noor Khan</span>
-        </div>
-        <span class="mc-caption">Summer Drops Campaign</span>
-      </div>
-      <span class="mc-tag">Model Try-On</span>
-    </div>
-
-    <!-- Card 4 — Kundan Bangles -->
-    <div class="masonry-card"
-         data-modal-src="{{ url_for('static', filename='images/gallery/kundan-bangles.webp') }}"
-         data-modal-label="Kundan Bangles · Sketch Studio">
-      <img class="mc-photo"
-           src="{{ url_for('static', filename='images/gallery/kundan-bangles.webp') }}"
-           alt="Kundan bangles" loading="lazy" decoding="async">
-      <div class="mc-badge">
-        <div class="mc-user">
-          <img class="mc-avatar"
-               src="https://i.pravatar.cc/40?img=9"
-               alt="Zara A." loading="lazy">
-          <span class="mc-name">Zara Ali</span>
-        </div>
-        <span class="mc-caption">Festive Kundan Edit</span>
-      </div>
-      <span class="mc-tag">Sketch Studio</span>
-    </div>
-
-    <!-- Card 5 — CAD Mesh -->
-    <div class="masonry-card"
-         data-modal-src="{{ url_for('static', filename='images/gallery/cad-mesh.webp') }}"
-         data-modal-label="CAD Mesh · 3D Export">
-      <img class="mc-photo"
-           src="{{ url_for('static', filename='images/gallery/cad-mesh.webp') }}"
-           alt="CAD mesh export" loading="lazy" decoding="async">
-      <div class="mc-badge">
-        <div class="mc-user">
-          <img class="mc-avatar"
-               src="https://i.pravatar.cc/40?img=33"
-               alt="Rohan V." loading="lazy">
-          <span class="mc-name">Rohan Verma</span>
-        </div>
-        <span class="mc-caption">Production-ready STL</span>
-      </div>
-      <span class="mc-tag">CAD Export</span>
-    </div>
-
-    <!-- Card 6 — Pendant -->
-    <div class="masonry-card"
-         data-modal-src="{{ url_for('static', filename='images/gallery/pendant.webp') }}"
-         data-modal-label="Pendant · Sketch Studio">
-      <img class="mc-photo"
-           src="{{ url_for('static', filename='images/gallery/pendant.webp') }}"
-           alt="Pendant" loading="lazy" decoding="async">
-      <div class="mc-badge">
-        <div class="mc-user">
-          <img class="mc-avatar"
-               src="https://i.pravatar.cc/40?img=51"
-               alt="Meera J." loading="lazy">
-          <span class="mc-name">Meera Joshi</span>
-        </div>
-        <span class="mc-caption">Minimal Gold Pendants</span>
-      </div>
-      <span class="mc-tag">Sketch Studio</span>
-    </div>
-
-    <!-- Card 7 — Market Trends -->
-    <div class="masonry-card"
-         data-modal-src="{{ url_for('static', filename='images/gallery/market-trends.webp') }}"
-         data-modal-label="Market Trends · Market Analysis">
-      <img class="mc-photo"
-           src="{{ url_for('static', filename='images/gallery/market-trends.webp') }}"
-           alt="Market trends" loading="lazy" decoding="async">
-      <div class="mc-badge">
-        <div class="mc-user">
-          <img class="mc-avatar"
-               src="https://i.pravatar.cc/40?img=62"
-               alt="Dev R." loading="lazy">
-          <span class="mc-name">Dev Rathore</span>
-        </div>
-        <span class="mc-caption">Q3 Trend Intelligence</span>
-      </div>
-      <span class="mc-tag">Market Analysis</span>
-    </div>
-
-  </div>
-
-  <div style="text-align:center;margin-top:48px;position:relative">
-    <a href="/studio/gallery" class="btn btn-outline" style="border-color:rgba(184,146,74,.3);color:rgba(250,247,242,.7)">
-      Browse full gallery
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:6px">
-        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-      </svg>
-    </a>
+<!-- ══ STATS ═══════════════════════════════════════════════════════════════ -->
+<section class="amp-statsec amp">
+  <div class="amp-stats">
+    <div class="amp-stat-card amp-reveal"><div class="amp-stat-bar"></div><div class="amp-stat-num">60<span>sec</span></div><div class="amp-stat-label">From text prompt to a photorealistic jewellery concept</div></div>
+    <div class="amp-stat-card amp-reveal amp-d1"><div class="amp-stat-bar"></div><div class="amp-stat-num">4<span>tools</span></div><div class="amp-stat-label">Sketch studio, model try-on, 3D CAD, and market analysis</div></div>
+    <div class="amp-stat-card amp-reveal amp-d2"><div class="amp-stat-bar"></div><div class="amp-stat-num">3<span>formats</span></div><div class="amp-stat-label">Export production-ready GLB, OBJ, or STL for manufacturing</div></div>
+    <div class="amp-stat-card amp-reveal amp-d3"><div class="amp-stat-bar"></div><div class="amp-stat-num">∞<span>ideas</span></div><div class="amp-stat-label">Unlimited concept variations per design. Iterate without cost.</div></div>
   </div>
 </section>
 
-<!-- ═══ TRUST BAR ═══════════════════════════════════════════════════════════ -->
-
-<div class="trust-bar">
-  <div class="trust-bar-label">Designed for</div>
-  <div class="trust-marquee-wrap">
-    <div class="trust-marquee-track">
-      <!-- Set A -->
-      <span class="trust-logo">Independent Designers</span><span class="trust-sep"></span>
-      <span class="trust-logo">Jewellery Brands</span><span class="trust-sep"></span>
-      <span class="trust-logo">Wholesale Studios</span><span class="trust-sep"></span>
-      <span class="trust-logo">Export Houses</span><span class="trust-sep"></span>
-      <span class="trust-logo">Retail Chains</span><span class="trust-sep"></span>
-      <span class="trust-logo">CAD/CAM Workshops</span><span class="trust-sep"></span>
-      <span class="trust-logo">Bridal Ateliers</span><span class="trust-sep"></span>
-      <span class="trust-logo">Gem Traders</span><span class="trust-sep"></span>
-      <span class="trust-logo">Fashion Houses</span><span class="trust-sep"></span>
-      <span class="trust-logo">Custom Jewellers</span><span class="trust-sep"></span>
-      <span class="trust-logo">Studio Artisans</span><span class="trust-sep"></span>
-      <span class="trust-logo">E-commerce Sellers</span><span class="trust-sep"></span>
-      <!-- Set B — exact duplicate for seamless loop -->
-      <span class="trust-logo">Independent Designers</span><span class="trust-sep"></span>
-      <span class="trust-logo">Jewellery Brands</span><span class="trust-sep"></span>
-      <span class="trust-logo">Wholesale Studios</span><span class="trust-sep"></span>
-      <span class="trust-logo">Export Houses</span><span class="trust-sep"></span>
-      <span class="trust-logo">Retail Chains</span><span class="trust-sep"></span>
-      <span class="trust-logo">CAD/CAM Workshops</span><span class="trust-sep"></span>
-      <span class="trust-logo">Bridal Ateliers</span><span class="trust-sep"></span>
-      <span class="trust-logo">Gem Traders</span><span class="trust-sep"></span>
-      <span class="trust-logo">Fashion Houses</span><span class="trust-sep"></span>
-      <span class="trust-logo">Custom Jewellers</span><span class="trust-sep"></span>
-      <span class="trust-logo">Studio Artisans</span><span class="trust-sep"></span>
-      <span class="trust-logo">E-commerce Sellers</span><span class="trust-sep"></span>
+<!-- ══ SHOWCASE MASONRY ════════════════════════════════════════════════════ -->
+<section class="amp-show">
+  <div class="amp-sec amp">
+    <div class="amp-reveal">
+      <div class="amp-eyebrow">Made with glymr</div>
+      <h2 class="amp-h2">What the studio<br><em>creates.</em></h2>
+      <div class="amp-rule"></div>
+      <p class="amp-sub amp-sub-1line">Every image below was generated entirely inside glymr, from text descriptions, uploaded sketches, and model try-on sessions.</p>
     </div>
-  </div>
-</div>
 
-<!-- ═══ STATS BAND ══════════════════════════════════════════════════════════ -->
-
-<div class="stats-band reveal">
-  <div class="stat-item reveal reveal-delay-1">
-    <div class="stat-bar"></div>
-    <div class="stat-num">60<span>sec</span></div>
-    <div class="stat-label">From text prompt to photorealistic jewellery concept</div>
-  </div>
-  <div class="stat-item reveal reveal-delay-2">
-    <div class="stat-bar"></div>
-    <div class="stat-num">4<span>tools</span></div>
-    <div class="stat-label">Sketch studio, model try-on, 3D CAD, and market analysis</div>
-  </div>
-  <div class="stat-item reveal reveal-delay-3">
-    <div class="stat-bar"></div>
-    <div class="stat-num">3<span>formats</span></div>
-    <div class="stat-label">Export production-ready GLB, OBJ, or STL files for manufacturing</div>
-  </div>
-  <div class="stat-item reveal reveal-delay-4">
-    <div class="stat-bar"></div>
-    <div class="stat-num">∞<span>ideas</span></div>
-    <div class="stat-label">Unlimited concept variations per design. Iterate without cost.</div>
-  </div>
-</div>
-
-<!-- ═══ FEATURES ═══════════════════════════════════════════════════════════ -->
-
-<section class="features-section" id="features">
-  <div class="features-header reveal">
-    <div>
-      <h2 class="section-h2">Four tools.<br><em>One workflow.</em></h2>
+    <div class="amp-masonry amp-reveal">
+      <div class="amp-mc" data-modal-src="{{ url_for('static', filename='images/gallery/bridal-necklace.webp') }}" data-modal-label="Heritage Bridal · Sketch Studio">
+        <img src="{{ url_for('static', filename='images/gallery/bridal-necklace.webp') }}" alt="Bridal necklace" loading="lazy" decoding="async">
+        <span class="amp-frame-tag">Sketch Studio</span>
+      </div>
+      <div class="amp-mc" data-modal-src="{{ url_for('static', filename='images/gallery/solitaire-ring.webp') }}" data-modal-label="Solitaire · Model Try-On">
+        <img src="{{ url_for('static', filename='images/gallery/solitaire-ring.webp') }}" alt="Solitaire ring" loading="lazy" decoding="async">
+        <span class="amp-frame-tag">Model Try-On</span>
+      </div>
+      <div class="amp-mc" data-modal-src="{{ url_for('static', filename='images/gallery/earring-model.webp') }}" data-modal-label="Summer Drops · Model Try-On">
+        <img src="{{ url_for('static', filename='images/gallery/earring-model.webp') }}" alt="Earring model" loading="lazy" decoding="async">
+        <span class="amp-frame-tag">Model Try-On</span>
+      </div>
+      <div class="amp-mc" data-modal-src="{{ url_for('static', filename='images/gallery/kundan-bangles.webp') }}" data-modal-label="Festive Kundan · Sketch Studio">
+        <img src="{{ url_for('static', filename='images/gallery/kundan-bangles.webp') }}" alt="Kundan bangles" loading="lazy" decoding="async">
+        <span class="amp-frame-tag">Sketch Studio</span>
+      </div>
+      <div class="amp-mc" data-modal-src="{{ url_for('static', filename='images/gallery/cad-mesh.webp') }}" data-modal-label="Production STL · CAD Export">
+        <img src="{{ url_for('static', filename='images/gallery/cad-mesh.webp') }}" alt="CAD mesh export" loading="lazy" decoding="async">
+        <span class="amp-frame-tag">CAD Export</span>
+      </div>
+      <div class="amp-mc" data-modal-src="{{ url_for('static', filename='images/gallery/pendant.webp') }}" data-modal-label="Minimal Pendant · Sketch Studio">
+        <img src="{{ url_for('static', filename='images/gallery/pendant.webp') }}" alt="Pendant" loading="lazy" decoding="async">
+        <span class="amp-frame-tag">Sketch Studio</span>
+      </div>
+      <div class="amp-mc" data-modal-src="{{ url_for('static', filename='images/gallery/market-trends.webp') }}" data-modal-label="Q3 Trend Intelligence · Market">
+        <img src="{{ url_for('static', filename='images/gallery/market-trends.webp') }}" alt="Market trends" loading="lazy" decoding="async">
+        <span class="amp-frame-tag">Market Analysis</span>
+      </div>
     </div>
-    <div>
-      <p class="section-sub" style="max-width:400px;margin-top:0">Every step of the jewellery design pipeline, from raw idea to catalogue and manufacturing, handled inside a single, connected workspace.</p>
-      <a href="/studio/sketch" class="btn btn-outline" style="margin-top:24px;display:inline-flex">
-        Explore the studio
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:6px">
-          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-        </svg>
+
+    <div style="text-align:center;margin-top:48px">
+      <a href="/studio/gallery" class="amp-btn amp-btn-secondary">Browse full gallery
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
       </a>
     </div>
   </div>
-
-  <div class="features-grid">
-
-    <div class="feat-card reveal">
-      <div class="feat-num">01</div>
-      <div class="feat-icon-wrap">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-        </svg>
-      </div>
-      <div class="feat-title">Sketch Studio</div>
-      <p class="feat-desc">Upload a rough sketch or type a description. Gemini Flash generates multiple photorealistic concept variations, choosing material, stone, finish, and setting options you'd normally spend days iterating through.</p>
-      <div class="feat-tags">
-        <span class="feat-tag">Text-to-image</span>
-        <span class="feat-tag">Sketch-to-render</span>
-        <span class="feat-tag">Multi-variant</span>
-      </div>
-      <a href="/studio/sketch" class="feat-link">
-        Open Sketch Studio
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </a>
-    </div>
-
-    <div class="feat-card reveal reveal-delay-1">
-      <div class="feat-num">02</div>
-      <div class="feat-icon-wrap">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-        </svg>
-      </div>
-      <div class="feat-title">Model Try-On</div>
-      <p class="feat-desc">Place your finished design on a photorealistic model. Choose skin tone, pose, and studio lighting. Produce catalogue-quality shots for e-commerce, lookbooks, or client presentations instantly.</p>
-      <div class="feat-tags">
-        <span class="feat-tag">Catalogue shots</span>
-        <span class="feat-tag">Skin tone options</span>
-        <span class="feat-tag">Pose & lighting</span>
-      </div>
-      <a href="/studio/model" class="feat-link">
-        Try it
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </a>
-    </div>
-
-    <div class="feat-card reveal reveal-delay-2">
-      <div class="feat-num">03</div>
-      <div class="feat-icon-wrap">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
-        </svg>
-      </div>
-      <div class="feat-title">3D CAD Export</div>
-      <p class="feat-desc">Generate production-ready 3D geometry via Meshy AI directly from your render. Export GLB, OBJ, or STL, ready for CNC casting, wax printing, or manufacturing. No CAD software required.</p>
-      <div class="feat-tags">
-        <span class="feat-tag">GLB · OBJ · STL</span>
-        <span class="feat-tag">Manufacturing-ready</span>
-        <span class="feat-tag">Wax printing</span>
-      </div>
-      <a href="/studio/cad" class="feat-link">
-        Generate 3D
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </a>
-    </div>
-
-    <div class="feat-card reveal reveal-delay-3">
-      <div class="feat-num">04</div>
-      <div class="feat-icon-wrap">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-        </svg>
-      </div>
-      <div class="feat-title">Market Intelligence</div>
-      <p class="feat-desc">Live competitive analysis grounded in real-time Google Search data. See current pricing from Amazon, Flipkart, CaratLane, and BlueStone. Know exactly where your piece sits before going to production.</p>
-      <div class="feat-tags">
-        <span class="feat-tag">Live pricing</span>
-        <span class="feat-tag">Competitor scan</span>
-        <span class="feat-tag">Trend data</span>
-      </div>
-      <a href="/studio/market" class="feat-link">
-        Explore market
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </a>
-    </div>
-
-  </div>
 </section>
 
-<!-- ═══ HOW IT WORKS ════════════════════════════════════════════════════════ -->
 
-<section class="how-section">
-  <div class="how-header reveal">
-    <h2 class="section-h2">From <em>idea</em> to<br>market-ready.</h2>
-    <p class="section-sub">A four-step pipeline that takes your design from imagination to a commercial product, without jumping between tools, agencies, or software.</p>
-  </div>
-
-  <div class="how-grid">
-
-    <!-- Step 1 -->
-    <div class="how-step reveal">
-      <div class="how-step-num-circle">
-        <span>1</span>
+<!-- ══ FAQ ═════════════════════════════════════════════════════════════════ -->
+<section class="amp-faq">
+  <div class="amp-sec amp">
+    <div class="amp-faq-grid">
+      <div class="amp-faq-sticky amp-reveal">
+        <div class="amp-eyebrow">FAQ</div>
+        <h2 class="amp-h2" style="font-size:clamp(30px,3.2vw,44px)">Common<br><em>questions.</em></h2>
+        <div class="amp-rule"></div>
+        <p class="amp-sub" style="margin-top:16px">Anything else? Reach us at hello@glymr.ai</p>
       </div>
-      <!-- Arrow connector to step 2 -->
-      <div class="how-step-arrow">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5A2B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="13 6 19 12 13 18"/>
-        </svg>
-      </div>
-      <div class="how-step-label">Step 01</div>
-      <div class="how-step-title">Sketch & Conceptualise</div>
-      <p class="how-step-desc">Upload a rough sketch or describe your idea in plain language. AI generates multiple polished concept images you can immediately show a client or refine further.</p>
-    </div>
 
-    <!-- Step 2 -->
-    <div class="how-step reveal reveal-delay-1">
-      <div class="how-step-num-circle">
-        <span>2</span>
-      </div>
-      <!-- Arrow connector to step 3 -->
-      <div class="how-step-arrow">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5A2B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="13 6 19 12 13 18"/>
-        </svg>
-      </div>
-      <div class="how-step-label">Step 02</div>
-      <div class="how-step-title">Visualise on a Model</div>
-      <p class="how-step-desc">Take your approved design and place it on a model for catalogue-quality photography. Choose your pose and lighting style and get a retail-ready image in seconds.</p>
-    </div>
-
-    <!-- Step 3 -->
-    <div class="how-step reveal reveal-delay-2">
-      <div class="how-step-num-circle">
-        <span>3</span>
-      </div>
-      <!-- Arrow connector to step 4 -->
-      <div class="how-step-arrow">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5A2B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="13 6 19 12 13 18"/>
-        </svg>
-      </div>
-      <div class="how-step-label">Step 03</div>
-      <div class="how-step-title">Generate 3D CAD</div>
-      <p class="how-step-desc">Turn your concept into a production-ready 3D file for casting, wax printing, or CNC milling. Download in the format your manufacturer needs.</p>
-    </div>
-
-    <!-- Step 4 — no arrow after last step -->
-    <div class="how-step reveal reveal-delay-3">
-      <div class="how-step-num-circle">
-        <span>4</span>
-      </div>
-      <div class="how-step-label">Step 04</div>
-      <div class="how-step-title">Analyse the Market</div>
-      <p class="how-step-desc">Before you commit to production, research live pricing, competitors, and trends. Know your price point and positioning with real data, not guesswork.</p>
-    </div>
-
-  </div>
-</section>
-
-<!-- ═══ AI MODELS STRIP ═════════════════════════════════════════════════════ -->
-
-<div class="ai-strip reveal">
-  <div class="ai-strip-left">
-    <div class="ai-strip-title">Best-in-class AI, under the hood.</div>
-    <p class="ai-strip-sub">glymr connects the most capable AI models to each task, so you're never limited by the technology, only by your imagination.</p>
-  </div>
-  <div class="ai-models">
-    <div class="ai-model-card">
-      <div class="ai-model-name">Gemini Flash</div>
-      <div class="ai-model-role">Image generation, sketch-to-render, model try-on</div>
-    </div>
-    <div class="ai-model-card">
-      <div class="ai-model-name">Meshy AI</div>
-      <div class="ai-model-role">3D geometry generation and mesh optimisation</div>
-    </div>
-    <div class="ai-model-card">
-      <div class="ai-model-name">Google Search</div>
-      <div class="ai-model-role">Live market pricing, competitor data grounding</div>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ COMPARISON TABLE ════════════════════════════════════════════════════ -->
-
-<section class="compare-section">
-  <div class="compare-header reveal">
-    <h2 class="section-h2">Replace five tools<br><em>with one.</em></h2>
-    <p class="section-sub">The traditional jewellery design workflow spans multiple expensive, disconnected tools. glymr collapses it into a single workspace.</p>
-  </div>
-
-  <div class="compare-table reveal">
-    <div class="compare-row header-row">
-      <div class="compare-cell">Feature</div>
-      <div class="compare-cell highlight-col">glymr</div>
-      <div class="compare-cell">Traditional workflow</div>
-      <div class="compare-cell">Generic AI tools</div>
-    </div>
-    <div class="compare-row">
-      <div class="compare-cell feat-name">Concept visualisation</div>
-      <div class="compare-cell highlight-col"><span class="check-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
-      <div class="compare-cell"><span style="font-size:12px;color:var(--ink-4)">Freelance designer</span></div>
-      <div class="compare-cell"><span class="check-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
-    </div>
-    <div class="compare-row">
-      <div class="compare-cell feat-name">Jewellery-specific accuracy</div>
-      <div class="compare-cell highlight-col"><span class="check-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
-      <div class="compare-cell"><span class="check-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
-      <div class="compare-cell"><span class="cross-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
-    </div>
-    <div class="compare-row">
-      <div class="compare-cell feat-name">Model catalogue photography</div>
-      <div class="compare-cell highlight-col"><span class="check-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
-      <div class="compare-cell"><span style="font-size:12px;color:var(--ink-4)">Photo studio needed</span></div>
-      <div class="compare-cell"><span class="cross-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
-    </div>
-    <div class="compare-row">
-      <div class="compare-cell feat-name">Production-ready 3D export</div>
-      <div class="compare-cell highlight-col"><span class="check-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
-      <div class="compare-cell"><span style="font-size:12px;color:var(--ink-4)">Separate CAD software</span></div>
-      <div class="compare-cell"><span class="cross-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
-    </div>
-    <div class="compare-row">
-      <div class="compare-cell feat-name">Live market pricing data</div>
-      <div class="compare-cell highlight-col"><span class="check-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
-      <div class="compare-cell"><span style="font-size:12px;color:var(--ink-4)">Manual research</span></div>
-      <div class="compare-cell"><span class="cross-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
-    </div>
-    <div class="compare-row">
-      <div class="compare-cell feat-name">Time from idea to catalogue</div>
-      <div class="compare-cell highlight-col" style="font-size:13px;color:var(--gold-dk);font-weight:600">Under 5 minutes</div>
-      <div class="compare-cell" style="font-size:12px;color:var(--ink-4)">Days to weeks</div>
-      <div class="compare-cell" style="font-size:12px;color:var(--ink-4)">Hours (fragmented)</div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══ TESTIMONIALS ════════════════════════════════════════════════════════ -->
-
-<section class="testimonials-section">
-  <div class="testimonials-header reveal">
-    <h2 class="section-h2">Built for people<br>who make things.</h2>
-  </div>
-
-  <div class="testimonials-grid">
-    <div class="testimonial-card">
-      <p class="testi-text">"I used to spend 3 days back-and-forth with a freelancer on concepts. With glymr I have 10 options in front of my client within an hour of the first call."</p>
-      <div class="testi-author">
-        <div>
-          <div class="testi-name">Priya Mehta</div>
-          <div class="testi-role">Independent jewellery designer · Mumbai</div>
+      <div class="amp-faq-list amp-reveal amp-d1">
+        <div class="amp-faq-item open">
+          <div class="amp-faq-q" onclick="ampFAQ(this)">Do I need design or CAD experience to use glymr?
+            <svg class="amp-faq-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="amp-faq-a">No. glymr is built for jewellery makers, not software engineers. You describe what you want in words or by uploading a rough sketch, and the AI handles the technical execution. The 3D export and model try-on work the same way.</div>
         </div>
-      </div>
-    </div>
-    <div class="testimonial-card">
-      <p class="testi-text">"The 3D export has cut our sampling cost by almost 60%. We generate the geometry here, send it for wax printing, and skip an entire round of CAD revisions."</p>
-      <div class="testi-author">
-        <div>
-          <div class="testi-name">Rajan Sethia</div>
-          <div class="testi-role">Export house owner · Jaipur</div>
+        <div class="amp-faq-item">
+          <div class="amp-faq-q" onclick="ampFAQ(this)">What file formats does the 3D CAD export support?
+            <svg class="amp-faq-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="amp-faq-a">The CAD module exports GLB, OBJ, and STL. STL is standard for wax printers and most CNC casting setups. GLB is ideal for 3D viewers and presentations, and OBJ works with most professional CAD software for further refinement.</div>
         </div>
-      </div>
-    </div>
-    <div class="testimonial-card">
-      <p class="testi-text">"The market trends module alone is worth it. I check competitor pricing on every new piece before I set my price. It's changed how I think about positioning."</p>
-      <div class="testi-author">
-        <div>
-          <div class="testi-name">Aisha Nair</div>
-          <div class="testi-role">Brand founder · Bangalore</div>
+        <div class="amp-faq-item">
+          <div class="amp-faq-q" onclick="ampFAQ(this)">How accurate is the market pricing data?
+            <svg class="amp-faq-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="amp-faq-a">Market data is pulled live via Google Search grounding when you run the analysis, so prices reflect current listings on platforms like Amazon, Flipkart, CaratLane, and BlueStone. It is as fresh as the last time you refresh the query.</div>
+        </div>
+        <div class="amp-faq-item">
+          <div class="amp-faq-q" onclick="ampFAQ(this)">Can I use the generated images commercially?
+            <svg class="amp-faq-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="amp-faq-a">Yes. All renders, model shots, and 3D exports you generate belong to you. Use them for e-commerce listings, client pitches, catalogues, social media, and manufacturing without restrictions.</div>
+        </div>
+        <div class="amp-faq-item">
+          <div class="amp-faq-q" onclick="ampFAQ(this)">Does glymr work for all jewellery styles?
+            <svg class="amp-faq-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="amp-faq-a">Yes. From Kundan and Polki bridal sets to contemporary minimalist fine jewellery, silver fashion pieces, and everything between. Describe the style, material, and stones you want and the AI adapts.</div>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══ FAQ ═════════════════════════════════════════════════════════════════ -->
-
-<section class="faq-section">
-  <div class="faq-layout">
-    <div class="faq-sticky">
-      <h2 class="section-h2" style="font-size:clamp(30px,3vw,44px)">Common<br><em>questions.</em></h2>
-      <p class="section-sub" style="margin-top:14px">Anything else? Reach us at hello@glymr.ai</p>
+<!-- ══ CTA ═════════════════════════════════════════════════════════════════ -->
+<section class="amp-cta">
+  <div class="amp-cta-in amp">
+    <h2>Design your next<br><em>masterpiece</em> today.</h2>
+    <p>Join jewellery designers, export houses, and brands using glymr to go from concept to catalogue, faster than a client call.</p>
+    <div class="amp-hero-ctas" style="margin-top:0">
+      <a href="/studio/sketch" class="amp-btn amp-btn-primary">Start designing free
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+      <a href="/studio/market" class="amp-btn amp-btn-secondary">Browse market trends</a>
     </div>
-
-    <div class="faq-list reveal">
-      <div class="faq-item open">
-        <div class="faq-q" onclick="toggleFAQ(this)">
-          Do I need design or CAD experience to use glymr?
-          <svg class="faq-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div class="faq-a">No. glymr is designed for jewellery makers, not software engineers. You describe what you want, in words or by uploading a rough sketch, and the AI handles the technical execution. The 3D export and model try-on work the same way.</div>
-      </div>
-      <div class="faq-item">
-        <div class="faq-q" onclick="toggleFAQ(this)">
-          What file formats does the 3D CAD export support?
-          <svg class="faq-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div class="faq-a">The CAD module exports GLB, OBJ, and STL. STL is the standard format for wax printers and most CNC casting setups. GLB is ideal for 3D viewers and presentations, and OBJ works with most professional CAD software for further refinement.</div>
-      </div>
-      <div class="faq-item">
-        <div class="faq-q" onclick="toggleFAQ(this)">
-          How accurate is the market pricing data?
-          <svg class="faq-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div class="faq-a">Market data is pulled live via Google Search grounding at the time you run the analysis, so prices reflect current listings on platforms like Amazon, Flipkart, CaratLane, and BlueStone. The data is as fresh as the last time you refresh the query.</div>
-      </div>
-      <div class="faq-item">
-        <div class="faq-q" onclick="toggleFAQ(this)">
-          Can I use the generated images commercially?
-          <svg class="faq-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div class="faq-a">Yes. All renders, model shots, and 3D exports you generate in glymr belong to you. You can use them for e-commerce listings, client pitches, catalogues, social media, and manufacturing without restrictions.</div>
-      </div>
-      <div class="faq-item">
-        <div class="faq-q" onclick="toggleFAQ(this)">
-          Does glymr work for all jewellery styles?
-          <svg class="faq-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div class="faq-a">Yes, from Kundan and Polki bridal sets to contemporary minimalist fine jewellery, silver fashion jewellery, and everything in between. Just describe the style, material, and stones you want and the AI adapts accordingly.</div>
-      </div>
-    </div>
+    <p class="amp-cta-note">No credit card required · Results in under 60 seconds</p>
   </div>
 </section>
 
-<!-- ═══ CTA ═════════════════════════════════════════════════════════════════ -->
-
-<section class="cta-strip">
-  <h2>Design your next<br><em>masterpiece</em> today.</h2>
-  <p>Join jewellery designers, export houses, and brands using glymr to go from concept to catalogue, faster than a client call.</p>
-  <div class="cta-btns">
-    <a href="/studio/sketch" class="btn btn-gold btn-lg">
-      Start designing free
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-      </svg>
-    </a>
-    <a href="/studio/market" class="btn btn-outline btn-lg" style="border-color:rgba(250,247,242,.2);color:rgba(250,247,242,.75)">
-      Browse market trends
-    </a>
-  </div>
-  <p class="cta-note">No credit card required · Results in under 60 seconds</p>
-</section>
-
-<!-- ═══ FOOTER ══════════════════════════════════════════════════════════════ -->
-
-<footer class="footer">
-  <div class="footer-top">
-    <div>
-      <div class="footer-brand-logo">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <polygon points="12,3 7,9 12,8 17,9" fill="var(--gold)" opacity=".95"/>
-          <polygon points="3,11 7,9 12,8 8,18" fill="var(--gold)" opacity=".55"/>
-          <polygon points="21,11 17,9 12,8 16,18" fill="var(--gold)" opacity=".75"/>
-          <polygon points="8,18 12,8 16,18 12,22" fill="var(--gold)" opacity=".65"/>
-          <polyline points="3,11 7,9 12,3 17,9 21,11 16,18 12,22 8,18 3,11" fill="none" stroke="var(--gold-dk)" stroke-width="1" stroke-linejoin="round"/>
-          <line x1="3" y1="11" x2="21" y2="11" stroke="var(--gold-dk)" stroke-width=".8" opacity=".5"/>
-          <line x1="7" y1="9" x2="12" y2="22" stroke="var(--gold-dk)" stroke-width=".6" opacity=".35"/>
-          <line x1="17" y1="9" x2="12" y2="22" stroke="var(--gold-dk)" stroke-width=".6" opacity=".35"/>
-          <line x1="12" y1="3" x2="12" y2="8" stroke="var(--gold-dk)" stroke-width=".8" opacity=".4"/>
-        </svg>
+<!-- ══ FOOTER ══════════════════════════════════════════════════════════════ -->
+<footer class="amp-foot amp">
+  <div class="amp-foot-top">
+    <div class="amp-reveal">
+      <div class="amp-foot-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><polygon points="12,3 7,9 12,8 17,9" fill="var(--gold)" opacity=".95"/><polygon points="3,11 7,9 12,8 8,18" fill="var(--gold)" opacity=".55"/><polygon points="21,11 17,9 12,8 16,18" fill="var(--gold)" opacity=".75"/><polygon points="8,18 12,8 16,18 12,22" fill="var(--gold)" opacity=".65"/></svg>
         glymr
       </div>
-      <p class="footer-brand-desc">The AI-powered jewellery design studio. From concept sketch to catalogue-ready image, production 3D model, and market intelligence.</p>
-      <div class="footer-powered">
-        Powered by <span>Gemini</span> &middot; <span>Meshy AI</span> &middot; <span>Google Search</span>
-      </div>
+      <p class="amp-foot-desc">The AI-powered jewellery design studio. From concept sketch to catalogue-ready image, production 3D model, and market intelligence.</p>
+      <div class="amp-foot-powered">Powered by <span>Gemini</span> · <span>Meshy AI</span> · <span>Google Search</span></div>
     </div>
 
-    <div>
-      <div class="footer-col-title">Studio</div>
-      <div class="footer-links">
-        <a href="/studio/sketch" class="footer-link">Sketch Studio</a>
-        <a href="/studio/model" class="footer-link">Model Try-On</a>
-        <a href="/studio/cad" class="footer-link">3D CAD Export</a>
-        <a href="/studio/market" class="footer-link">Market Trends</a>
-        <a href="/studio/gallery" class="footer-link">Gallery</a>
+    <div class="amp-foot-cols">
+      <div class="amp-reveal amp-d1">
+        <div class="amp-foot-ct">Studio</div>
+        <div class="amp-foot-links">
+          <a href="/studio/sketch">Sketch Studio</a>
+          <a href="/studio/model">Model Try-On</a>
+          <a href="/studio/cad">3D CAD Export</a>
+          <a href="/studio/market">Market Trends</a>
+        </div>
       </div>
-    </div>
-
-    <div>
-      <div class="footer-col-title">Resources</div>
-      <div class="footer-links">
-        <a href="#" class="footer-link">Documentation</a>
-        <a href="#" class="footer-link">API Reference</a>
-        <a href="#" class="footer-link">Changelog</a>
-        <a href="#" class="footer-link">Status</a>
+      <div class="amp-reveal amp-d2">
+        <div class="amp-foot-ct">Workspace</div>
+        <div class="amp-foot-links">
+          <a href="/studio/gallery">Gallery</a>
+          <a href="/studio/projects">Projects</a>
+          <a href="/auth">Sign in</a>
+        </div>
       </div>
-    </div>
-
-    <div>
-      <div class="footer-col-title">Company</div>
-      <div class="footer-links">
-        <a href="#" class="footer-link">About</a>
-        <a href="#" class="footer-link">Blog</a>
-        <a href="#" class="footer-link">Careers</a>
-        <a href="mailto:hello@glymr.ai" class="footer-link">Contact</a>
+      <div class="amp-reveal amp-d3">
+        <div class="amp-foot-ct">Get in touch</div>
+        <div class="amp-foot-links">
+          <a href="mailto:hello@glymr.ai">hello@glymr.ai</a>
+        </div>
       </div>
     </div>
   </div>
-
-  <div class="footer-bottom">
-    <span class="footer-copy">&copy; 2025 glymr &middot; All rights reserved</span>
-    <div class="footer-legal">
-      <a href="#">Privacy</a>
-      <a href="#">Terms</a>
-      <a href="#">Cookies</a>
-    </div>
+  <div class="amp-foot-bot">
+    <span class="amp-foot-copy">© {{ 2026 }} glymr · All rights reserved</span>
   </div>
 </footer>
+
+<!-- ══ IMAGE MODAL ════════════════════════════════════════════════════════ -->
+<div class="amp-modal" id="ampModal" role="dialog" aria-modal="true" aria-label="Image preview">
+  <div class="amp-modal-inner">
+    <button class="amp-modal-close" id="ampModalClose" aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <img id="ampModalImg" src="" alt="Preview">
+  </div>
+</div>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-
-/* ── Image Modal ──────────────────────────────────────────────────────────── */
+/* ── Scroll-story engine ───────────────────────────────────────────────────
+   A pinned stage. As the tall .amp-scrolly scrolls past, progress 0→1 drives
+   a 5-frame cross-dissolve with per-frame 3D transforms:
+   sketch → CAD mesh → render → model → (model dissolves) → market.        */
 (function () {
-  const backdrop = document.getElementById('imgModal');
-  const img      = document.getElementById('imgModalImg');
-  const label    = document.getElementById('imgModalLabel');
-  const closeBtn = document.getElementById('imgModalClose');
+  const scrolly = document.querySelector('.amp-scrolly');
+  if (!scrolly) return;
+  const frames  = [...scrolly.querySelectorAll('.amp-frame')];
+  const titles  = [...document.querySelectorAll('.amp-stage-title')];
+  const descs   = [...document.querySelectorAll('.amp-stage-desc')];
+  const railFills = [...document.querySelectorAll('#rail .amp-rail-seg i')];
+  const stepNum = document.getElementById('stepNum');
+  const N = frames.length;
+  const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+  let active = -1, ticking = false;
 
-  function openModal(src, lbl) {
-    img.src = src;
-    label.textContent = lbl || '';
-    backdrop.classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
+  function render() {
+    ticking = false;
+    const rect  = scrolly.getBoundingClientRect();
+    const total = scrolly.offsetHeight - window.innerHeight;
+    const p     = clamp(-rect.top / total, 0, 1);      // 0..1 over the section
+    const seg   = p * (N - 1);                          // 0..N-1 across frames
 
-  function closeModal() {
-    backdrop.classList.remove('open');
-    document.body.style.overflow = '';
-    // Clear src after transition so there's no flash on next open
-    setTimeout(() => { img.src = ''; }, 300);
-  }
+    frames.forEach((frame, i) => {
+      const card = frame.firstElementChild;
+      const d    = seg - i;                             // signed distance
+      const ad   = Math.abs(d);
+      const op   = clamp(1 - ad, 0, 1);                 // crossfade window
+      const fx   = frame.dataset.effect;
+      let scale = 1, ty = 0, rotY = 0, blur = 0, gray = 0;
 
-  // Wire up all frames with data-modal-src
-  document.querySelectorAll('.jrny-frame[data-modal-src], .masonry-card[data-modal-src]').forEach(frame => {
-    frame.addEventListener('click', () => {
-      openModal(frame.dataset.modalSrc, frame.dataset.modalLabel);
+      if (fx === 'mold') {                              // CAD: forms in with a turn
+        rotY  = d * 14;
+        scale = 0.94 + 0.06 * op;
+      } else if (fx === 'render') {                     // jewellery settles in
+        scale = 0.97 + 0.03 * op;
+        ty    = d * 18;
+      } else if (fx === 'model') {                      // model scales up
+        scale = 0.96 + 0.04 * op;
+        ty    = d * 14;
+      } else if (fx === 'dissolve') {                   // market rises as model leaves
+        scale = 0.98 + 0.02 * op;
+        ty    = (1 - op) * 26;
+      } else {                                          // sketch base
+        ty    = d * 16;
+        scale = 0.97 + 0.03 * op;
+      }
+
+      // The "person dissolves" moment: the model frame blurs + desaturates
+      // as we move toward the market frame.
+      if (i === 2 && seg > 2) {
+        const t = clamp(seg - 2, 0, 1);
+        blur = t * 16; gray = t; scale = 1 + t * 0.06;
+      }
+
+      frame.style.opacity = op;
+      frame.style.zIndex  = String(10 - Math.round(ad));
+      frame.style.pointerEvents = op > 0.6 ? 'auto' : 'none';
+      card.style.transform = `perspective(1600px) translateY(${ty}px) scale(${scale}) rotateY(${rotY}deg)`;
+      card.style.filter = (blur || gray) ? `blur(${blur}px) grayscale(${gray}) brightness(${1 - gray*0.15})` : 'none';
     });
-  });
 
-  closeBtn.addEventListener('click', closeModal);
+    // Rail + step counter + text swap
+    const cur = clamp(Math.round(seg), 0, N - 1);
+    railFills.forEach((f, i) => {
+      const fillP = clamp(seg - i, 0, 1);
+      f.style.width = (fillP * 100) + '%';
+    });
+    if (cur !== active) {
+      active = cur;
+      titles.forEach((t, i) => t.classList.toggle('on', i === cur));
+      descs.forEach((t, i) => t.classList.toggle('on', i === cur));
+      stepNum.textContent = String(cur + 1).padStart(2, '0');
+    }
+  }
 
-  // Close on backdrop click (but not on the inner panel)
-  backdrop.addEventListener('click', e => {
-    if (e.target === backdrop) closeModal();
-  });
+  function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(render); } }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  render();
+})();
 
-  // Close on Escape
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && backdrop.classList.contains('open')) closeModal();
-  });
-}());
+/* ── Image modal ───────────────────────────────────────────────────────── */
+(function () {
+  const modal = document.getElementById('ampModal');
+  const img   = document.getElementById('ampModalImg');
+  const close = document.getElementById('ampModalClose');
+  function open(src) { img.src = src; modal.classList.add('open'); document.body.style.overflow = 'hidden'; }
+  function shut() { modal.classList.remove('open'); document.body.style.overflow = ''; setTimeout(() => img.src = '', 300); }
+  document.querySelectorAll('.amp-mc[data-modal-src]').forEach(el =>
+    el.addEventListener('click', () => open(el.dataset.modalSrc)));
+  close.addEventListener('click', shut);
+  modal.addEventListener('click', e => { if (e.target === modal) shut(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.classList.contains('open')) shut(); });
+})();
 
-/* ── FAQ accordion ────────────────────────────────────────────────────────── */
-function toggleFAQ(qEl) {
-  const item = qEl.closest('.faq-item');
-  const isOpen = item.classList.contains('open');
-  // Close all
-  document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
-  // Open clicked if it was closed
-  if (!isOpen) item.classList.add('open');
+/* ── FAQ accordion ─────────────────────────────────────────────────────── */
+function ampFAQ(q) {
+  const item = q.closest('.amp-faq-item');
+  const open = item.classList.contains('open');
+  document.querySelectorAll('.amp-faq-item').forEach(i => i.classList.remove('open'));
+  if (!open) item.classList.add('open');
 }
 
-/* ── Scroll reveal ────────────────────────────────────────────────────────── */
-const revealEls = document.querySelectorAll('.reveal');
-
+/* ── Scroll reveal ─────────────────────────────────────────────────────── */
 const io = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      entry.target.classList.add('visible');
-      io.unobserve(entry.target);
-    }
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+}, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.amp-reveal').forEach(el => io.observe(el));
+
+/* ── Transparent nav → solid once past the hero video ──────────────────── */
+(function () {
+  const nav = document.querySelector('.nav');
+  if (!nav) return;
+  const onScroll = () => nav.classList.toggle('amp-nav-solid', window.scrollY > window.innerHeight * 0.88);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
+/* ── Vertical 3D tool stack (drag / dots / autoplay) ───────────────────────
+   Vanilla port of VerticalImageStack. No global wheel hijack (keeps page
+   scroll intact). Respects prefers-reduced-motion. Touch-action:none on the
+   viewport lets a vertical drag drive the stack without scrolling the page.  */
+(function () {
+  const stack = document.getElementById('toolStack');
+  if (!stack) return;
+  const cards   = [...stack.querySelectorAll('.ts-card')];
+  const vp      = document.getElementById('tsViewport');
+  const dotsW   = document.getElementById('tsDots');
+  const curEl   = document.getElementById('tsCur');
+  const N       = cards.length;
+  const reduce  = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let idx = 0;
+
+  cards.forEach((_, i) => {
+    const b = document.createElement('button');
+    b.className = 'ts-dot'; b.type = 'button';
+    b.setAttribute('aria-label', 'Show tool ' + (i + 1));
+    b.innerHTML = '<i></i>';
+    b.addEventListener('click', () => go(i));
+    dotsW.appendChild(b);
   });
-}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  const dots = [...dotsW.children];
 
-revealEls.forEach(el => io.observe(el));
-
-/* -- Testimonial cards - staggered fade-up --------------------------------- */
-const testiCards = document.querySelectorAll('.testimonial-card');
-const testiObserver = new IntersectionObserver((entries) => {
-  if (entries[0].isIntersecting) {
-    testiCards.forEach((card, i) => {
-      setTimeout(() => card.classList.add('visible'), i * 120);
-    });
-    testiObserver.disconnect();
+  function styleFor(i) {
+    let d = i - idx;
+    if (d >  N / 2) d -= N;
+    if (d < -N / 2) d += N;
+    const ad = Math.abs(d);
+    if (ad === 0) return { y: 0,  s: 1,   o: 1,   z: 5, rx: 0 };
+    if (ad === 1) return { y: d * 150, s: .84, o: .55, z: 4, rx: d < 0 ? 8 : -8 };
+    if (ad === 2) return { y: d > 0 ? 270 : -270, s: .7, o: .25, z: 3, rx: d < 0 ? 15 : -15 };
+    return { y: d > 0 ? 420 : -420, s: .6, o: 0, z: 0, rx: 0 };
   }
-}, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
-const testiGrid = document.querySelector('.testimonials-grid');
-if (testiGrid) testiObserver.observe(testiGrid);
+  function render() {
+    cards.forEach((c, i) => {
+      const s = styleFor(i);
+      c.style.transform = `translate(-50%,-50%) translateY(${s.y}px) scale(${s.s}) rotateX(${s.rx}deg)`;
+      c.style.opacity = s.o;
+      c.style.zIndex = s.z;
+      c.style.pointerEvents = s.o > 0.9 ? 'auto' : 'none';
+    });
+    dots.forEach((d, i) => d.classList.toggle('on', i === idx));
+    curEl.textContent = String(idx + 1).padStart(2, '0');
+  }
+  function go(i) { idx = (i % N + N) % N; render(); }
+  const next = () => go(idx + 1);
+  const prev = () => go(idx - 1);
+
+  /* drag — works for mouse + touch (viewport is touch-action:none) */
+  let down = false, startY = 0;
+  vp.addEventListener('pointerdown', e => { down = true; startY = e.clientY; vp.setPointerCapture(e.pointerId); });
+  vp.addEventListener('pointermove', e => {
+    if (!down) return;
+    const dy = e.clientY - startY;
+    if (Math.abs(dy) > 48) { dy < 0 ? next() : prev(); startY = e.clientY; }
+  });
+  const release = () => { down = false; };
+  vp.addEventListener('pointerup', release);
+  vp.addEventListener('pointercancel', release);
+
+  /* autoplay — interruptible: pauses on hover/touch, off for reduced-motion */
+  let timer = null;
+  const play = () => { if (!reduce) timer = setInterval(next, 4500); };
+  const halt = () => { if (timer) { clearInterval(timer); timer = null; } };
+  stack.addEventListener('pointerenter', halt);
+  stack.addEventListener('pointerleave', play);
+  stack.addEventListener('pointerdown', halt);
+
+  /* only autoplay while the stack is on screen */
+  const sObs = new IntersectionObserver(es => { es[0].isIntersecting ? play() : halt(); }, { threshold: 0.3 });
+  sObs.observe(stack);
+
+  render();
+})();
 </script>
 {% endblock %}
