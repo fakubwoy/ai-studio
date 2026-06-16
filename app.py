@@ -303,11 +303,55 @@ def _log_res(response):
     log.log(lvl, f"← {request.path} | {response.status_code} | {d:.0f}ms")
     return response
 
+@app.after_request
+def _inject_dev_banner(response):
+    """Inject a visible warning banner into every HTML page when DEV_BYPASS is on.
+    Runs after _log_res. No-op in production (guard is inside _DEV_BYPASS itself)."""
+    if not _DEV_BYPASS:
+        return response
+    ct = response.content_type or ''
+    if 'text/html' not in ct:
+        return response
+    banner = (
+        b'<div style="position:fixed;bottom:0;left:0;right:0;z-index:99999;'
+        b'background:#b8924a;color:#1a1614;text-align:center;'
+        b'font-family:monospace;font-size:12px;font-weight:700;'
+        b'padding:6px 12px;letter-spacing:.06em;">'
+        b'&#9888;&#xFE0F;  DEV_BYPASS ACTIVE &mdash; auth is disabled &mdash; '
+        b'localhost only, never on Railway'
+        b'</div>'
+    )
+    body = response.get_data()
+    close = body.rfind(b'</body>')
+    if close != -1:
+        body = body[:close] + banner + body[close:]
+        response.set_data(body)
+    return response
+
 # ── Paths ──────────────────────────────────────────────────────────────────────
 _IS_RAILWAY = os.getenv('RAILWAY_ENVIRONMENT') is not None
 # On Railway, /data is a persistent volume that survives redeploys.
 # Locally, use the current directory.
 _DATA_ROOT = '/data' if _IS_RAILWAY else '.'
+
+# ── Local dev auth bypass ──────────────────────────────────────────────────────
+# Set DEV_BYPASS=true in your local .env to skip auth entirely during development.
+# The flag is HARD-BLOCKED on Railway — it can never be enabled in production
+# regardless of what's in env vars, because Railway always sets RAILWAY_ENVIRONMENT.
+#
+# When active, every unauthenticated request is treated as a synthetic local dev
+# user (user_id='dev-local'), and a visible yellow banner is injected into every
+# HTML response so you can't accidentally forget it's on.
+_DEV_BYPASS = (
+    not _IS_RAILWAY                                     # never on Railway
+    and os.getenv('DEV_BYPASS', '').lower() == 'true'  # explicit opt-in only
+)
+if _DEV_BYPASS:
+    log.warning(
+        '[dev] DEV_BYPASS is ON — auth is disabled for all routes. '
+        'This will never activate on Railway (RAILWAY_ENVIRONMENT is set there). '
+        'Do not set DEV_BYPASS=true on any deployed environment.'
+    )
 
 app.config['UPLOAD_FOLDER'] = os.path.join(_DATA_ROOT, 'uploads')
 app.config['OUTPUT_FOLDER'] = os.path.join(_DATA_ROOT, 'outputs')
@@ -574,6 +618,15 @@ def get_current_user():
     uid = session.get('user_id')
     if not uid:
         return None
+    # Dev bypass: return a synthetic user so templates that render current_user don't break
+    if _DEV_BYPASS and uid == 'dev-local':
+        return {
+            'id':           'dev-local',
+            'email':        'dev@localhost',
+            'display_name': 'Dev User',
+            'avatar_url':   '',
+            'verified':     True,
+        }
     if not _DB_URL:
         return None
     try:
@@ -597,6 +650,16 @@ _MOBILE_API_KEY = os.getenv('MOBILE_API_KEY', '')
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        # ── Local dev bypass (never active on Railway) ───────────────────────
+        if _DEV_BYPASS:
+            if not session.get('user_id'):
+                session['user_id']    = 'dev-local'
+                session['user_email'] = 'dev@localhost'
+                session['user_name']  = 'Dev User'
+                session['user_avatar']= ''
+                session.permanent     = True
+            return f(*args, **kwargs)
+
         # ── Mobile app bypass ────────────────────────────────────────────────
         # If a valid shared API key is present in the request header, allow the
         # call through without requiring a browser session.  A synthetic user_id
@@ -1066,7 +1129,7 @@ def api_conceptualise():
     sketch_file = request.files.get('sketch_image')
     if sketch_file and sketch_file.filename:
         try:
-            sketch_img = Image.open(io.BytesIO(sketch_file.read())).convert('RGB')
+            sketch_img = _preprocess_for_gemini(io.BytesIO(sketch_file.read()))
             has_sketch = True
             log.info('[conceptualise] using uploaded sketch file')
         except Exception as e:
@@ -1077,7 +1140,7 @@ def api_conceptualise():
         if sketch_data:
             try:
                 b64 = sketch_data.split(',', 1)[1] if ',' in sketch_data else sketch_data
-                sketch_img = Image.open(io.BytesIO(base64.b64decode(b64))).convert('RGB')
+                sketch_img = _preprocess_for_gemini(io.BytesIO(base64.b64decode(b64)))
                 has_sketch = True
                 log.info('[conceptualise] using base64 sketch_data')
             except Exception as e:
@@ -1149,7 +1212,7 @@ Generate an image that would be appropriate for a luxury jewellery brand's catal
         image_url = None
         for part in response.candidates[0].content.parts:
             if part.inline_data is not None:
-                out_bytes = part.inline_data.data
+                out_bytes = _upscale_output(part.inline_data.data)
                 out_fn    = f"concept_{uuid.uuid4()}.png"
 
                 # Try to persist to R2 for durable storage
@@ -1290,6 +1353,174 @@ RULES: 1) Reproduce jewellery identically from reference. 2) ONE {category} tota
 
     return jsonify(_generate_with_gemini(saved_paths[0], prompt, category, extra_paths=saved_paths[1:]))
 
+# ── Image preprocessing helpers ───────────────────────────────────────────────
+
+import numpy as _np                            # already in requirements.txt (numpy>=1.26.0)
+from PIL import ImageFilter as _ImageFilter, ImageEnhance as _ImageEnhance
+
+# Maximum pixel dimension sent to Gemini as input.
+# Gemini Flash accepts up to ~1568 px; 1536 is a safe sweet-spot.
+_GEMINI_MAX_INPUT_DIM = 1536
+
+
+def _find_jewelry_roi(img: Image.Image):
+    """
+    Heuristic center-weighted ROI for a jewellery-on-background photo.
+
+    Returns (left, top, right, bottom) if a compact jewellery region is found
+    that covers ≤80 % of the original frame; None otherwise.
+
+    Treats near-white pixels (all channels > 220) as background, computes a
+    weighted centroid + bounding crop from the remaining mass.
+    Pure Pillow + NumPy — no OpenCV / ML dependencies.
+    """
+    try:
+        w, h = img.size
+        arr = _np.array(img.convert('RGB'), dtype=_np.float32)   # (H, W, 3)
+
+        is_bg = _np.all(arr > 220, axis=2)
+        non_bg_mass = (~is_bg).sum()
+
+        if non_bg_mass < (w * h * 0.02):
+            log.info('[roi] <2 % non-background — clean product shot, no crop')
+            return None
+
+        dist_from_white = (255 - arr).mean(axis=2)
+        weight = _np.where(is_bg, 0.0, dist_from_white)
+        total_w = weight.sum()
+        if total_w == 0:
+            return None
+
+        ys, xs = _np.mgrid[0:h, 0:w]
+        cx = int((xs * weight).sum() / total_w)
+        cy = int((ys * weight).sum() / total_w)
+
+        # Expand from centroid until 90 % of subject mass is enclosed
+        target_mass = total_w * 0.90
+        best_half = min(w, h) // 2
+        for half in range(20, min(w, h) // 2 + 1, 10):
+            x0 = max(cx - half, 0); y0 = max(cy - half, 0)
+            x1 = min(cx + half, w); y1 = min(cy + half, h)
+            if weight[y0:y1, x0:x1].sum() >= target_mass:
+                best_half = half
+                break
+
+        # Add 20 % padding so piece edges aren't clipped
+        padded = min(int(best_half * 1.2) + 20, min(w, h) // 2)
+        x0 = max(cx - padded, 0); y0 = max(cy - padded, 0)
+        x1 = min(cx + padded, w); y1 = min(cy + padded, h)
+
+        area_ratio = ((x1 - x0) * (y1 - y0)) / (w * h)
+        if area_ratio > 0.80:
+            log.info(f'[roi] crop covers {area_ratio:.0%} of frame — not compact enough, skipping')
+            return None
+
+        log.info(f'[roi] centroid=({cx},{cy}) crop=({x0},{y0},{x1},{y1}) area={area_ratio:.0%}')
+        return (x0, y0, x1, y1)
+
+    except Exception as e:
+        log.warning(f'[roi] detection error — using full image: {e}')
+        return None
+
+
+def _preprocess_for_gemini(
+    source,
+    max_dim: int = _GEMINI_MAX_INPUT_DIM,
+    use_roi: bool = True,
+) -> Image.Image:
+    """
+    Return a PIL Image ready to send to Gemini as an input reference.
+
+    `source` may be a file-system path (str/Path), a BytesIO/bytes object,
+    or an already-open PIL Image.
+
+    Steps
+    -----
+    1. Open and convert to RGB.
+    2. If the image is notably larger than the Gemini limit (> 2× max_dim)
+       AND a compact jewellery ROI is found, crop to that region first.
+       This lets Gemini see the piece at full detail instead of a uniformly
+       downscaled version of the whole frame / document page.
+    3. If either dimension still exceeds max_dim, downscale with LANCZOS.
+    """
+    if isinstance(source, Image.Image):
+        img = source.convert('RGB')
+    elif isinstance(source, (bytes, io.BytesIO)):
+        buf = source if isinstance(source, io.BytesIO) else io.BytesIO(source)
+        img = Image.open(buf).convert('RGB')
+    else:
+        img = Image.open(source).convert('RGB')
+
+    w, h = img.size
+
+    # ROI crop: only worth doing when the source is genuinely high-res
+    if use_roi and (w > max_dim * 2 or h > max_dim * 2):
+        roi = _find_jewelry_roi(img)
+        if roi:
+            img = img.crop(roi)
+            cw, ch = img.size
+            log.info(f'[preprocess] ROI crop {w}×{h} → {cw}×{ch}')
+            w, h = cw, ch
+
+    if w > max_dim or h > max_dim:
+        ratio = min(max_dim / w, max_dim / h)
+        new_w, new_h = int(w * ratio), int(h * ratio)
+        img = img.resize((new_w, new_h), Image.LANCZOS)
+        log.info(f'[preprocess] resized {w}×{h} → {new_w}×{new_h} for Gemini')
+
+    return img
+
+
+# Target output dimension after Gemini generation.
+# Gemini Flash Image outputs 1024×1024; upscaling to 2048 + sharpening gives
+# users enough resolution to zoom in on stone settings and filigree detail.
+_OUTPUT_UPSCALE_DIM = 2048
+
+def _upscale_output(img_bytes: bytes, target_dim: int = _OUTPUT_UPSCALE_DIM) -> bytes:
+    """
+    Upscale raw Gemini output to target_dim and sharpen for jewellery detail.
+
+    Pipeline
+    --------
+    1. LANCZOS upscale 1024 → 2048 (best-in-class for smooth curved surfaces).
+    2. UnsharpMask tuned for jewellery:
+         radius=1.5   tight — avoids haloing on smooth metal areas
+         percent=120  moderate — recovers filigree, facet edges, engraving
+         threshold=3  only sharpens real edges, skips compression noise
+    3. Contrast +5 % to compensate for LANCZOS interpolation softening.
+    4. Save as PNG (lossless, compress_level=1 for speed).
+
+    If the image is already ≥ target_dim, steps 2–3 still run (sharpening
+    always helps). All errors swallowed; original bytes returned on failure.
+    """
+    try:
+        img = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+        w, h = img.size
+
+        if w < target_dim or h < target_dim:
+            ratio = max(target_dim / w, target_dim / h)
+            new_w, new_h = int(w * ratio), int(h * ratio)
+            img = img.resize((new_w, new_h), Image.LANCZOS)
+            log.info(f'[upscale] {w}×{h} → {new_w}×{new_h} (Lanczos)')
+        else:
+            log.info(f'[upscale] {w}×{h} already at target, applying sharpen only')
+
+        # Unsharp mask — jewellery-tuned parameters
+        img = img.filter(_ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=3))
+
+        # Subtle contrast lift to counter LANCZOS softening
+        img = _ImageEnhance.Contrast(img).enhance(1.05)
+
+        buf = io.BytesIO()
+        img.save(buf, format='PNG', optimize=False, compress_level=1)
+        log.info(f'[upscale] final PNG: {len(buf.getvalue()) // 1024} KB')
+        return buf.getvalue()
+
+    except Exception as e:
+        log.warning(f'[upscale] failed, using original bytes: {e}')
+        return img_bytes
+
+
 def _generate_with_gemini(image_path, prompt, category, extra_paths=None, _fallback_prompt=None):
     """
     Call Gemini image generation with retry logic for two distinct failure modes:
@@ -1306,12 +1537,12 @@ def _generate_with_gemini(image_path, prompt, category, extra_paths=None, _fallb
         return {'error': err}
 
     try:
-        img = Image.open(image_path)
+        img = _preprocess_for_gemini(image_path)
         extra_imgs = []
         if extra_paths:
             for ep in extra_paths:
                 try:
-                    extra_imgs.append(Image.open(ep))
+                    extra_imgs.append(_preprocess_for_gemini(ep))
                 except Exception:
                     pass
 
@@ -1346,6 +1577,7 @@ def _generate_with_gemini(image_path, prompt, category, extra_paths=None, _fallb
             raise last_exc
 
         def _save_image(out_bytes):
+            out_bytes = _upscale_output(out_bytes)
             out_fn  = f"output_{uuid.uuid4()}.png"
             r2_url  = _upload_to_r2(out_bytes, f'outputs/{out_fn}')
             if r2_url:
@@ -1982,7 +2214,7 @@ def api_enhance_sketch():
     if sketch_file and sketch_file.filename:
         try:
             raw = sketch_file.read()
-            sketch_img = Image.open(io.BytesIO(raw)).convert('RGB')
+            sketch_img = _preprocess_for_gemini(io.BytesIO(raw))
             original_b64 = 'data:image/png;base64,' + base64.b64encode(raw).decode()
             has_sketch = True
         except Exception as e:
@@ -1994,7 +2226,7 @@ def api_enhance_sketch():
             try:
                 b64 = sketch_data.split(',', 1)[1] if ',' in sketch_data else sketch_data
                 raw = base64.b64decode(b64)
-                sketch_img = Image.open(io.BytesIO(raw)).convert('RGB')
+                sketch_img = _preprocess_for_gemini(io.BytesIO(raw))
                 original_b64 = sketch_data if sketch_data.startswith('data:') else ('data:image/png;base64,' + b64)
                 has_sketch = True
             except Exception as e:
@@ -2054,7 +2286,7 @@ IMPORTANT CONSTRAINTS:
         enhanced_url = None
         for part in response.candidates[0].content.parts:
             if part.inline_data is not None:
-                out_bytes = part.inline_data.data
+                out_bytes = _upscale_output(part.inline_data.data)
                 out_fn    = f'enhanced_{uuid.uuid4()}.png'
                 r2_url    = _upload_to_r2(out_bytes, f'enhanced/{out_fn}')
                 if r2_url:
@@ -2328,7 +2560,7 @@ RULES:
 - If a field cannot be determined from the image, use null."""
 
     try:
-        pil = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+        pil = _preprocess_for_gemini(io.BytesIO(img_bytes))
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[prompt, pil],
@@ -2843,7 +3075,7 @@ def api_remove_background():
         return jsonify({'success': False, 'error': err}), 500
 
     try:
-        pil_orig = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+        pil_orig = _preprocess_for_gemini(io.BytesIO(img_bytes))
     except Exception as e:
         return jsonify({'success': False, 'error': f'Could not decode image: {e}'}), 400
 
@@ -4182,7 +4414,7 @@ def api_generate_bom():
         try:
             b64 = image_data.split(',', 1)[1] if ',' in image_data else image_data
             img_bytes = base64.b64decode(b64)
-            pil = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+            pil = _preprocess_for_gemini(io.BytesIO(img_bytes))
             feat_resp = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=[f"""Extract jewellery design features for BOM. Return ONLY JSON:
