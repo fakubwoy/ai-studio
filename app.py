@@ -1359,8 +1359,10 @@ import numpy as _np                            # already in requirements.txt (nu
 from PIL import ImageFilter as _ImageFilter, ImageEnhance as _ImageEnhance
 
 # Maximum pixel dimension sent to Gemini as input.
-# Gemini Flash accepts up to ~1568 px; 1536 is a safe sweet-spot.
-_GEMINI_MAX_INPUT_DIM = 1536
+# Gemini 2.5 Flash supports up to 3072 px on the long edge.
+# Using 3072 lets us send the ROI crop at near-original resolution,
+# which is the main lever for preserving filigree / stone detail.
+_GEMINI_MAX_INPUT_DIM = 3072
 
 
 def _find_jewelry_roi(img: Image.Image):
@@ -1368,7 +1370,7 @@ def _find_jewelry_roi(img: Image.Image):
     Heuristic center-weighted ROI for a jewellery-on-background photo.
 
     Returns (left, top, right, bottom) if a compact jewellery region is found
-    that covers ≤80 % of the original frame; None otherwise.
+    that covers ≤92 % of the original frame; None otherwise.
 
     Treats near-white pixels (all channels > 220) as background, computes a
     weighted centroid + bounding crop from the remaining mass.
@@ -1405,14 +1407,15 @@ def _find_jewelry_roi(img: Image.Image):
                 best_half = half
                 break
 
-        # Add 20 % padding so piece edges aren't clipped
-        padded = min(int(best_half * 1.2) + 20, min(w, h) // 2)
+        # Add 10 % padding so piece edges aren't clipped, but keep the crop
+        # as tight as possible to preserve detail after the final resize.
+        padded = min(int(best_half * 1.1) + 10, min(w, h) // 2)
         x0 = max(cx - padded, 0); y0 = max(cy - padded, 0)
         x1 = min(cx + padded, w); y1 = min(cy + padded, h)
 
         area_ratio = ((x1 - x0) * (y1 - y0)) / (w * h)
-        if area_ratio > 0.80:
-            log.info(f'[roi] crop covers {area_ratio:.0%} of frame — not compact enough, skipping')
+        if area_ratio > 0.92:
+            log.info(f'[roi] crop covers {area_ratio:.0%} of frame — nearly full frame, skipping')
             return None
 
         log.info(f'[roi] centroid=({cx},{cy}) crop=({x0},{y0},{x1},{y1}) area={area_ratio:.0%}')
@@ -1437,10 +1440,9 @@ def _preprocess_for_gemini(
     Steps
     -----
     1. Open and convert to RGB.
-    2. If the image is notably larger than the Gemini limit (> 2× max_dim)
-       AND a compact jewellery ROI is found, crop to that region first.
-       This lets Gemini see the piece at full detail instead of a uniformly
-       downscaled version of the whole frame / document page.
+    2. If either dimension exceeds max_dim AND a compact jewellery ROI is found,
+       crop to that region first. This lets Gemini see the piece at the highest
+       possible resolution instead of a uniformly-downscaled full frame.
     3. If either dimension still exceeds max_dim, downscale with LANCZOS.
     """
     if isinstance(source, Image.Image):
@@ -1453,8 +1455,10 @@ def _preprocess_for_gemini(
 
     w, h = img.size
 
-    # ROI crop: only worth doing when the source is genuinely high-res
-    if use_roi and (w > max_dim * 2 or h > max_dim * 2):
+    # ROI crop: run whenever the image needs resizing at all.
+    # Cropping to the jewellery first means we feed Gemini the piece at the
+    # highest possible resolution instead of a uniformly-downscaled full frame.
+    if use_roi and (w > max_dim or h > max_dim):
         roi = _find_jewelry_roi(img)
         if roi:
             img = img.crop(roi)
@@ -1472,9 +1476,11 @@ def _preprocess_for_gemini(
 
 
 # Target output dimension after Gemini generation.
-# Gemini Flash Image outputs 1024×1024; upscaling to 2048 + sharpening gives
+# Gemini Flash Image outputs 1024×1024; upscaling to 3072 + sharpening gives
 # users enough resolution to zoom in on stone settings and filigree detail.
-_OUTPUT_UPSCALE_DIM = 2048
+# (3× upscale from 1024 → 3072 is the sweet-spot before LANCZOS artifacts
+#  become visible on metal surfaces.)
+_OUTPUT_UPSCALE_DIM = 3072
 
 def _upscale_output(img_bytes: bytes, target_dim: int = _OUTPUT_UPSCALE_DIM) -> bytes:
     """
@@ -1482,15 +1488,15 @@ def _upscale_output(img_bytes: bytes, target_dim: int = _OUTPUT_UPSCALE_DIM) -> 
 
     Pipeline
     --------
-    1. LANCZOS upscale 1024 → 2048 (best-in-class for smooth curved surfaces).
-    2. UnsharpMask tuned for jewellery:
-         radius=1.5   tight — avoids haloing on smooth metal areas
-         percent=120  moderate — recovers filigree, facet edges, engraving
-         threshold=3  only sharpens real edges, skips compression noise
+    1. LANCZOS upscale 1024 → 3072 (best-in-class for smooth curved surfaces).
+    2. UnsharpMask tuned for jewellery at 3x scale:
+         radius=2.0   slightly wider to recover sub-pixel detail at 3072
+         percent=130  moderate — recovers filigree, facet edges, engraving
+         threshold=4  only sharpens real edges, skips compression noise
     3. Contrast +5 % to compensate for LANCZOS interpolation softening.
     4. Save as PNG (lossless, compress_level=1 for speed).
 
-    If the image is already ≥ target_dim, steps 2–3 still run (sharpening
+    If the image is already >= target_dim, steps 2-3 still run (sharpening
     always helps). All errors swallowed; original bytes returned on failure.
     """
     try:
@@ -1501,12 +1507,12 @@ def _upscale_output(img_bytes: bytes, target_dim: int = _OUTPUT_UPSCALE_DIM) -> 
             ratio = max(target_dim / w, target_dim / h)
             new_w, new_h = int(w * ratio), int(h * ratio)
             img = img.resize((new_w, new_h), Image.LANCZOS)
-            log.info(f'[upscale] {w}×{h} → {new_w}×{new_h} (Lanczos)')
+            log.info(f'[upscale] {w}x{h} -> {new_w}x{new_h} (Lanczos)')
         else:
-            log.info(f'[upscale] {w}×{h} already at target, applying sharpen only')
+            log.info(f'[upscale] {w}x{h} already at target, applying sharpen only')
 
-        # Unsharp mask — jewellery-tuned parameters
-        img = img.filter(_ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=3))
+        # Unsharp mask — jewellery-tuned parameters (calibrated for 3x upscale)
+        img = img.filter(_ImageFilter.UnsharpMask(radius=2.0, percent=130, threshold=4))
 
         # Subtle contrast lift to counter LANCZOS softening
         img = _ImageEnhance.Contrast(img).enhance(1.05)

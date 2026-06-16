@@ -1187,9 +1187,9 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── Cross-module handoff: re-open a saved 3D model from gallery ──────────
-  const pendingGlb   = sessionStorage.getItem('pendingCADGlbUrl');
-  const pendingThumb = sessionStorage.getItem('pendingCADThumbUrl');
-  const pendingCat   = sessionStorage.getItem('pendingCADCategory');
+  const pendingGlb    = sessionStorage.getItem('pendingCADGlbUrl');
+  const pendingThumb  = sessionStorage.getItem('pendingCADThumbUrl');
+  const pendingCatGlb = sessionStorage.getItem('pendingCADCategory');
   if (pendingGlb) {
     sessionStorage.removeItem('pendingCADGlbUrl');
     sessionStorage.removeItem('pendingCADThumbUrl');
