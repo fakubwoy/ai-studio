@@ -285,6 +285,17 @@ def cache_del(key: str):
     except Exception:
         pass
 
+# Shared pool for hard-timeout-wrapped calls (e.g. Gemini in market-research).
+# Deliberately NOT created via `with ThreadPoolExecutor(...) as ex:` at each
+# call site: that pattern's __exit__ calls shutdown(wait=True), which blocks
+# until the submitted task finishes even after .result(timeout=...) already
+# gave up on it — silently turning a "45s timeout" into "however long the
+# real call takes" (observed: a 45s-capped call took 180s wall-clock because
+# exiting the `with` block waited for Gemini's actual response). Submitting
+# to a long-lived shared pool instead means a timed-out call's thread is
+# simply abandoned — it finishes in the background without blocking us.
+_HARD_TIMEOUT_POOL = ThreadPoolExecutor(max_workers=16, thread_name_prefix='hard-timeout')
+
 # ── Background job store (live progress for long-running requests) ─────────
 # Backs market-research's start/poll flow: the actual work runs in a
 # background thread and writes real progress checkpoints here as it hits
@@ -3793,20 +3804,25 @@ RULES:
         _progress('contacting_ai', f'Analysing image & searching with {_MARKET_MODELS[0]}…', 10)
 
         def _call_gemini(model_name, call_timeout):
-            """Run a single generate_content call, wrapped in a future for hard timeout."""
-            from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FutTimeout
+            """Run a single generate_content call, wrapped in a future for hard timeout.
+
+            Submits to the shared _HARD_TIMEOUT_POOL rather than a
+            `with ThreadPoolExecutor(...)` block — see that pool's comment
+            for why: a context-managed executor's __exit__ blocks on the
+            in-flight call even after we've given up on it, defeating the
+            timeout entirely.
+            """
             _cfg = types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
                 temperature=0.1,
             )
             _contents = [types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg'), prompt]
-            with ThreadPoolExecutor(max_workers=1) as _ex:
-                _fut = _ex.submit(client.models.generate_content,
-                                  model=model_name, contents=_contents, config=_cfg)
-                try:
-                    return _fut.result(timeout=call_timeout)
-                except _FutTimeout:
-                    raise TimeoutError(f'Gemini call to {model_name} timed out after {call_timeout:.0f}s')
+            _fut = _HARD_TIMEOUT_POOL.submit(client.models.generate_content,
+                                              model=model_name, contents=_contents, config=_cfg)
+            try:
+                return _fut.result(timeout=call_timeout)
+            except FuturesTimeoutError:
+                raise TimeoutError(f'Gemini call to {model_name} timed out after {call_timeout:.0f}s')
 
         response = None
         last_err  = None
