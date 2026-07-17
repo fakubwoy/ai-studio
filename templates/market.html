@@ -97,11 +97,20 @@
   .market-loading    { grid-column: 1 / -1; text-align: center; padding: 80px 40px; }
   .market-loading p  { font-size: 12px; color: var(--ink-3); font-family: var(--font-mono); margin-top: 16px; }
   .loading-steps     { display: flex; flex-direction: column; gap: 8px; max-width: 300px; margin: 18px auto 0; }
-  .ls-item           { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-3); }
-  .ls-dot            { width: 7px; height: 7px; border-radius: 50%; background: var(--paper-3); animation: ls-blink 1.5s ease infinite; flex-shrink: 0; }
-  .ls-item:nth-child(2) .ls-dot { animation-delay: .3s; }
-  .ls-item:nth-child(3) .ls-dot { animation-delay: .6s; }
-  @keyframes ls-blink { 0%, 100% { background: var(--paper-3); } 50% { background: var(--gold); } }
+  .ls-item           { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-3); transition: color var(--t) var(--ease); }
+  .ls-dot            { width: 7px; height: 7px; border-radius: 50%; background: var(--paper-3); flex-shrink: 0; transition: background var(--t) var(--ease); }
+  .ls-item.active            { color: var(--ink); font-weight: 600; }
+  .ls-item.active .ls-dot    { background: var(--gold); animation: ls-blink 1.1s ease infinite; box-shadow: 0 0 0 4px rgba(184,146,74,.14); }
+  .ls-item.done              { color: var(--ink-4); }
+  .ls-item.done .ls-dot      { background: var(--gold-dk); }
+  @keyframes ls-blink { 0%, 100% { background: var(--gold); } 50% { background: var(--gold-lt); } }
+
+  /* Width reflects the backend job's real pct (queued/contacting_ai/parsing/
+     enriching checkpoints) — not a simulated sweep. */
+  .loading-progress-track { width: 220px; height: 4px; background: var(--paper-3); border-radius: 3px; margin: 22px auto 0; overflow: hidden; }
+  .loading-progress-fill  { height: 100%; width: 2%; background: linear-gradient(90deg, var(--gold-dk), var(--gold)); border-radius: 3px; transition: width .5s var(--ease); }
+
+  .loading-elapsed  { font-family: var(--font-mono); font-size: 11px; color: var(--ink-4); margin-top: 14px; letter-spacing: .04em; }
 
   /* ── Tab bar ──────────────────────────────────────────────────────────── */
   .market-tabs {
@@ -433,11 +442,14 @@ function clearMarketUpload(e) {
   document.getElementById('marketPreview').style.display = 'none';
 }
 
+let _marketPollGen = 0;   // bumped each run so an abandoned poll loop stops touching the DOM
+
 async function runMarketResearch() {
   const previewSrc = document.getElementById('marketPreviewImg').src;
   if (!marketImageFile && !previewSrc.startsWith('data:') && !previewSrc.includes('/static') && !marketPreviewSrcOnLoad) {
     showToast('Please upload a jewellery image.', 'error'); return;
   }
+  const myGen = ++_marketPollGen;
   const btn = document.getElementById('marketBtn');
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner"></div> Researching…';
@@ -470,19 +482,98 @@ async function runMarketResearch() {
   }
 
   try {
-    const res  = await fetch('/api/market-research', { method: 'POST', body: fd });
-    if (res.status === 503) {
-      showToast('AI service is temporarily busy — please try again in a moment.', 'error');
+    // Kicks off a background job on the server and gets a job_id back
+    // immediately — the actual Gemini call (10s-2min) runs off-request, so
+    // this POST never hangs waiting for it.
+    const res = await fetch('/api/market-research', { method: 'POST', body: fd });
+    if (res.status === 429) {
+      const rl = await res.json().catch(() => ({}));
+      showToast(rl.error || 'Rate limit exceeded — try again shortly.', 'error');
       showEmptyState(); return;
     }
-    const data = await res.json();
-    if (!data.success) { showToast(data.error || 'Research failed.', 'error'); showEmptyState(); }
-    else { renderResults(data); }
+    const startData = await res.json();
+    if (!startData.success) {
+      showToast(startData.error || 'Research failed.', 'error');
+      showEmptyState(); return;
+    }
+    await pollMarketJob(startData.job_id, myGen);
   } catch(err) {
-    showToast('Network error: ' + err.message, 'error'); showEmptyState();
+    if (myGen === _marketPollGen) { showToast('Network error: ' + err.message, 'error'); showEmptyState(); }
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = _researchBtnHTML();
+    if (myGen === _marketPollGen) { btn.disabled = false; btn.innerHTML = _researchBtnHTML(); }
+  }
+}
+
+// Polls the real job state on the server and renders exactly what it
+// reports (stage, message, pct, live enrichment count) — no client-side
+// guessing about what phase the backend is in.
+function pollMarketJob(jobId, myGen) {
+  return new Promise((resolve) => {
+    let errStreak = 0;
+    const POLL_MS = 1000;
+
+    async function tick() {
+      if (myGen !== _marketPollGen) { resolve(); return; }  // superseded by a newer run
+      try {
+        const res = await fetch(`/api/market-research/status/${jobId}`);
+        if (res.status === 404) {
+          showToast('Research job expired — please retry.', 'error');
+          showEmptyState(); resolve(); return;
+        }
+        const job = await res.json();
+        errStreak = 0;
+        if (myGen !== _marketPollGen) { resolve(); return; }
+        renderLoadingProgress(job);
+
+        if (job.status === 'done') { renderResults(job.result); resolve(); }
+        else if (job.status === 'error') {
+          showToast(job.message || 'Research failed.', 'error');
+          showEmptyState(); resolve();
+        } else {
+          setTimeout(tick, POLL_MS);
+        }
+      } catch (err) {
+        errStreak++;
+        if (errStreak >= 6) {  // ~6-9s of no connectivity
+          if (myGen === _marketPollGen) { showToast('Lost connection while checking progress.', 'error'); showEmptyState(); }
+          resolve(); return;
+        }
+        setTimeout(tick, POLL_MS);
+      }
+    }
+    tick();
+  });
+}
+
+// Maps the backend's real stage into the 3-step tracker + live elapsed time
+// (computed from the job's actual started_at timestamp, not a client guess).
+function renderLoadingProgress(job) {
+  const msgEl = document.getElementById('loadingMessage');
+  if (msgEl && job.message) msgEl.textContent = job.message;
+
+  const fillEl = document.getElementById('loadingProgressFill');
+  if (fillEl && typeof job.pct === 'number') fillEl.style.width = `${Math.max(2, Math.min(100, job.pct))}%`;
+
+  const elapsedEl = document.getElementById('loadingElapsed');
+  if (elapsedEl && job.started_at) {
+    const secs = Math.max(0, Math.floor(Date.now() / 1000 - job.started_at));
+    elapsedEl.textContent = `${secs}s elapsed`;
+  }
+
+  const s1 = document.getElementById('lsStep1');
+  const s2 = document.getElementById('lsStep2');
+  const s3 = document.getElementById('lsStep3');
+  if (s1 && s2 && s3) {
+    const stage = job.stage || 'queued';
+    if (stage === 'queued') {
+      s1.className = 'ls-item active'; s2.className = 'ls-item'; s3.className = 'ls-item';
+    } else if (stage === 'contacting_ai' || stage === 'retrying') {
+      s1.className = 'ls-item done'; s2.className = 'ls-item active'; s3.className = 'ls-item';
+    } else if (stage === 'parsing' || stage === 'enriching') {
+      s1.className = 'ls-item done'; s2.className = 'ls-item done'; s3.className = 'ls-item active';
+    } else if (stage === 'done') {
+      s1.className = 'ls-item done'; s2.className = 'ls-item done'; s3.className = 'ls-item done';
+    }
   }
 }
 
@@ -494,12 +585,14 @@ function showLoadingState() {
   document.getElementById('listingsGrid').innerHTML = `
     <div class="market-loading">
       <div class="spinner" style="width:36px;height:36px;border-width:3px;margin:0 auto"></div>
-      <p>Searching live jewellery listings…</p>
+      <p id="loadingMessage">Starting…</p>
+      <div class="loading-progress-track"><div class="loading-progress-fill" id="loadingProgressFill" style="width:2%"></div></div>
       <div class="loading-steps">
-        <div class="ls-item"><div class="ls-dot"></div><span>Analysing jewellery style &amp; materials</span></div>
-        <div class="ls-item"><div class="ls-dot"></div><span>Searching Amazon, Flipkart, CaratLane…</span></div>
-        <div class="ls-item"><div class="ls-dot"></div><span>Compiling price range &amp; insights</span></div>
+        <div class="ls-item" id="lsStep1"><div class="ls-dot"></div><span>Analysing jewellery style &amp; materials</span></div>
+        <div class="ls-item" id="lsStep2"><div class="ls-dot"></div><span>Searching Amazon, Flipkart, CaratLane…</span></div>
+        <div class="ls-item" id="lsStep3"><div class="ls-dot"></div><span>Compiling price range &amp; insights</span></div>
       </div>
+      <div class="loading-elapsed" id="loadingElapsed">0s elapsed</div>
     </div>`;
 }
 function hideResults() {
