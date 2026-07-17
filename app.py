@@ -1,4 +1,4 @@
-import os, json, base64, uuid, re, time, logging, hashlib, secrets, string, random
+import os, json, base64, uuid, re, time, logging, hashlib, secrets, string, random, threading
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 try:
     from pytrends.request import TrendReq as _TrendReq
@@ -284,6 +284,39 @@ def cache_del(key: str):
         r.delete(key)
     except Exception:
         pass
+
+# ── Background job store (live progress for long-running requests) ─────────
+# Backs market-research's start/poll flow: the actual work runs in a
+# background thread and writes real progress checkpoints here as it hits
+# them (model attempt, retry, parsing, per-item enrichment count) — the
+# frontend polls and renders exactly that state, not a simulated timeline.
+_JOB_TTL = 600  # seconds a finished/failed job's state stays queryable
+_local_jobs: dict[str, dict] = {}
+_local_jobs_lock = threading.Lock()
+
+def job_set(job_id: str, data: dict):
+    data['updated_at'] = time.time()
+    r = get_redis()
+    if r is not None:
+        try:
+            r.setex(f'glymr:job:{job_id}', _JOB_TTL, json.dumps(data))
+            return
+        except Exception:
+            pass
+    with _local_jobs_lock:
+        _local_jobs[job_id] = data
+
+def job_get(job_id: str):
+    r = get_redis()
+    if r is not None:
+        try:
+            val = r.get(f'glymr:job:{job_id}')
+            if val is not None:
+                return json.loads(val)
+        except Exception:
+            pass
+    with _local_jobs_lock:
+        return _local_jobs.get(job_id)
 
 @app.errorhandler(413)
 def request_entity_too_large(e):
@@ -3613,12 +3646,13 @@ def _fetch_og_thumbnail(url):
 @login_required
 @rate_limited
 def api_market_research():
-    import time as _time
-    _t0 = _time.monotonic()
-
-    def _elapsed():
-        return f'{(_time.monotonic() - _t0)*1000:.0f}ms'
-
+    """Validate the upload, then hand off to a background thread and return
+    a job_id immediately. The Gemini call (with Google Search grounding) can
+    take anywhere from 10s to ~2min — running it synchronously either leaves
+    the browser waiting with no feedback or risks outliving the worker
+    timeout. The frontend polls /api/market-research/status/<job_id> and
+    renders whatever real stage the background job reports.
+    """
     category = request.form.get('category', 'Jewellery')
     keyword  = request.form.get('keyword', '').strip() or None
     image    = request.files.get('image')
@@ -3628,36 +3662,76 @@ def api_market_research():
              f'image_content_type={getattr(image, "content_type", None)!r}')
 
     if not image:
-        log.warning(f'[market-research] ABORT — no image in request | {_elapsed()}')
         return jsonify({'success': False, 'error': 'No image provided'}), 400
 
-    log.info(f'[market-research] getting Gemini client | {_elapsed()}')
     client, err = get_gemini_client()
     if err:
-        log.error(f'[market-research] Gemini client error: {err} | {_elapsed()}')
         return jsonify({'success': False, 'error': err}), 500
-    log.info(f'[market-research] Gemini client OK | {_elapsed()}')
+
+    img_bytes = image.read()
+    if not img_bytes:
+        return jsonify({'success': False, 'error': 'Uploaded image is empty'}), 400
+
+    # Redis cache key: SHA1 of image bytes + category + keyword
+    cache_key = 'glymr:market:' + hashlib.sha1(
+        img_bytes + category.encode() + (keyword or '').encode()
+    ).hexdigest()
+
+    job_id = uuid.uuid4().hex
+    cached = cache_get(cache_key)
+    if cached:
+        log.info(f'[market-research] cache HIT | key={cache_key[:20]}… | job={job_id}')
+        job_set(job_id, {
+            'status': 'done', 'stage': 'done', 'message': 'Loaded from cache',
+            'pct': 100, 'started_at': time.time(), 'result': cached,
+        })
+        return jsonify({'success': True, 'job_id': job_id})
+
+    job_set(job_id, {
+        'status': 'running', 'stage': 'queued',
+        'message': 'Starting…', 'pct': 2, 'started_at': time.time(),
+    })
+
+    threading.Thread(
+        target=_run_market_research_job,
+        args=(job_id, client, img_bytes, category, keyword, cache_key),
+        daemon=True,
+    ).start()
+
+    return jsonify({'success': True, 'job_id': job_id})
+
+
+@app.route('/api/market-research/status/<job_id>', methods=['GET'])
+@login_required
+def api_market_research_status(job_id):
+    job = job_get(job_id)
+    if job is None:
+        return jsonify({'status': 'error', 'message': 'Unknown or expired job — please retry.'}), 404
+    return jsonify(job)
+
+
+def _run_market_research_job(job_id, client, img_bytes, category, keyword, cache_key):
+    """Background worker for market research. Runs off the request thread —
+    writes real progress checkpoints to the job store as it actually hits
+    them (which model/attempt is in flight, retries, parsing, live per-item
+    enrichment count), so polling clients see genuine state, not a guess."""
+    _t0 = time.monotonic()
+    _started_at = time.time()
+
+    def _elapsed():
+        return f'{(time.monotonic() - _t0)*1000:.0f}ms'
+
+    def _progress(stage, message, pct, **extra):
+        payload = {'status': 'running', 'stage': stage, 'message': message,
+                   'pct': pct, 'started_at': _started_at}
+        payload.update(extra)
+        job_set(job_id, payload)
+
+    def _fail(message):
+        job_set(job_id, {'status': 'error', 'stage': 'error', 'message': message,
+                          'pct': 0, 'started_at': _started_at})
 
     try:
-        img_bytes = image.read()
-        img_size  = len(img_bytes)
-        log.info(f'[market-research] image read | size={img_size} bytes ({img_size/1024:.1f} KB) | {_elapsed()}')
-
-        if img_size == 0:
-            log.error(f'[market-research] ABORT — image is 0 bytes | {_elapsed()}')
-            return jsonify({'success': False, 'error': 'Uploaded image is empty'}), 400
-
-        # Redis cache key: SHA1 of image bytes + category + keyword
-        cache_key = 'glymr:market:' + hashlib.sha1(
-            img_bytes + category.encode() + (keyword or '').encode()
-        ).hexdigest()
-        log.info(f'[market-research] checking cache | key={cache_key[:20]}… | {_elapsed()}')
-        cached = cache_get(cache_key)
-        if cached:
-            log.info(f'[market-research] cache HIT | key={cache_key[:20]}… | {_elapsed()}')
-            return jsonify(cached)
-        log.info(f'[market-research] cache MISS — proceeding to Gemini | {_elapsed()}')
-
         filter_note = f'Focus results specifically on listings matching: "{keyword}".' if keyword else ''
 
         prompt = f"""You are a jewellery market research expert for Indian sellers.
@@ -3677,13 +3751,21 @@ RULES:
 
         # Primary model; gemini-2.5-flash-lite is the economical 2.5+ fallback
         _MARKET_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
-        _GEMINI_CALL_TIMEOUT = 90          # seconds per attempt before we give up
-        _RETRY_DELAYS        = [5, 20]     # backoff between retries on same model
+        _GEMINI_CALL_TIMEOUT = 45          # seconds per attempt before we give up
+        _RETRY_DELAYS        = [5, 15]     # backoff between retries on same model
+        # Hard ceiling on the whole Gemini phase (all models/attempts combined).
+        # Gunicorn's worker --timeout is 300s; without this budget, worst-case
+        # retries (2 models x 3 attempts x up to _GEMINI_CALL_TIMEOUT + backoff)
+        # could run ~590s, well past the worker timeout. Now that this runs in
+        # a background thread the worker itself can't be killed by it, but we
+        # still want a bounded, honest failure instead of an endless job.
+        _TOTAL_BUDGET = 130                # seconds, across all models/attempts
 
-        log.info(f'[market-research] sending request to Gemini (models={_MARKET_MODELS}, google_search) | {_elapsed()}')
-        _t_gemini = _time.monotonic()
+        log.info(f'[market-research] sending request to Gemini (models={_MARKET_MODELS}, google_search) | job={job_id} {_elapsed()}')
+        _t_gemini = time.monotonic()
+        _progress('contacting_ai', f'Analysing image & searching with {_MARKET_MODELS[0]}…', 10)
 
-        def _call_gemini(model_name):
+        def _call_gemini(model_name, call_timeout):
             """Run a single generate_content call, wrapped in a future for hard timeout."""
             from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FutTimeout
             _cfg = types.GenerateContentConfig(
@@ -3695,38 +3777,55 @@ RULES:
                 _fut = _ex.submit(client.models.generate_content,
                                   model=model_name, contents=_contents, config=_cfg)
                 try:
-                    return _fut.result(timeout=_GEMINI_CALL_TIMEOUT)
+                    return _fut.result(timeout=call_timeout)
                 except _FutTimeout:
-                    raise TimeoutError(f'Gemini call to {model_name} timed out after {_GEMINI_CALL_TIMEOUT}s')
+                    raise TimeoutError(f'Gemini call to {model_name} timed out after {call_timeout:.0f}s')
 
         response = None
         last_err  = None
+        _budget_exhausted = False
         for _model in _MARKET_MODELS:
-            # Each model gets up to len(_RETRY_DELAYS)+1 attempts on transient 503s
+            if _budget_exhausted:
+                break
+            # Each model gets up to len(_RETRY_DELAYS)+1 attempts on transient 503s,
+            # but never spends more than the remaining total budget doing so.
             for _attempt in range(len(_RETRY_DELAYS) + 1):
+                _remaining = _TOTAL_BUDGET - (time.monotonic() - _t_gemini)
+                if _remaining <= 5:
+                    log.warning(f'[market-research] total budget ({_TOTAL_BUDGET}s) exhausted — '
+                                f'stopping retries | job={job_id} {_elapsed()}')
+                    last_err = last_err or TimeoutError('Total retry budget exhausted')
+                    _budget_exhausted = True
+                    break
+                _call_timeout = min(_GEMINI_CALL_TIMEOUT, _remaining)
                 try:
-                    log.info(f'[market-research] attempt model={_model} try={_attempt+1} | {_elapsed()}')
-                    response = _call_gemini(_model)
+                    log.info(f'[market-research] attempt model={_model} try={_attempt+1} '
+                             f'timeout={_call_timeout:.0f}s | job={job_id} {_elapsed()}')
+                    _progress('contacting_ai', f'Searching with {_model} (attempt {_attempt+1})…',
+                               10 + min(45, int((time.monotonic() - _t_gemini) / _TOTAL_BUDGET * 45)))
+                    response = _call_gemini(_model, _call_timeout)
                     last_err = None
                     break   # success — exit retry loop
                 except TimeoutError as _te:
-                    gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
+                    gemini_elapsed = f'{(time.monotonic() - _t_gemini)*1000:.0f}ms'
                     log.warning(f'[market-research] timeout on {_model} try={_attempt+1} after {gemini_elapsed} | {_te}')
                     last_err = _te
                     break   # timeouts don't benefit from immediate retry — try next model
                 except _GeminiServerError as _se:
-                    gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
+                    gemini_elapsed = f'{(time.monotonic() - _t_gemini)*1000:.0f}ms'
                     log.warning(f'[market-research] ServerError {_se.code} on {_model} try={_attempt+1} '
                                 f'after {gemini_elapsed} | {_se}')
                     last_err = _se
-                    if _se.code == 503 and _attempt < len(_RETRY_DELAYS):
-                        _sleep = _RETRY_DELAYS[_attempt]
+                    _remaining = _TOTAL_BUDGET - (time.monotonic() - _t_gemini)
+                    if _se.code == 503 and _attempt < len(_RETRY_DELAYS) and _remaining > 10:
+                        _sleep = min(_RETRY_DELAYS[_attempt], _remaining - 5)
                         log.info(f'[market-research] sleeping {_sleep}s before retry')
-                        _time.sleep(_sleep)
+                        _progress('retrying', f'{_model} is busy — retrying in {_sleep:.0f}s…', 15)
+                        time.sleep(_sleep)
                     else:
-                        break   # non-503 or retries exhausted — try next model
+                        break   # non-503, retries exhausted, or no budget left — try next model
                 except Exception as _ge:
-                    gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
+                    gemini_elapsed = f'{(time.monotonic() - _t_gemini)*1000:.0f}ms'
                     log.error(f'[market-research] unexpected error on {_model} try={_attempt+1} '
                               f'after {gemini_elapsed} | {type(_ge).__name__}: {_ge}', exc_info=True)
                     last_err = _ge
@@ -3735,47 +3834,51 @@ RULES:
                 break   # got a response — skip remaining models
 
         if response is None:
-            gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
-            log.error(f'[market-research] all models/retries exhausted after {gemini_elapsed} | last_err={last_err}')
+            gemini_elapsed = f'{(time.monotonic() - _t_gemini)*1000:.0f}ms'
+            log.error(f'[market-research] all models/retries exhausted after {gemini_elapsed} | job={job_id} last_err={last_err}')
             # Distinguish busy (503 / timeout) from genuine errors
             _is_busy = isinstance(last_err, (TimeoutError,)) or (
                 isinstance(last_err, _GeminiServerError) and last_err.code == 503)
-            if _is_busy:
-                return jsonify({
-                    'success': False,
-                    'error': 'The AI service is temporarily busy. Please wait a moment and try again.'
-                }), 503
-            raise last_err
+            _fail('The AI service is temporarily busy. Please wait a moment and try again.'
+                  if _is_busy else f'{type(last_err).__name__}: {last_err}')
+            return
 
-        gemini_elapsed = f'{(_time.monotonic() - _t_gemini)*1000:.0f}ms'
+        gemini_elapsed = f'{(time.monotonic() - _t_gemini)*1000:.0f}ms'
         raw_text = response.text or ''
         log.info(f'[market-research] Gemini responded in {gemini_elapsed} | '
-                 f'raw_len={len(raw_text)} chars | total={_elapsed()}')
+                 f'raw_len={len(raw_text)} chars | job={job_id} total={_elapsed()}')
         log.debug(f'[market-research] Gemini raw (first 500 chars): {raw_text[:500]!r}')
+        _progress('parsing', 'Reading results…', 60)
 
         raw = raw_text.strip().replace('```json', '').replace('```', '').strip()
         match = re.search(r'\{[\s\S]*\}', raw)
         if not match:
             log.error(f'[market-research] JSON parse FAILED — no JSON object in response | '
-                      f'raw (first 300): {raw[:300]!r} | {_elapsed()}')
-            return jsonify({'success': False, 'error': 'No JSON returned. Raw: ' + raw[:200]}), 500
+                      f'job={job_id} raw (first 300): {raw[:300]!r} | {_elapsed()}')
+            _fail('No JSON returned by the model. Raw: ' + raw[:200])
+            return
 
         try:
             parsed = json.loads(match.group(0))
         except json.JSONDecodeError as je:
-            log.error(f'[market-research] JSON decode error: {je} | '
+            log.error(f'[market-research] JSON decode error: {je} | job={job_id} '
                       f'matched text (first 300): {match.group(0)[:300]!r} | {_elapsed()}')
-            return jsonify({'success': False, 'error': f'Malformed JSON from model: {je}'}), 500
+            _fail(f'Malformed JSON from model: {je}')
+            return
 
         listings = parsed.get('listings', [])
         log.info(f'[market-research] parsed OK | listings={len(listings)} '
-                 f'keywords={len(parsed.get("keywords", []))} | {_elapsed()}')
+                 f'keywords={len(parsed.get("keywords", []))} | job={job_id} {_elapsed()}')
 
         if not listings:
-            log.warning(f'[market-research] model returned 0 listings | summary={parsed.get("summary","")[:120]!r} | {_elapsed()}')
+            log.warning(f'[market-research] model returned 0 listings | job={job_id} summary={parsed.get("summary","")[:120]!r} | {_elapsed()}')
 
-        _t_enrich = _time.monotonic()
+        _t_enrich = time.monotonic()
+        total = len(listings) or 1
         enriched = [None] * len(listings)
+        _progress('enriching', f'Fetching prices & thumbnails for {len(listings)} listings…', 65,
+                   enrich_done=0, enrich_total=len(listings))
+
         with ThreadPoolExecutor(max_workers=10) as pool:
             def enrich(item):
                 p = _normalize_price_to_inr(item.get('price'))
@@ -3783,11 +3886,17 @@ RULES:
                 return {'title': item.get('title',''), 'url': item.get('url',''),
                         'source': item.get('source',''), 'price': p, 'thumbnail': thumb}
             futures = {pool.submit(enrich, item): i for i, item in enumerate(listings)}
+            done_count = 0
             try:
                 for future in as_completed(futures, timeout=8):
                     enriched[futures[future]] = future.result(timeout=3)
+                    done_count += 1
+                    _progress('enriching',
+                               f'Fetching prices & thumbnails… ({done_count}/{len(listings)})',
+                               65 + int(done_count / total * 30),
+                               enrich_done=done_count, enrich_total=len(listings))
             except Exception as enrich_err:
-                log.warning(f'[market-research] enrichment timeout/error: {enrich_err} — filling nulls | {_elapsed()}')
+                log.warning(f'[market-research] enrichment timeout/error: {enrich_err} — filling nulls | job={job_id} {_elapsed()}')
                 for future, idx in futures.items():
                     if enriched[idx] is None:
                         enriched[idx] = {
@@ -3799,11 +3908,11 @@ RULES:
                         }
 
         enriched = [e for e in enriched if e]
-        enrich_elapsed = f'{(_time.monotonic() - _t_enrich)*1000:.0f}ms'
+        enrich_elapsed = f'{(time.monotonic() - _t_enrich)*1000:.0f}ms'
         thumb_ok  = sum(1 for e in enriched if e.get('thumbnail'))
         thumb_nil = len(enriched) - thumb_ok
         log.info(f'[market-research] enrichment done in {enrich_elapsed} | '
-                 f'enriched={len(enriched)} thumb_ok={thumb_ok} thumb_nil={thumb_nil} | total={_elapsed()}')
+                 f'enriched={len(enriched)} thumb_ok={thumb_ok} thumb_nil={thumb_nil} | job={job_id} total={_elapsed()}')
 
         result = {
             'success': True,
@@ -3814,12 +3923,13 @@ RULES:
             'price_range': parsed.get('price_range'),
         }
         cache_set(cache_key, result, ttl=3600)  # cache for 1 hour
-        log.info(f'[market-research] DONE — returning {len(enriched)} listings | total={_elapsed()}')
-        return jsonify(result)
+        log.info(f'[market-research] DONE — returning {len(enriched)} listings | job={job_id} total={_elapsed()}')
+        job_set(job_id, {'status': 'done', 'stage': 'done', 'message': 'Done',
+                          'pct': 100, 'started_at': _started_at, 'result': result})
 
     except Exception as e:
-        log.error(f'[market-research] UNHANDLED exception after {_elapsed()}: {e}', exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        log.error(f'[market-research] UNHANDLED exception after {_elapsed()}: {e} | job={job_id}', exc_info=True)
+        _fail(str(e))
 
 
 # ── API: Google Trends ─────────────────────────────────────────────────────────
