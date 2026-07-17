@@ -1431,10 +1431,10 @@ async function pollCADStatus(taskId) {
   pollingTimer = setInterval(async () => {
     if (!polling) return;
     attempts++;
-    if (attempts > 90) {
+    if (attempts > 240) {
       polling = false;
       clearInterval(pollingTimer); pollingTimer = null;
-      showCADError('Timed out. Please try again.');
+      showCADError('Timed out after 8 minutes. Please try again.');
       resetBtn(); return;
     }
     try {
