@@ -3622,25 +3622,52 @@ def _normalize_price_to_inr(price_str):
     if m: return f'₹{int(float(m.group(1).replace(",",""))*90):,} (~€{m.group(1)})'
     return price_str
 
-def _fetch_og_thumbnail(url):
-    if not url: return None
+def _verify_listing_url(url):
+    """GET the listing URL once to confirm it actually resolves, and
+    opportunistically scrape its og:image from the same response.
+
+    Gemini's 'url' field for each listing is free text the model wrote, not
+    something tied to Google Search's actual grounding citations — even with
+    search grounding enabled, the model routinely invents a plausible-looking
+    but nonexistent product URL (a guessed ASIN, a guessed slug) when asked
+    to emit structured JSON. We can't trust it without checking, so every
+    listing URL gets one live fetch before it's ever shown to the user.
+
+    Returns (is_reachable: bool, og_image_url: str | None).
+    """
+    if not url:
+        return False, None
     try:
-        resp = requests.get(url, timeout=(1.0, 1.5),
+        resp = requests.get(url, timeout=(1.5, 2.5),
             headers={'User-Agent': 'Mozilla/5.0 (compatible; AtelierBot/1.0)'},
             allow_redirects=True, stream=True)
-        if resp.status_code != 200: resp.close(); return None
-        chunk = next(resp.iter_content(8192), b'')
+        ok = resp.status_code < 400
+        thumb = None
+        if ok:
+            chunk = next(resp.iter_content(8192), b'')
+            text = chunk.decode('utf-8', errors='ignore')
+            og = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\'>]+)', text, re.IGNORECASE)
+            if not og:
+                og = re.search(r'<meta[^>]+content=["\']([^"\'>]+)["\'][^>]+property=["\']og:image', text, re.IGNORECASE)
+            if og:
+                img_url = og.group(1).strip()
+                if img_url.startswith('//'): img_url = 'https:' + img_url
+                if img_url.startswith('http'): thumb = img_url
         resp.close()
-        text = chunk.decode('utf-8', errors='ignore')
-        og = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\'>]+)', text, re.IGNORECASE)
-        if not og:
-            og = re.search(r'<meta[^>]+content=["\']([^"\'>]+)["\'][^>]+property=["\']og:image', text, re.IGNORECASE)
-        if og:
-            img_url = og.group(1).strip()
-            if img_url.startswith('//'): img_url = 'https:' + img_url
-            if img_url.startswith('http'): return img_url
-    except Exception: pass
-    return None
+        return ok, thumb
+    except Exception:
+        return False, None
+
+def _fallback_search_url(title, source):
+    """A search-results link that will actually resolve, used whenever the
+    model's stated product URL doesn't check out (or has none). Scoped to
+    the claimed marketplace via a `site:` filter so it still points the
+    shopper at the right storefront instead of a dead product page."""
+    from urllib.parse import quote_plus
+    title  = (title or '').strip() or 'jewellery'
+    source = (source or '').strip()
+    q = f'site:{source} {title}' if source and '.' in source and ' ' not in source else title
+    return f'https://www.google.com/search?tbm=shop&q={quote_plus(q)}'
 
 @app.route('/api/market-research', methods=['POST'])
 @login_required
@@ -3881,10 +3908,20 @@ RULES:
 
         with ThreadPoolExecutor(max_workers=10) as pool:
             def enrich(item):
-                p = _normalize_price_to_inr(item.get('price'))
-                thumb = item.get('thumbnail') or (item.get('url') and _fetch_og_thumbnail(item['url']))
-                return {'title': item.get('title',''), 'url': item.get('url',''),
-                        'source': item.get('source',''), 'price': p, 'thumbnail': thumb}
+                title  = item.get('title', '')
+                source = item.get('source', '')
+                claimed_url = item.get('url', '')
+                # Verify the model's claimed URL actually resolves before we
+                # ever show it — see _verify_listing_url for why this can't
+                # be trusted as-is. Swap in a working search link if not.
+                ok, scraped_thumb = _verify_listing_url(claimed_url)
+                final_url = claimed_url if ok else _fallback_search_url(title, source)
+                # Only trust a thumbnail (scraped or model-claimed) when we
+                # know the page it came from is real.
+                thumb = scraped_thumb or (item.get('thumbnail') if ok else None)
+                return {'title': title, 'url': final_url, 'source': source,
+                        'price': _normalize_price_to_inr(item.get('price')),
+                        'thumbnail': thumb, 'verified': ok}
             futures = {pool.submit(enrich, item): i for i, item in enumerate(listings)}
             done_count = 0
             try:
@@ -3896,23 +3933,27 @@ RULES:
                                65 + int(done_count / total * 30),
                                enrich_done=done_count, enrich_total=len(listings))
             except Exception as enrich_err:
-                log.warning(f'[market-research] enrichment timeout/error: {enrich_err} — filling nulls | job={job_id} {_elapsed()}')
+                log.warning(f'[market-research] enrichment timeout/error: {enrich_err} — filling unverified | job={job_id} {_elapsed()}')
                 for future, idx in futures.items():
                     if enriched[idx] is None:
+                        # Verification never finished in time — we can't vouch
+                        # for the model's URL, so route through the fallback
+                        # rather than risk showing an unchecked/dead link.
                         enriched[idx] = {
                             'title': listings[idx].get('title',''),
-                            'url': listings[idx].get('url',''),
+                            'url': _fallback_search_url(listings[idx].get('title',''), listings[idx].get('source','')),
                             'source': listings[idx].get('source',''),
                             'price': _normalize_price_to_inr(listings[idx].get('price')),
                             'thumbnail': None,
+                            'verified': False,
                         }
 
         enriched = [e for e in enriched if e]
         enrich_elapsed = f'{(time.monotonic() - _t_enrich)*1000:.0f}ms'
-        thumb_ok  = sum(1 for e in enriched if e.get('thumbnail'))
-        thumb_nil = len(enriched) - thumb_ok
+        verified_ok  = sum(1 for e in enriched if e.get('verified'))
+        thumb_ok     = sum(1 for e in enriched if e.get('thumbnail'))
         log.info(f'[market-research] enrichment done in {enrich_elapsed} | '
-                 f'enriched={len(enriched)} thumb_ok={thumb_ok} thumb_nil={thumb_nil} | job={job_id} total={_elapsed()}')
+                 f'enriched={len(enriched)} verified={verified_ok}/{len(enriched)} thumb_ok={thumb_ok} | job={job_id} total={_elapsed()}')
 
         result = {
             'success': True,

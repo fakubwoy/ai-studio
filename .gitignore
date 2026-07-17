@@ -1,3 +1,4 @@
 .env
 outputs
 uploads
+__pycache__
