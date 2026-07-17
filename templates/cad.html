@@ -1641,8 +1641,7 @@ function showCADResult(data, _silent) {
           </svg>
           IGES
         </button>
-        <button class="btn btn-gold btn-sm" id="saveModelBtn" style="align-self:flex-start"
-          onclick="saveModelToGallery(${JSON.stringify(glbUrl)},${JSON.stringify(thumb)},${JSON.stringify(urls)})">
+        <button class="btn btn-gold btn-sm" id="saveModelBtn" style="align-self:flex-start">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
           </svg>
@@ -1651,6 +1650,14 @@ function showCADResult(data, _silent) {
         </div>
       </div>
     </div>`;
+
+  // Wired as a real listener (not an inline onclick) because glbUrl/urls are
+  // signed Meshy URLs full of '&', '=' and sometimes '"'-adjacent encoding —
+  // JSON.stringify()-ing them straight into an HTML attribute breaks the
+  // attribute at the first quote, truncating the handler into invalid JS
+  // (an Uncaught SyntaxError on click, button doing nothing).
+  const saveModelBtn = document.getElementById('saveModelBtn');
+  if (saveModelBtn) saveModelBtn.onclick = () => saveModelToGallery(glbUrl, thumb, urls);
 
   document.getElementById('cadHeaderActions').style.display = 'flex';
   if (!_silent) showToast('3D model ready!', 'success');
