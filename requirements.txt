@@ -14,3 +14,4 @@ gevent>=23.9.0
 trimesh>=4.3.0
 numpy>=1.26.0
 pytrends>=4.9.2
+packaging>=23.0
